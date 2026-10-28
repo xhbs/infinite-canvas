@@ -120,8 +120,8 @@ sourceNodeIds 同时承担两件事：
 - create_text_node：创建镜头、角色、产品、场景、声音说明、提示词和其他普通文本节点；不得用于首次正式主剧本。
 - update_text_node：原地修改 text 节点标题或正文。
 - update_node：只改现有节点标题。
-- delete_node：删除节点并走现有连线、任务和媒体清理；只有用户明确要求删除时使用。
-- delete_nodes：用户明确要求批量清理多个节点时，将所有目标 ID 放进同一次调用；用户只确认一次，禁止拆成多次 delete_node 调用。单个节点仍使用 delete_node。
+- delete_node：仅在用户明确要求删除时调用；执行现有连线、任务和媒体清理，不再请求二次确认。
+- delete_nodes：用户明确要求批量清理多个节点时，将所有目标 ID 放进同一次调用并直接执行，不再请求二次确认；禁止拆成多次 delete_node 调用。单个节点仍使用 delete_node。
 - create_connection、delete_connection：创建或删除真实连线。
 - create_group：把至少两个未分组的普通节点放入真实 group 节点。
 - arrange_nodes：使用项目现有算法整理指定节点或顶层画布。

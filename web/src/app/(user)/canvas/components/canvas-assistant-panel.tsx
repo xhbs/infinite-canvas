@@ -103,11 +103,6 @@ type CanvasAssistantPanelProps = {
     onInitialRequestConsumed?: () => void;
 };
 
-type PendingDeleteConfirmation = {
-    titles: string[];
-    resolve: (confirmed: boolean) => void;
-};
-
 type PanelCardAction = { label: string; onClick: () => void | Promise<void>; danger?: boolean };
 type CodexConfirmation = { id: string; title: string; content: ReactNode; actions: PanelCardAction[] };
 
@@ -142,7 +137,6 @@ export function CanvasAssistantPanel({
     const mode = agentConfig.mode || "api";
     const abortRef = useRef<AbortController | null>(null);
     const consumedInitialRequestRef = useRef<typeof initialRequest>(null);
-    const pendingDeleteRef = useRef<PendingDeleteConfirmation | null>(null);
     const messageListRef = useRef<HTMLDivElement>(null);
     const consumedReferenceNodeClickVersionRef = useRef(0);
     const [view, setView] = useState<"chat" | "history" | "connect">("chat");
@@ -156,7 +150,6 @@ export function CanvasAssistantPanel({
     const [composerReferenceIds, setComposerReferenceIds] = useState<string[]>([]);
     const [selectedSkills, setSelectedSkills] = useState<CanvasAgentSkillSelection[]>([]);
     const [removedReferenceIds, setRemovedReferenceIds] = useState<Set<string>>(new Set());
-    const [pendingDelete, setPendingDelete] = useState<PendingDeleteConfirmation | null>(null);
     const [codexConfirmations, setCodexConfirmations] = useState<CodexConfirmation[]>([]);
     const [initialSession] = useState(() => createSession(mode));
     const lastSessionIds = useRef<Partial<Record<"api" | "codex", string>>>({});
@@ -175,8 +168,6 @@ export function CanvasAssistantPanel({
 
     useEffect(() => () => {
         abortRef.current?.abort();
-        pendingDeleteRef.current?.resolve(false);
-        pendingDeleteRef.current = null;
     }, []);
 
     const activeSession = visibleSessions.find((session) => session.id === resolvedActiveSessionId) || visibleSessions[0] || null;
@@ -202,14 +193,6 @@ export function CanvasAssistantPanel({
         );
     }, [composerReferenceIds, referenceNodeClick, removedReferenceIds, resourceReferences, selectedNodeIds]);
     const iconButtonStyle = { color: theme.node.muted };
-    const settleDeleteConfirmation = (confirmed: boolean) => {
-        const pending = pendingDeleteRef.current;
-        if (!pending) return;
-        pendingDeleteRef.current = null;
-        setPendingDelete(null);
-        pending.resolve(confirmed);
-    };
-
     useEffect(() => {
         setRemovedReferenceIds(new Set());
     }, [selectedNodeKey]);
@@ -287,7 +270,7 @@ export function CanvasAssistantPanel({
         setSelectedSkills((current) => current.filter((skill) => skill.id !== id || skill.source !== source));
     };
 
-    const executeCanvasTool = async (action: CanvasAgentAction, messageReferenceNodeIds: string[], activeSkills: CanvasAgentSkillSelection[], provider: "api" | "codex", signal: AbortSignal): Promise<CanvasAgentToolResult> => {
+    const executeCanvasTool = async (action: CanvasAgentAction, messageReferenceNodeIds: string[], activeSkills: CanvasAgentSkillSelection[], signal: AbortSignal): Promise<CanvasAgentToolResult> => {
         signal.throwIfAborted();
         if (action.name === "read_skill_file") {
             const skillId = typeof action.arguments.skillId === "string" ? action.arguments.skillId : "";
@@ -301,34 +284,8 @@ export function CanvasAssistantPanel({
                 return { ok: false, code: "skill_file_not_found", message: error instanceof Error ? error.message : "Skill 文件读取失败" };
             }
         }
-        if (action.name !== "delete_node" && action.name !== "delete_nodes") return onExecuteAction(action, messageReferenceNodeIds);
-        const nodeIds = action.name === "delete_node"
-            ? [typeof action.arguments.nodeId === "string" ? action.arguments.nodeId : ""]
-            : Array.isArray(action.arguments.nodeIds) ? action.arguments.nodeIds.filter((id): id is string => typeof id === "string") : [];
-        const titles = nodeIds.map((id) => nodes.find((item) => item.id === id)?.title || "未命名节点");
-        const deleteAction = action.name === "delete_node" && nodeIds.length === 1
-            ? action
-            : { ...action, name: "delete_nodes" as const, arguments: { nodeIds } };
-        let confirmed: boolean;
-        if (provider === "codex") {
-            confirmed = await confirmCodex(
-                titles.length > 1 ? `删除这 ${titles.length} 个节点？` : `删除「${titles[0] || "未命名节点"}」？`,
-                <div className="text-xs opacity-55"><div className="mb-2 max-h-28 overflow-y-auto">{titles.map((title, index) => <div key={`${index}-${title}`}>· {title}</div>)}</div>相关连线和任务记录将按现有逻辑清理</div>,
-                signal, "确认删除", "取消", true,
-            );
-        } else {
-            const cancel = () => settleDeleteConfirmation(false);
-            signal.addEventListener("abort", cancel, { once: true });
-            confirmed = await new Promise<boolean>((resolve) => {
-                pendingDeleteRef.current?.resolve(false);
-                const pending = { titles, resolve };
-                pendingDeleteRef.current = pending;
-                setPendingDelete(pending);
-            });
-            signal.removeEventListener("abort", cancel);
-        }
         signal.throwIfAborted();
-        return confirmed ? onExecuteAction(deleteAction, messageReferenceNodeIds) : { ok: false, code: "delete_cancelled", message: "用户取消删除，原节点已保留" };
+        return onExecuteAction(action, messageReferenceNodeIds);
     };
 
     const confirmCodex = (title: string, content: ReactNode, signal: AbortSignal, okText = "允许一次", cancelText = "拒绝", danger = false) => new Promise<boolean>((resolve) => {
@@ -344,7 +301,7 @@ export function CanvasAssistantPanel({
         onBootstrap: () => { if (mode === "api") switchMode(); else setView("chat"); },
         executeTool: async (action, signal) => {
             if (action.name === "arrange_nodes" && !(await confirmCodex("允许 Codex 整理画布？", <pre className="whitespace-pre-wrap break-words text-xs">{JSON.stringify(action.arguments, null, 2)}</pre>, signal))) return { ok: false, code: "action_not_requested", message: "未允许整理画布" };
-            return executeCanvasTool(action, [], [], "codex", signal);
+            return executeCanvasTool(action, [], [], signal);
         },
         onApproval: async ({ method, params }, signal) => {
             if (method === "mcpServer/elicitation/request") {
@@ -499,7 +456,7 @@ export function CanvasAssistantPanel({
                 contextCheckpoint: session.contextCheckpoint,
                 preferredJsonMode: session.jsonToolFallbackKey === jsonToolFallbackKey ? session.jsonToolFallbackMode || "structured-json" : undefined,
                 getContext: getAgentContext,
-                executeAction: (action, signal = controller.signal) => executeCanvasTool(action, messageReferenceNodeIds, activeSkills, mode, signal),
+                executeAction: (action, signal = controller.signal) => executeCanvasTool(action, messageReferenceNodeIds, activeSkills, signal),
                 signal: controller.signal,
                 onEvent: (event) => updateMessage(session.id, assistantId, { status: event.status, activity: event.label }),
                 onCheckpoint: (checkpoint) =>
@@ -670,13 +627,9 @@ export function CanvasAssistantPanel({
                     )}
                 </div>
 
-                {(mode === "api" ? pendingDelete : codexConfirmations.length) ? (
+                {mode === "codex" && codexConfirmations.length ? (
                     <div className="thin-scrollbar max-h-[50%] shrink-0 space-y-2 overflow-y-auto pb-2">
-                        {mode === "api" && pendingDelete ? <AssistantPanelCard title={pendingDelete.titles.length > 1 ? `删除这 ${pendingDelete.titles.length} 个节点？` : `删除「${pendingDelete.titles[0] || "未命名节点"}」？`} actions={[
-                            { label: "取消", onClick: () => settleDeleteConfirmation(false) },
-                            { label: "确认删除", danger: true, onClick: () => settleDeleteConfirmation(true) },
-                        ]}><div className="text-xs opacity-55"><div className="mb-2 max-h-28 overflow-y-auto">{pendingDelete.titles.map((title, index) => <div key={`${index}-${title}`}>· {title}</div>)}</div>相关连线和任务记录将按现有逻辑清理</div></AssistantPanelCard> : null}
-                        {mode === "codex" ? codexConfirmations.map((confirmation) => <AssistantPanelCard key={confirmation.id} title={confirmation.title} actions={confirmation.actions}>{confirmation.content}</AssistantPanelCard>) : null}
+                        {codexConfirmations.map((confirmation) => <AssistantPanelCard key={confirmation.id} title={confirmation.title} actions={confirmation.actions}>{confirmation.content}</AssistantPanelCard>)}
                     </div>
                 ) : null}
                 {view === "chat" && !showCodexConnection ? (

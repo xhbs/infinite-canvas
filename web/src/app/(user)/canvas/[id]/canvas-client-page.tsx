@@ -876,6 +876,13 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         };
     }, []);
 
+    const focusCanvasPosition = useCallback((position: Position) => {
+        const current = viewportRef.current;
+        const next = { ...current, x: size.width / 2 - position.x * current.k, y: size.height / 2 - position.y * current.k };
+        viewportRef.current = next;
+        setViewport(next);
+    }, [size.height, size.width]);
+
     const getCanvasCenter = useCallback(() => {
         const rect = containerRef.current?.getBoundingClientRect();
         return screenToCanvas((rect?.left || 0) + (rect?.width || size.width) / 2 + Math.random() * 360 - 180, (rect?.top || 0) + (rect?.height || size.height) / 2 + Math.random() * 240 - 120);
@@ -931,6 +938,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 message.warning("配置节点之间不能连接");
                 return;
             }
+            focusCanvasPosition(pending.position);
             setNodes((prev) => [...prev, newNode]);
             setConnections((prev) => [...prev, { id: nanoid(), ...connection }]);
             setSelectedNodeIds(new Set([newNode.id]));
@@ -939,7 +947,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             setPendingConnectionCreate(null);
             setConnecting(null);
         },
-        [effectiveConfig.audioWorkflowRef, effectiveConfig.canvasImageCount, effectiveConfig.count, effectiveConfig.imageModel, effectiveConfig.imageWorkflowRef, effectiveConfig.model, effectiveConfig.size, effectiveConfig.videoWorkflowRef, message, setConnecting],
+        [effectiveConfig.audioWorkflowRef, effectiveConfig.canvasImageCount, effectiveConfig.count, effectiveConfig.imageModel, effectiveConfig.imageWorkflowRef, effectiveConfig.model, effectiveConfig.size, effectiveConfig.videoWorkflowRef, focusCanvasPosition, message, setConnecting],
     );
 
     const cancelPendingConnectionCreate = useCallback(() => {
@@ -1214,12 +1222,13 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 nodeId,
             );
             if (type === CanvasNodeType.Text && textContent !== undefined) newNode.title = textContent.slice(0, 32) || "Assistant Text";
+            focusCanvasPosition(targetPosition);
             setNodes((prev) => [...prev, newNode]);
             setSelectedNodeIds(new Set([newNode.id]));
             setSelectedConnectionId(null);
             if (type !== CanvasNodeType.Text && type !== CanvasNodeType.Audio && type !== CanvasNodeType.Director) setDialogNodeId(newNode.id);
         },
-        [effectiveConfig.audioWorkflowRef, effectiveConfig.canvasImageCount, effectiveConfig.count, effectiveConfig.imageModel, effectiveConfig.imageWorkflowRef, effectiveConfig.model, effectiveConfig.size, effectiveConfig.videoWorkflowRef, getCanvasCenter],
+        [effectiveConfig.audioWorkflowRef, effectiveConfig.canvasImageCount, effectiveConfig.count, effectiveConfig.imageModel, effectiveConfig.imageWorkflowRef, effectiveConfig.model, effectiveConfig.size, effectiveConfig.videoWorkflowRef, focusCanvasPosition, getCanvasCenter],
     );
 
     const deleteNodes = useCallback(
@@ -1863,11 +1872,12 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             height: size.height,
             metadata: isPanorama ? { ...imageMetadata(image), size: PANORAMA_IMAGE_SIZE, panoramaProjection: "equirectangular" } : imageMetadata(image),
         };
+        focusCanvasPosition(position);
         setNodes((prev) => [...prev, newNode]);
         setSelectedNodeIds(new Set([id]));
         setSelectedConnectionId(null);
         setDialogNodeId(id);
-    }, []);
+    }, [focusCanvasPosition]);
 
     const createImageFileNode = useCallback(async (file: File, position: Position, choosePanoramaImport = false) => {
         const hideLoading = message.loading("正在上传图片...", 0);
@@ -1897,6 +1907,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             const video = await uploadMediaFile(file, "video");
             const node = buildImportedVideoNode(video, file.name, position);
             setNodes((prev) => [...prev, node]);
+            focusCanvasPosition(position);
             setSelectedNodeIds(new Set([node.id]));
             setSelectedConnectionId(null);
             setDialogNodeId(node.id);
@@ -1906,7 +1917,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         } finally {
             hideLoading();
         }
-    }, [message]);
+    }, [focusCanvasPosition, message]);
 
     const createAudioFileNode = useCallback(async (file: File, position: Position) => {
         const hideLoading = message.loading("正在上传音频...", 0);
@@ -1926,6 +1937,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     metadata: audioMetadata(audio),
                 },
             ]);
+            focusCanvasPosition(position);
             setSelectedNodeIds(new Set([id]));
             setSelectedConnectionId(null);
             return id;
@@ -1935,7 +1947,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         } finally {
             hideLoading();
         }
-    }, [message]);
+    }, [focusCanvasPosition, message]);
 
     const extractingAudioRef = useRef(new Set<string>());
 
@@ -2002,11 +2014,13 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             const trimmed = text.trim();
             if (!trimmed) return false;
 
+            const position = getCanvasCenter();
             const node = {
-                ...createCanvasNode(CanvasNodeType.Text, getCanvasCenter(), { content: trimmed, status: NODE_STATUS_SUCCESS }),
+                ...createCanvasNode(CanvasNodeType.Text, position, { content: trimmed, status: NODE_STATUS_SUCCESS }),
                 title: trimmed.slice(0, 32) || "剪切板文本",
             };
 
+            focusCanvasPosition(position);
             setNodes((prev) => [...prev, node]);
             setSelectedNodeIds(new Set([node.id]));
             setSelectedConnectionId(null);
@@ -2014,7 +2028,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             setDialogNodeId(node.id);
             return true;
         },
-        [getCanvasCenter],
+        [focusCanvasPosition, getCanvasCenter],
     );
 
     const pasteSystemClipboard = useCallback(async () => {
@@ -2353,6 +2367,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     x: director.position.x + director.width + 96 + size.width / 2,
                     y: y + size.height / 2,
                 });
+                focusCanvasPosition({ x: node.position.x + node.width / 2, y: node.position.y + node.height / 2 });
                 setNodes((prev) => [...prev, node]);
                 setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: director.id, toNodeId: node.id }]);
                 setSelectedNodeIds(new Set([node.id]));
@@ -2366,7 +2381,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 hideLoading();
             }
         },
-        [message],
+        [focusCanvasPosition, message],
     );
 
     const downloadNodeImage = useCallback((node: CanvasNodeData) => {
@@ -2959,7 +2974,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         [createAudioFileNode, createImageFileNode, createVideoFileNode, screenToCanvas, size.height, size.width],
     );
 
-    function insertAssetAt(payload: InsertAssetPayload, position?: Position, nodeId?: string) {
+    async function insertAssetAt(payload: InsertAssetPayload, position?: Position, nodeId?: string) {
         const center = position || screenToCanvas((containerRef.current?.getBoundingClientRect().left || 0) + size.width / 2, (containerRef.current?.getBoundingClientRect().top || 0) + size.height / 2);
         if (payload.kind === "text") {
             createNode(CanvasNodeType.Text, position, payload.content, nodeId);
@@ -2969,6 +2984,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             const spec = NODE_DEFAULT_SIZE[CanvasNodeType.Video];
             const id = nodeId || `video-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
             const nextSize = fitNodeSize(payload.width || spec.width, payload.height || spec.height, VIDEO_NODE_MAX_WIDTH, VIDEO_NODE_MAX_HEIGHT);
+            focusCanvasPosition(center);
             setNodes((prev) => [...prev, { id, type: CanvasNodeType.Video, title: payload.title, position: { x: center.x - nextSize.width / 2, y: center.y - nextSize.height / 2 }, width: nextSize.width, height: nextSize.height, metadata: { content: payload.url, storageKey: payload.storageKey, status: NODE_STATUS_SUCCESS, naturalWidth: payload.width, naturalHeight: payload.height } }]);
             setSelectedNodeIds(new Set([id]));
             setSelectedConnectionId(null);
@@ -2977,12 +2993,18 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         if (payload.kind === "audio") {
             const spec = NODE_DEFAULT_SIZE[CanvasNodeType.Audio];
             const id = nodeId || `audio-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+            focusCanvasPosition(center);
             setNodes((prev) => [...prev, { id, type: CanvasNodeType.Audio, title: payload.title, position: { x: center.x - spec.width / 2, y: center.y - spec.height / 2 }, width: spec.width, height: spec.height, metadata: { content: payload.url, storageKey: payload.storageKey, status: NODE_STATUS_SUCCESS, bytes: payload.bytes, mimeType: payload.mimeType || "audio/mpeg", durationMs: payload.durationMs } }]);
             setSelectedNodeIds(new Set([id]));
             setSelectedConnectionId(null);
             return;
         }
-        return insertAssistantImage({ id: nodeId || `asset-${Date.now()}`, prompt: payload.title, dataUrl: payload.dataUrl, storageKey: payload.storageKey, source: payload.source }, position, nodeId);
+        const dataUrl = payload.dataUrl || (payload.storageKey ? await resolveImageUrl(payload.storageKey) : "");
+        if (!dataUrl) {
+            message.error("图片素材无法读取，请重新保存素材后重试");
+            return;
+        }
+        return insertAssistantImage({ id: nodeId || `asset-${Date.now()}`, prompt: payload.title, dataUrl, storageKey: payload.storageKey, source: payload.source }, position, nodeId);
     }
 
     const handleDrop = useCallback(
@@ -3630,6 +3652,9 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 setSelectedConnectionId(null);
             };
             const commitNodes = (nextNodes: CanvasNodeData[]) => {
+                const currentIds = new Set(nodesRef.current.map((node) => node.id));
+                const addedNode = [...nextNodes].reverse().find((node) => !currentIds.has(node.id));
+                if (addedNode) focusCanvasPosition({ x: addedNode.position.x + addedNode.width / 2, y: addedNode.position.y + addedNode.height / 2 });
                 nodesRef.current = nextNodes;
                 setNodes(nextNodes);
             };
@@ -4079,7 +4104,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 return { ok: false, code: "tool_error", message: error instanceof Error ? error.message : "画布工具执行失败" };
             }
         },
-        [agentEffectiveConfig, createGroupFromSelection, currentProject?.title, deleteConnection, deleteNodes, getCanvasCenter, handleGenerateNode, isAiConfigReady, projectId, renameProject, resolvedAgentConfig.autoGenerateImage, resolvedAgentConfig.autoGenerateVideo, resolvedAgentConfig.autoGenerateAudio, updateProject],
+        [agentEffectiveConfig, createGroupFromSelection, currentProject?.title, deleteConnection, deleteNodes, focusCanvasPosition, getCanvasCenter, handleGenerateNode, isAiConfigReady, projectId, renameProject, resolvedAgentConfig.autoGenerateImage, resolvedAgentConfig.autoGenerateVideo, resolvedAgentConfig.autoGenerateAudio, updateProject],
     );
 
     const handleRetryNode = useCallback(
@@ -4288,6 +4313,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 metadata: { ...imageMetadata({ ...storedImage, width: meta.width, height: meta.height }), prompt: image.prompt },
             };
 
+            focusCanvasPosition(center);
             setNodes((prev) => [...prev, node]);
             setSelectedNodeIds(new Set([id]));
             setSelectedConnectionId(null);
