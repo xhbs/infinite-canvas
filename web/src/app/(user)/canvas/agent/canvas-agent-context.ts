@@ -35,7 +35,9 @@ export type CanvasAgentContext = {
     nodes: CanvasAgentContextNode[];
     connections: CanvasConnection[];
     generation: {
-        autoGenerateMedia: boolean;
+        autoGenerateImage: boolean;
+        autoGenerateVideo: boolean;
+        autoGenerateAudio: boolean;
         textModel: string;
         imageModel: string;
         videoModel: string;
@@ -70,7 +72,9 @@ type BuildCanvasAgentContextInput = {
     connections: CanvasConnection[];
     selectedNodeIds: Iterable<string>;
     config: AiConfig;
-    autoGenerateMedia: boolean;
+    autoGenerateImage: boolean;
+    autoGenerateVideo: boolean;
+    autoGenerateAudio: boolean;
     agentState: CanvasAgentState;
 };
 
@@ -116,7 +120,9 @@ export function buildCanvasAgentContext(input: BuildCanvasAgentContextInput): Ca
         nodes: orderedNodes.map(summarizeNode),
         connections: input.connections.filter((connection) => includedIds.has(connection.fromNodeId) && includedIds.has(connection.toNodeId)),
         generation: {
-            autoGenerateMedia: input.autoGenerateMedia,
+            autoGenerateImage: input.autoGenerateImage,
+            autoGenerateVideo: input.autoGenerateVideo,
+            autoGenerateAudio: input.autoGenerateAudio,
             textModel: input.config.textModel || input.config.model,
             imageModel: input.config.imageModel || input.config.model,
             videoModel,

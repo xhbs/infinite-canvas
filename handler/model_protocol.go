@@ -420,6 +420,11 @@ func copyAIProtocolResponse(w http.ResponseWriter, response *http.Response, requ
 }
 
 func transformAIProtocolVideoPayload(payload []byte, request *http.Request, channel model.ModelChannel, modelName string, status bool) []byte {
+	if status && isHongchengVideoChannel(channel) {
+		if result, ok := transformHongchengVideoTaskResponse(payload, modelName); ok {
+			return result
+		}
+	}
 	for _, adapter := range builtinAIProtocols {
 		if adapter.videoResponse != nil {
 			if result, ok := adapter.videoResponse(payload, request, channel, modelName, status); ok {

@@ -104,7 +104,7 @@ type CanvasAssistantPanelProps = {
 };
 
 type PendingDeleteConfirmation = {
-    title: string;
+    titles: string[];
     resolve: (confirmed: boolean) => void;
 };
 
@@ -301,14 +301,19 @@ export function CanvasAssistantPanel({
                 return { ok: false, code: "skill_file_not_found", message: error instanceof Error ? error.message : "Skill 文件读取失败" };
             }
         }
-        if (action.name !== "delete_node") return onExecuteAction(action, messageReferenceNodeIds);
-        const nodeId = typeof action.arguments.nodeId === "string" ? action.arguments.nodeId : "";
-        const node = nodes.find((item) => item.id === nodeId);
+        if (action.name !== "delete_node" && action.name !== "delete_nodes") return onExecuteAction(action, messageReferenceNodeIds);
+        const nodeIds = action.name === "delete_node"
+            ? [typeof action.arguments.nodeId === "string" ? action.arguments.nodeId : ""]
+            : Array.isArray(action.arguments.nodeIds) ? action.arguments.nodeIds.filter((id): id is string => typeof id === "string") : [];
+        const titles = nodeIds.map((id) => nodes.find((item) => item.id === id)?.title || "未命名节点");
+        const deleteAction = action.name === "delete_node" && nodeIds.length === 1
+            ? action
+            : { ...action, name: "delete_nodes" as const, arguments: { nodeIds } };
         let confirmed: boolean;
         if (provider === "codex") {
             confirmed = await confirmCodex(
-                `删除「${node?.title || "未命名节点"}」？`,
-                <div className="text-xs opacity-55">相关连线和任务记录将按现有逻辑清理</div>,
+                titles.length > 1 ? `删除这 ${titles.length} 个节点？` : `删除「${titles[0] || "未命名节点"}」？`,
+                <div className="text-xs opacity-55"><div className="mb-2 max-h-28 overflow-y-auto">{titles.map((title, index) => <div key={`${index}-${title}`}>· {title}</div>)}</div>相关连线和任务记录将按现有逻辑清理</div>,
                 signal, "确认删除", "取消", true,
             );
         } else {
@@ -316,14 +321,14 @@ export function CanvasAssistantPanel({
             signal.addEventListener("abort", cancel, { once: true });
             confirmed = await new Promise<boolean>((resolve) => {
                 pendingDeleteRef.current?.resolve(false);
-                const pending = { title: node?.title || "未命名节点", resolve };
+                const pending = { titles, resolve };
                 pendingDeleteRef.current = pending;
                 setPendingDelete(pending);
             });
             signal.removeEventListener("abort", cancel);
         }
         signal.throwIfAborted();
-        return confirmed ? onExecuteAction(action, messageReferenceNodeIds) : { ok: false, code: "delete_cancelled", message: "用户取消删除，原节点已保留" };
+        return confirmed ? onExecuteAction(deleteAction, messageReferenceNodeIds) : { ok: false, code: "delete_cancelled", message: "用户取消删除，原节点已保留" };
     };
 
     const confirmCodex = (title: string, content: ReactNode, signal: AbortSignal, okText = "允许一次", cancelText = "拒绝", danger = false) => new Promise<boolean>((resolve) => {
@@ -667,10 +672,10 @@ export function CanvasAssistantPanel({
 
                 {(mode === "api" ? pendingDelete : codexConfirmations.length) ? (
                     <div className="thin-scrollbar max-h-[50%] shrink-0 space-y-2 overflow-y-auto pb-2">
-                        {mode === "api" && pendingDelete ? <AssistantPanelCard title={`删除「${pendingDelete.title}」？`} actions={[
+                        {mode === "api" && pendingDelete ? <AssistantPanelCard title={pendingDelete.titles.length > 1 ? `删除这 ${pendingDelete.titles.length} 个节点？` : `删除「${pendingDelete.titles[0] || "未命名节点"}」？`} actions={[
                             { label: "取消", onClick: () => settleDeleteConfirmation(false) },
                             { label: "确认删除", danger: true, onClick: () => settleDeleteConfirmation(true) },
-                        ]}><div className="text-xs opacity-55">相关连线和任务记录将按现有逻辑清理</div></AssistantPanelCard> : null}
+                        ]}><div className="text-xs opacity-55"><div className="mb-2 max-h-28 overflow-y-auto">{pendingDelete.titles.map((title, index) => <div key={`${index}-${title}`}>· {title}</div>)}</div>相关连线和任务记录将按现有逻辑清理</div></AssistantPanelCard> : null}
                         {mode === "codex" ? codexConfirmations.map((confirmation) => <AssistantPanelCard key={confirmation.id} title={confirmation.title} actions={confirmation.actions}>{confirmation.content}</AssistantPanelCard>) : null}
                     </div>
                 ) : null}
@@ -728,13 +733,19 @@ export function CanvasAssistantPanel({
                         </div>
                         <Switch checked={agentConfig.textStreaming === true} onChange={(textStreaming) => onAgentConfigChange({ textStreaming })} />
                     </div> : null}
-                    <div className="flex items-center justify-between gap-6 py-2">
-                        <div className="min-w-0">
-                            <div className="text-sm font-medium">自动生成图片/视频/音频</div>
-                            <div className="mt-1 text-xs leading-5 opacity-55">开启后，Agent 可直接提交图片/视频/音频生成，无需再次确认</div>
+                    {([
+                        ["autoGenerateImage", "自动生成图片", "开启后，Agent 创建图片节点时会直接提交生成"],
+                        ["autoGenerateVideo", "自动生成视频", "开启后，Agent 创建视频节点时会直接提交生成；视频生成可能消耗较多额度"],
+                        ["autoGenerateAudio", "自动生成音频", "开启后，Agent 创建音频节点时会直接提交生成"],
+                    ] as const).map(([key, title, description]) => (
+                        <div key={key} className="flex items-center justify-between gap-6 py-2">
+                            <div className="min-w-0">
+                                <div className="text-sm font-medium">{title}</div>
+                                <div className="mt-1 text-xs leading-5 opacity-55">{description}</div>
+                            </div>
+                            <Switch checked={agentConfig[key]} onChange={(enabled) => onAgentConfigChange({ [key]: enabled })} />
                         </div>
-                        <Switch checked={agentConfig.autoGenerateMedia} onChange={(autoGenerateMedia) => onAgentConfigChange({ autoGenerateMedia })} />
-                    </div>
+                    ))}
                 </Modal>
 
                 <Modal

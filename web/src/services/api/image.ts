@@ -8,6 +8,7 @@ import { isMimoChannel, mimoModels } from "@/lib/mimo-tts";
 import { modelChannelAttributionHeaders } from "@/lib/model-channel";
 import { dataUrlToGeminiInlineData, geminiActionUrl, geminiDirectHeaders, geminiErrorMessage, isGeminiConfig, normalizeGeminiBaseUrl } from "@/lib/gemini";
 import { autoSyncImage, imageToDataUrl, resolveImageUrl, type UploadedImage } from "@/services/image-storage";
+import { deleteUpyunReferenceImage, isUpyunReferenceStorageReady, loadUpyunReferenceStorage, uploadUpyunReferenceImage } from "@/services/upyun-reference-storage";
 import { buildApiUrl, channelIdForActiveModel, channelProtocolForConfig, directAIProviderForConfig, localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 import { fetchAutoDLWorkflows } from "./autodl";
@@ -73,6 +74,7 @@ export type CanvasImageTask = {
     completed_at?: string;
     error?: { message?: string };
     error_detail?: string;
+    upyunReferenceKeys?: string[];
 };
 export type CanvasImageTaskOptions = { nodeId?: string; source?: "canvas" | "image-workbench" | "workflow"; sourceId?: string; clientTaskId?: string; signal?: AbortSignal; onServerTask?: () => void };
 
@@ -115,6 +117,37 @@ const QUALITY_ALIASES: Record<string, string> = {
 const IMAGE_MIME = "image/png";
 const IMAGE_REQUEST_TIMEOUT_SECONDS = 600;
 const PROMPT_REWRITE_GUARD_PREFIX = "Use the following text as the complete prompt. Do not rewrite it:";
+const chengmengUpyunReferenceKeys = new Map<string, string[]>();
+
+function isChengmengImageModel(model: string) {
+    return model.trim().toLowerCase() === "gpt-image-2-chengmeng";
+}
+
+function isCanvasImageTaskTerminal(status: string | undefined) {
+    return ["completed", "complete", "done", "succeeded", "success", "failed", "failure", "error", "expired", "cancelled", "canceled"].includes((status || "").trim().toLowerCase());
+}
+
+async function cleanupChengmengUpyunReferences(objectKeys: string[]) {
+    const remaining: string[] = [];
+    for (const objectKey of objectKeys) {
+        try {
+            await deleteUpyunReferenceImage(objectKey);
+        } catch {
+            remaining.push(objectKey);
+        }
+    }
+    return remaining;
+}
+
+async function finalizeChengmengUpyunReferences(task: CanvasImageTask) {
+    if (!isCanvasImageTaskTerminal(task.status)) return task;
+    const objectKeys = task.upyunReferenceKeys?.length ? task.upyunReferenceKeys : chengmengUpyunReferenceKeys.get(task.id) || [];
+    if (!objectKeys.length) return task;
+    const remaining = await cleanupChengmengUpyunReferences(objectKeys);
+    if (remaining.length) chengmengUpyunReferenceKeys.set(task.id, remaining);
+    else chengmengUpyunReferenceKeys.delete(task.id);
+    return { ...task, upyunReferenceKeys: remaining };
+}
 
 function normalizeQuality(quality: string) {
     const value = quality.trim().toLowerCase();
@@ -1055,18 +1088,26 @@ export async function createCanvasImageTask(config: AiConfig & { seedIndex?: num
         }, image.id);
     }
     const params = createImageRequestParams({ ...config, count: "1" });
-    const request: RequestInit = translation ? {method:"POST",headers:translationHeaders(config,translation),body:JSON.stringify({endpoint:references.length ? "/images/edits" : "/images/generations",nodeId:options.nodeId || "",source:options.source || "canvas",sourceId:options.sourceId || "",clientTaskId:options.clientTaskId || "",prompt,request:translationBody(config,await imageTranslationInput(config,prompt,references,params))})} : await createCanvasImageTaskRequest({ ...config, count: "1" }, prompt, references, params, options);
-    options.signal?.throwIfAborted();
-    options.onServerTask?.();
-    const response = await fetch("/api/v1/canvas/image-tasks", request);
-    if (!response.ok) {
-        const error = await fetchErrorDetail(response, "图片任务创建失败");
-        throw new ImageRequestError(error.message, error.detail);
+    const upyunReferenceKeys: string[] = [];
+    try {
+        const request: RequestInit = translation ? {method:"POST",headers:translationHeaders(config,translation),body:JSON.stringify({endpoint:references.length ? "/images/edits" : "/images/generations",nodeId:options.nodeId || "",source:options.source || "canvas",sourceId:options.sourceId || "",clientTaskId:options.clientTaskId || "",prompt,request:translationBody(config,await imageTranslationInput(config,prompt,references,params))})} : await createCanvasImageTaskRequest({ ...config, count: "1" }, prompt, references, params, options, upyunReferenceKeys);
+        options.signal?.throwIfAborted();
+        options.onServerTask?.();
+        const response = await fetch("/api/v1/canvas/image-tasks", request);
+        if (!response.ok) {
+            const error = await fetchErrorDetail(response, "图片任务创建失败");
+            throw new ImageRequestError(error.message, error.detail);
+        }
+        const payload = (await response.json()) as { code?: number; msg?: string; data?: CanvasImageTask };
+        if (payload.code !== 0 || !payload.data) throw new ImageRequestError(payload.msg || "图片任务创建失败", payload);
+        refreshRemoteUser(config);
+        const task = { ...payload.data, ...(upyunReferenceKeys.length ? { upyunReferenceKeys: [...upyunReferenceKeys] } : {}) };
+        if (upyunReferenceKeys.length && !isCanvasImageTaskTerminal(task.status)) chengmengUpyunReferenceKeys.set(task.id, [...upyunReferenceKeys]);
+        return finalizeChengmengUpyunReferences(await syncCanvasImageTask(task));
+    } catch (error) {
+        await cleanupChengmengUpyunReferences(upyunReferenceKeys);
+        throw error;
     }
-    const payload = (await response.json()) as { code?: number; msg?: string; data?: CanvasImageTask };
-    if (payload.code !== 0 || !payload.data) throw new ImageRequestError(payload.msg || "图片任务创建失败", payload);
-    refreshRemoteUser(config);
-    return syncCanvasImageTask(payload.data);
 }
 
 export async function pollCanvasImageTaskStatus(taskId: string, signal?: AbortSignal): Promise<CanvasImageTask> {
@@ -1082,10 +1123,10 @@ export async function pollCanvasImageTaskStatus(taskId: string, signal?: AbortSi
     }
     const payload = (await response.json()) as { code?: number; msg?: string; data?: CanvasImageTask };
     if (payload.code !== 0 || !payload.data) throw new ImageRequestError(payload.msg || "读取图片任务失败", payload);
-    return syncCanvasImageTask(payload.data);
+    return finalizeChengmengUpyunReferences(await syncCanvasImageTask(payload.data));
 }
 
-async function createCanvasImageTaskRequest(config: AiConfig & { seedIndex?: number; seedCount?: number }, prompt: string, references: ReferenceImage[], params: ImageRequestParams, options: CanvasImageTaskOptions): Promise<RequestInit> {
+async function createCanvasImageTaskRequest(config: AiConfig & { seedIndex?: number; seedCount?: number }, prompt: string, references: ReferenceImage[], params: ImageRequestParams, options: CanvasImageTaskOptions, upyunReferenceKeys: string[] = []): Promise<RequestInit> {
     assertImageReferencesSupported(config.model, references);
     const taskChannelId = channelIdForActiveModel(config);
     const taskChannelHeader: Record<string, string> = config.channelMode === "remote" && taskChannelId ? { "X-Model-Channel-ID": taskChannelId } : {};
@@ -1121,6 +1162,43 @@ async function createCanvasImageTaskRequest(config: AiConfig & { seedIndex?: num
             method: "POST",
             headers: jsonHeaders,
             body: JSON.stringify({ endpoint: "/images/generations", ...meta, request: body }),
+        };
+    }
+    if (references.length && isChengmengImageModel(config.model)) {
+        if (references.length !== 1) throw new ImageRequestError("Chengmeng GPT Image 2 目前只支持一张参考图");
+        const reference = references[0];
+        const resolvedUrl = await resolveImageUrl(reference.storageKey, "");
+        let imageUrl = "";
+        for (const value of [reference.url, resolvedUrl, reference.dataUrl]) {
+            const publicUrl = publicHttpUrl(value);
+            if (publicUrl && new URL(publicUrl).protocol === "https:") {
+                imageUrl = publicUrl;
+                break;
+            }
+        }
+        if (!imageUrl) {
+            const upyun = loadUpyunReferenceStorage();
+            if (!isUpyunReferenceStorageReady(upyun)) {
+                throw new ImageRequestError("Chengmeng 图片编辑需要公网 HTTPS 图片地址，请先配置又拍云参考图存储");
+            }
+            options.signal?.throwIfAborted();
+            const source = await resolveImageUrl(reference.storageKey, reference.dataUrl || reference.url || "");
+            if (!source) throw new ImageRequestError("参考图片不可用，无法上传至又拍云");
+            const response = await fetch(source, { signal: options.signal });
+            if (!response.ok) throw new ImageRequestError(`读取参考图片失败：HTTP ${response.status}`);
+            const uploaded = await uploadUpyunReferenceImage(await response.blob(), reference.name || "reference.png", options.signal);
+            upyunReferenceKeys.push(uploaded.objectKey);
+            imageUrl = uploaded.url;
+        }
+        const body = {
+            model: config.model,
+            prompt: withPromptGuard(config, withSystemPrompt(config, prompt)),
+            image_url: imageUrl,
+        };
+        return {
+            method: "POST",
+            headers: jsonHeaders,
+            body: JSON.stringify({ endpoint: "/images/edits", ...meta, request: body }),
         };
     }
     if (config.apiMode === "chat" && !isZhipuImageModel(config.model)) {
@@ -1581,7 +1659,7 @@ export async function batchCanvasImageTaskStatus(config: AiConfig, ids: string[]
     }
     const payload = (await response.json()) as { code?: number; msg?: string; data?: CanvasImageTask[] };
     if (payload.code !== 0 || !Array.isArray(payload.data)) throw new ImageRequestError(payload.msg || "读取图片任务失败", payload);
-    return Promise.all(payload.data.map((task) => syncCanvasImageTask(task)));
+    return Promise.all(payload.data.map(async (task) => finalizeChengmengUpyunReferences(await syncCanvasImageTask(task))));
 }
 
 export async function deleteCanvasImageTask(config: AiConfig, task?: CanvasImageTask | null) {

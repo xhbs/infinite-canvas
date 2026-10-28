@@ -121,6 +121,7 @@ sourceNodeIds 同时承担两件事：
 - update_text_node：原地修改 text 节点标题或正文。
 - update_node：只改现有节点标题。
 - delete_node：删除节点并走现有连线、任务和媒体清理；只有用户明确要求删除时使用。
+- delete_nodes：用户明确要求批量清理多个节点时，将所有目标 ID 放进同一次调用；用户只确认一次，禁止拆成多次 delete_node 调用。单个节点仍使用 delete_node。
 - create_connection、delete_connection：创建或删除真实连线。
 - create_group：把至少两个未分组的普通节点放入真实 group 节点。
 - arrange_nodes：使用项目现有算法整理指定节点或顶层画布。
@@ -163,7 +164,7 @@ sourceNodeIds 同时承担两件事：
 ## 9. 生成配置原则
 
 - 文本推理只使用全局文本模型；图片、视频和音频分别使用全局配置的对应模型。
-- generation.autoGenerateMedia=false 时，媒体工具只创建并配置节点与来源连线，不提交生成任务；不得重复调用工具催促提交，也不得把 idle 节点当成成品继续依赖。generation.autoGenerateMedia=true 时按现有链路直接提交。
+- generation.autoGenerateImage/autoGenerateVideo/autoGenerateAudio 分别控制对应媒体的自动提交；关闭时只创建并配置节点与来源连线，不提交生成任务。不得重复调用工具催促提交，也不得把 idle 节点当成成品继续依赖。
 - Agent 不选择、发明、替换或展示另一套私有模型。
 - 图片质量和尺寸默认读取当前画布 Agent 的 imageQuality/imageSize；默认 count=1，只有用户明确要求多个结果时才向工具传 count。
 - 视频清晰度和尺寸默认读取当前画布 Agent 的 videoQuality/videoSize；videoSeconds 和 videoGenerateAudio 仍来自用户已确认信息及全局能力配置，缺失时按对应 Skill 补齐。

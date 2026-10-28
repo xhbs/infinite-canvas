@@ -19,6 +19,7 @@ export const CANVAS_AGENT_ACTION_NAMES = [
     "update_text_node",
     "update_node",
     "delete_node",
+    "delete_nodes",
     "create_connection",
     "delete_connection",
     "create_group",
@@ -134,6 +135,7 @@ export const CANVAS_AGENT_TOOLS: CanvasAgentToolDefinition[] = [
     defineTool("update_text_node", "更新现有文本节点的标题或正文。", { nodeId: STRING, title: STRING, content: STRING }, ["nodeId"]),
     defineTool("update_node", "只更新现有节点标题；不允许任意字段覆盖。", { nodeId: STRING, title: STRING }, ["nodeId", "title"]),
     defineTool("delete_node", "使用画布现有删除链路删除节点及关联连线。", { nodeId: STRING }, ["nodeId"]),
+    defineTool("delete_nodes", "一次提交多个无用节点的批量删除；用户只需确认一次。", { nodeIds: { ...STRING_ARRAY, minItems: 2 } }, ["nodeIds"]),
     defineTool("create_connection", "在两个真实节点之间创建来源连线。", { fromNodeId: STRING, toNodeId: STRING }, ["fromNodeId", "toNodeId"]),
     defineTool("delete_connection", "删除指定真实连线。", { connectionId: STRING }, ["connectionId"]),
     defineTool("create_group", "把两个或更多节点放进本项目 group 节点。", { title: STRING, nodeIds: STRING_ARRAY }, ["nodeIds"]),
@@ -218,6 +220,12 @@ export function normalizeCanvasAgentAction(name: unknown, args: unknown, id = na
         case "delete_node":
             normalized = { nodeId: requiredString(input.nodeId, "nodeId") };
             break;
+        case "delete_nodes": {
+            const nodeIds = stringArray(input.nodeIds, "nodeIds");
+            if (nodeIds.length < 2) throw new Error("delete_nodes 至少需要两个节点");
+            normalized = { nodeIds };
+            break;
+        }
         case "read_skill_file":
             normalized = { skillId: requiredString(input.skillId, "skillId"), path: requiredString(input.path, "path") };
             break;
@@ -395,6 +403,7 @@ export function canvasAgentActionLabel(action: CanvasAgentAction) {
         update_text_node: "正在更新文本节点",
         update_node: "正在更新节点",
         delete_node: "正在删除节点",
+        delete_nodes: "正在批量删除节点",
         create_connection: "正在创建连线",
         delete_connection: "正在删除连线",
         create_group: "正在创建分组",

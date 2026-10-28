@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -374,13 +375,20 @@ func pollVideoTaskFromUpstream(ctx context.Context, task model.VideoTask) (servi
 	}
 	transformed := transformVideoStatusPayload(payload, request, channel, task.Model)
 	parsed := parseVideoTaskPayload(transformed, task.Model)
+	embedded, embeddedKnown := parseEmbeddedVideoTaskPayload(parsed.Error, task.Model)
+	if embeddedKnown && embedded.Status != "" {
+		// Some upstream gateways return HTTP 200 with an adapter error while
+		// embedding the real provider response in the error message. Prefer the
+		// embedded task state so a still-running task is not finalized as failed.
+		parsed = embedded
+	}
 	if service.IsArkChannel(channel) && parsed.Status == "expired" {
 		parsed.Status = "failed"
 	}
 	if parsed.Status == "failed" && parsed.Error == "" {
 		parsed.Error = firstNonEmpty(parsed.ErrorDetail, "视频任务生成失败")
 	}
-	if errMessage := readVideoStatusErrorMessage(payload, transformed, channel, task.Model); errMessage != "" {
+	if errMessage := readVideoStatusErrorMessage(payload, transformed, channel, task.Model); errMessage != "" && !embeddedKnown {
 		if parsed.Error == "" {
 			parsed.Error = errMessage
 		}
@@ -466,12 +474,111 @@ func transformGeminiVideoTaskResponse(payload []byte) ([]byte, bool) {
 	return transformed, err == nil
 }
 
+func isHongchengVideoChannel(channel model.ModelChannel) bool {
+	return strings.Contains(strings.ToLower(channel.Name), "hongcheng") || strings.Contains(strings.ToLower(channel.BaseURL), "hongcheng.lol")
+}
+
+func transformHongchengVideoTaskResponse(payload []byte, modelName string) ([]byte, bool) {
+	var root map[string]any
+	if len(payload) == 0 || json.Unmarshal(payload, &root) != nil {
+		return nil, false
+	}
+
+	message := firstNonEmpty(readStringPath(root, "error.message"), readStringPath(root, "error"), readStringPath(root, "message"), readStringPath(root, "msg"))
+	if strings.Contains(message, "body=") {
+		if embedded, ok := parseEmbeddedVideoTaskPayload(message, modelName); ok && (embedded.Status == "completed" || embedded.Status == "failed") {
+			return marshalHongchengVideoTask(embedded)
+		}
+	}
+
+	parsed := parseVideoTaskPayload(payload, modelName)
+	if parsed.Status != "completed" && parsed.Status != "failed" {
+		return nil, false
+	}
+	return marshalHongchengVideoTask(parsed)
+}
+
+func marshalHongchengVideoTask(parsed parsedVideoTaskPayload) ([]byte, bool) {
+	result := map[string]any{
+		"id":        parsed.UpstreamTaskID,
+		"task_id":   parsed.UpstreamTaskID,
+		"status":    parsed.Status,
+		"progress":  parsed.Progress,
+		"video_url": parsed.VideoURL,
+		"error":     map[string]any{"message": parsed.Error},
+	}
+	transformed, err := json.Marshal(result)
+	return transformed, err == nil
+}
+
 func readVideoCreateErrorMessage(raw []byte, transformed []byte, channel model.ModelChannel, modelName string) string {
 	return firstNonEmpty(readAIProtocolVideoError(raw, channel, modelName, false), readProviderPayloadError(raw), readNormalizedVideoError(transformed))
 }
 
 func readVideoStatusErrorMessage(raw []byte, transformed []byte, channel model.ModelChannel, modelName string) string {
 	return firstNonEmpty(readAIProtocolVideoError(raw, channel, modelName, true), readProviderPayloadError(raw), readNormalizedVideoError(transformed))
+}
+
+func parseEmbeddedVideoTaskPayload(message string, modelName string) (parsedVideoTaskPayload, bool) {
+	marker := strings.Index(message, "body=")
+	if marker < 0 {
+		return parsedVideoTaskPayload{}, false
+	}
+	body := strings.TrimSpace(message[marker+len("body="):])
+	var value any
+	decoder := json.NewDecoder(strings.NewReader(body))
+	if err := decoder.Decode(&value); err != nil {
+		// Gateways may truncate the body while constructing an HTTP 200 error.
+		// Recover the provider result from the valid JSON fragment that remains.
+		return parseEmbeddedVideoTaskFragment(body)
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return parsedVideoTaskPayload{}, false
+	}
+	parsed := parseVideoTaskPayload(encoded, modelName)
+	return parsed, parsed.Status != "" && parsed.Status != "queued"
+}
+
+func parseEmbeddedVideoTaskFragment(body string) (parsedVideoTaskPayload, bool) {
+	result := parsedVideoTaskPayload{}
+	if url := firstEmbeddedVideoURL(body); url != "" {
+		result.Status = "completed"
+		result.Progress = 100
+		result.VideoURL = url
+		return result, true
+	}
+	statusFound := false
+	if match := regexp.MustCompile(`(?i)"status"\s*:\s*"([^"]+)"`).FindStringSubmatch(body); len(match) > 1 {
+		statusFound = true
+		result.Status = service.NormalizeVideoTaskStatus(match[1])
+		switch result.Status {
+		case "completed", "failed", "processing", "queued":
+		default:
+			result.Status = "processing"
+		}
+	}
+	if match := regexp.MustCompile(`(?i)"task_id"\s*:\s*(?:"([^"]+)"|([0-9]+))`).FindStringSubmatch(body); len(match) > 2 {
+		result.UpstreamTaskID = firstNonEmpty(match[1], match[2])
+	}
+	if match := regexp.MustCompile(`(?i)"progress"\s*:\s*"?([0-9]+)`).FindStringSubmatch(body); len(match) > 1 {
+		_, _ = fmt.Sscanf(match[1], "%d", &result.Progress)
+	}
+	if result.Status == "" {
+		result.Status = "processing"
+	}
+	known := statusFound || result.UpstreamTaskID != "" || result.Progress > 0
+	return result, known
+}
+
+func firstEmbeddedVideoURL(body string) string {
+	for _, candidate := range regexp.MustCompile(`https?://[^\s"\\]+`).FindAllString(body, -1) {
+		candidate = strings.TrimRight(candidate, ".,;)}]")
+		if strings.Contains(candidate, ".mp4") || strings.Contains(candidate, "generated-videos") {
+			return candidate
+		}
+	}
+	return ""
 }
 
 type parsedVideoTaskPayload struct {
@@ -499,7 +606,7 @@ func parseVideoTaskPayload(payload []byte, modelName string) parsedVideoTaskPayl
 		Progress:        readIntPath(data, "progress"),
 		Seconds:         firstNonEmpty(readStringPath(data, "seconds"), readStringPath(data, "duration")),
 		Size:            firstNonEmpty(readStringPath(data, "size"), readSizeFromDimensions(data)),
-		VideoURL:        firstNonEmpty(readStringPath(data, "video_url"), readStringPath(data, "url"), readStringPath(data, "video.url"), readStringPath(data, "remixed_from_video_id"), readStringPath(data, "output_url"), readStringPath(data, "download_url"), readStringPath(data, "content.video_url"), findFirstHTTPURL(data)),
+		VideoURL:        firstNonEmpty(readStringPath(data, "video_url"), readStringPath(data, "url"), readStringPath(data, "video.url"), readStringPath(data, "remixed_from_video_id"), readStringPath(data, "output_url"), readStringPath(data, "download_url"), readStringPath(data, "content_url"), readStringPath(data, "contentUrl"), readStringPath(data, "content"), readStringPath(data, "content.video_url"), findFirstHTTPURL(data)),
 		Error:           firstNonEmpty(readStringPath(data, "error.message"), readStringPath(data, "error")),
 		ErrorDetail:     "",
 	}
@@ -526,30 +633,35 @@ func parseVideoTaskPayload(payload []byte, modelName string) parsedVideoTaskPayl
 }
 
 func normalizeVideoPayloadMap(value any) map[string]any {
-	switch typed := value.(type) {
-	case map[string]any:
-		if data, ok := typed["data"].(map[string]any); ok {
-			for key, item := range typed {
-				if _, exists := data[key]; !exists {
-					data[key] = item
-				}
-			}
-			return data
-		}
-		if data, ok := typed["data"].([]any); ok && len(data) > 0 {
-			if item, ok := data[0].(map[string]any); ok {
-				for key, value := range typed {
-					if _, exists := item[key]; !exists {
-						item[key] = value
-					}
-				}
-				return item
-			}
-		}
-		return typed
-	default:
+	typed, ok := value.(map[string]any)
+	if !ok {
 		return map[string]any{}
 	}
+
+	// Some OpenAI-compatible providers wrap the task twice (data.data). Unwrap
+	// all envelope layers while retaining outer fields such as the provider code.
+	normalized := typed
+	unwrapped := false
+	if nested, ok := typed["data"].(map[string]any); ok {
+		normalized = normalizeVideoPayloadMap(nested)
+		unwrapped = true
+	} else if items, ok := typed["data"].([]any); ok && len(items) > 0 {
+		if item, ok := items[0].(map[string]any); ok {
+			normalized = normalizeVideoPayloadMap(item)
+			unwrapped = true
+		}
+	}
+	if unwrapped {
+		for key, item := range typed {
+			if key == "data" {
+				continue
+			}
+			if _, exists := normalized[key]; !exists {
+				normalized[key] = item
+			}
+		}
+	}
+	return normalized
 }
 
 func readNormalizedVideoError(payload []byte) string {
@@ -643,7 +755,7 @@ func findFirstHTTPURL(value any) string {
 			}
 		}
 	case map[string]any:
-		for _, key := range []string{"uri", "url", "video_url", "videoUrl", "download_url", "downloadUrl", "output_url", "outputUrl", "resultUrls", "result_urls", "videoUrls", "video_urls", "urls", "videos", "video_result", "video", "generatedSamples", "generateVideoResponse", "response", "data", "result", "metadata"} {
+		for _, key := range []string{"uri", "url", "content", "content_url", "contentUrl", "video_url", "videoUrl", "download_url", "downloadUrl", "output_url", "outputUrl", "resultUrls", "result_urls", "videoUrls", "video_urls", "urls", "videos", "video_result", "video", "generatedSamples", "generateVideoResponse", "response", "data", "result", "metadata"} {
 			if url := findFirstHTTPURL(typed[key]); url != "" {
 				return url
 			}

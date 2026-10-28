@@ -3,6 +3,7 @@ package model
 type AICallLog struct {
 	ID              string `json:"id" gorm:"primaryKey"`
 	UserID          string `json:"userId" gorm:"index"`
+	NodeID          string `json:"nodeId" gorm:"index"`
 	UserDisplayName string `json:"userDisplayName" gorm:"->;-:migration"`
 	Endpoint        string `json:"endpoint" gorm:"index"`
 	Method          string `json:"method"`

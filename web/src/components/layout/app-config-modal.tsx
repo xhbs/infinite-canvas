@@ -24,6 +24,7 @@ import { listWorkflowChannels, readWorkflowChannel, replaceWorkflowChannels, sav
 import { filterChannelModelsByCapability, normalizeLocalChannels, useConfigStore, useEffectiveConfig, type AiConfig, type LocalModelChannel, type ModelCapabilities, type ModelCapability } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 import { useChannelTranslationStore } from "@/stores/use-channel-translation-store";
+import { defaultUpyunReferenceStorage, loadUpyunReferenceStorage, saveUpyunReferenceStorage, type UpyunReferenceStorage } from "@/services/upyun-reference-storage";
 
 type ModelGroup = {
     capability: ModelCapability;
@@ -60,6 +61,7 @@ export function AppConfigModal() {
     const [measuringStorageType, setMeasuringStorageType] = useState<"s3" | "webdav" | null>(null);
     const [storageUsageText, setStorageUsageText] = useState("");
     const [webDAVStorageUsageText, setWebDAVStorageUsageText] = useState("");
+    const [upyunReferenceStorage, setUpyunReferenceStorage] = useState<UpyunReferenceStorage>(() => defaultUpyunReferenceStorage());
     const config = useConfigStore((state) => state.config);
     const updateConfig = useConfigStore((state) => state.updateConfig);
     const isConfigOpen = useConfigStore((state) => state.isConfigOpen);
@@ -83,6 +85,10 @@ export function AppConfigModal() {
     const grokTts = isGrok2APITtsConfig(audioConfig, config.audioModel);
     const geminiTts = isGeminiTtsModel(config.audioModel) && isGeminiConfig(audioConfig, config.audioModel);
     const modelSelectChannel = normalizeLocalChannels(config).find((channel) => channel.id === modelSelectChannelId);
+
+    useEffect(() => {
+        if (isConfigOpen) setUpyunReferenceStorage(loadUpyunReferenceStorage());
+    }, [isConfigOpen]);
 
     useEffect(() => {
         setParameterTranslation(undefined);
@@ -194,6 +200,7 @@ export function AppConfigModal() {
             saveUserStorageProvider(userStorage);
             saveUserWebDAVStorageProvider(userWebDAVStorage);
         }
+        saveUpyunReferenceStorage(upyunReferenceStorage);
         setSavingConfig(true);
 		try {
 			if (token) {
@@ -660,6 +667,29 @@ export function AppConfigModal() {
                             </section>
                         </>
                     ) : null}
+                    <section className="mb-5 mt-4 rounded-xl border border-stone-200 bg-stone-50/70 p-3 dark:border-stone-800 dark:bg-stone-900/50">
+                        <div className="flex items-center justify-between gap-3">
+                            <div>
+                                <div className="text-sm font-medium">又拍云参考图直传</div>
+                                <div className="mt-1 text-xs text-stone-500">
+                                    Chengmeng 等需要公网图片地址的视频模型会在提交任务前上传本次用到的本地参考图；图片由浏览器发送给本机画布，再由本机 Go 服务上传到又拍云，不经过你的低配远程服务器。
+                                </div>
+                            </div>
+                            <Switch checked={upyunReferenceStorage.enabled} onChange={(enabled) => setUpyunReferenceStorage((value) => ({ ...value, enabled }))} />
+                        </div>
+                        {upyunReferenceStorage.enabled ? (
+                            <div className="mt-3 grid gap-3 md:grid-cols-2">
+                                <Input value={upyunReferenceStorage.operator} placeholder="又拍云操作员" onChange={(event) => setUpyunReferenceStorage((value) => ({ ...value, operator: event.target.value }))} />
+                                <Input.Password value={upyunReferenceStorage.password} placeholder="又拍云操作员密码" onChange={(event) => setUpyunReferenceStorage((value) => ({ ...value, password: event.target.value }))} />
+                                <div className="hidden md:block" />
+                                <Input value={upyunReferenceStorage.bucket} placeholder="服务名 / Bucket" onChange={(event) => setUpyunReferenceStorage((value) => ({ ...value, bucket: event.target.value }))} />
+                                <Input value={upyunReferenceStorage.publicBaseUrl} placeholder="公开 HTTPS 域名，例如 https://img.example.com" onChange={(event) => setUpyunReferenceStorage((value) => ({ ...value, publicBaseUrl: event.target.value }))} />
+                                <div className="text-xs text-stone-500 md:col-span-2">
+                                    配置仅保存在当前浏览器；操作员密码随上传请求发送给本机画布服务，不会存入画布服务器数据库。请使用仅有目标服务上传权限的又拍云操作员。
+                                </div>
+                            </div>
+                        ) : null}
+                    </section>
                     {(!isMimoTtsModel(config.audioModel) || isMimoPresetTtsModel(config.audioModel) || isMimoVoiceCloneModel(config.audioModel)) && !glmTts && !grokTts ? (
                         <Form.Item label="默认音频指令" className="mb-4">
                             <Input.TextArea rows={2} value={config.audioInstructions} placeholder="例如：自然、温暖、适合旁白。" onChange={(event) => updateConfig("audioInstructions", event.target.value)} />

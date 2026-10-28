@@ -214,7 +214,9 @@ export type CanvasAgentConfig = {
     textApiMode: "chat" | "responses";
     textStreaming?: boolean;
     textReasoningEnabled?: boolean;
-    autoGenerateMedia: boolean;
+    autoGenerateImage: boolean;
+    autoGenerateVideo: boolean;
+    autoGenerateAudio: boolean;
     imageQuality: string;
     imageSize: string;
     videoQuality: string;

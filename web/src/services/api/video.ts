@@ -13,21 +13,23 @@ import { isKIEGrokVideoModel, isKIEKlingV3Config, kieKlingOmniVariant } from "./
 import { autoDLBaseUrl, getAutoDLCapabilities } from "@/lib/autodl";
 import { fetchAutoDLWorkflow } from "./autodl";
 import { isAgnesVideoV25Model, isCogVideoX3Model, isWan3VideoModel, modelKey, normalizeCogVideoX3Duration, supportsVideoAudioGeneration } from "@/lib/video-model-capabilities";
-import { resolveMediaUrl, uploadMediaFile, uploadRemoteMediaToServer } from "@/services/file-storage";
+import { cacheMediaFileLocally, resolveMediaUrl, uploadMediaFile, uploadRemoteMediaToServer } from "@/services/file-storage";
 import { autoSyncToCloud, imageToDataUrl, resolveImageUrl } from "@/services/image-storage";
 import { buildApiUrl, channelIdForActiveModel, channelProtocolForConfig, directAIProviderForConfig, localChannelForActiveModel, type AiConfig, type VideoElementReference } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
+import { deleteUpyunReferenceImage, isUpyunReferenceStorageReady, loadUpyunReferenceStorage, uploadUpyunReferenceImage } from "@/services/upyun-reference-storage";
+import { saveCanvasRequestLog, stringifyCanvasRequestBody } from "@/services/canvas-request-logs";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
 
-export type VideoResponse = { parameter_translation?: boolean; translationSnapshot?: LocalVideoTranslationSnapshot; id: string; task_id?: string; video_id?: string; source_id?: string; sourceId?: string; channelId?: string; userChannelId?: string; channelName?: string; workflowRef?: string; channel_id?: string; user_channel_id?: string; channel_name?: string; status?: string; video_url?: string; url?: string; storageKey?: string; progress?: number; error?: { message?: string }; size?: string; seconds?: string; model?: string; created_at?: string | number; createdAt?: string | number; started_at?: string | number; startedAt?: string | number; request_body?: string };
+export type VideoResponse = { parameter_translation?: boolean; translationSnapshot?: LocalVideoTranslationSnapshot; upyunReferenceKeys?: string[]; id: string; task_id?: string; video_id?: string; source_id?: string; sourceId?: string; channelId?: string; userChannelId?: string; channelName?: string; workflowRef?: string; channel_id?: string; user_channel_id?: string; channel_name?: string; status?: string; video_url?: string; url?: string; storageKey?: string; progress?: number; error?: { message?: string }; size?: string; seconds?: string; model?: string; created_at?: string | number; createdAt?: string | number; started_at?: string | number; startedAt?: string | number; request_body?: string };
 type ApiVideoEnvelope = { code: number; data?: VideoResponse | VideoResponse[] | null; msg?: string; message?: string };
 type ApiVideoResponse = VideoResponse | ApiVideoEnvelope;
 export type VideoGenerationResult = { id: string; url: string; durationMs: number; width: number; height: number; bytes: number; mimeType: string; task: VideoResponse };
 type LocalVideoTranslationSnapshot = { match:MatchedTranslation; input:TranslationInput; baseUrl:string; protocol:AiConfig["localChannels"][number]["protocol"]; taskIds:string[]; completed:Record<string,TranslationResult> };
 export type CreatedVideoGenerationTask = { task: VideoResponse; pollId: string; startedAt: number; requestBody: unknown };
 export type VideoProgressHandler = (progress: number, task: VideoResponse) => void;
-export type VideoTaskCreateOptions = { signal?: AbortSignal; onServerTask?: () => void; clientTaskId?: string; source?: "video-workbench" | "canvas"; sourceId?: string };
+export type VideoTaskCreateOptions = { signal?: AbortSignal; onServerTask?: () => void; clientTaskId?: string; source?: "video-workbench" | "canvas"; sourceId?: string; upyunReferenceKeys?: string[] };
 export const VIDEO_POLL_INTERVAL_MS = 5000;
 
 export class VideoRequestError extends Error {
@@ -119,11 +121,29 @@ export async function createVideoGenerationTask(config: AiConfig, prompt: string
     const model = config.model || config.videoModel;
     const systemPrompt = (config.systemPrompts.video || config.systemPrompt).trim();
     const translation = await findParameterTranslation({...config,model});
-    if (translation) return createTranslatedVideoTask({...config,model},translation,systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt,normalizeVideoReferenceInput(references),normalizeVideoTaskCreateOptions(options),onProgress);
-    const body = await createVideoRequestBody(config, model, systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt, normalizeVideoReferenceInput(references));
-    const startedAt = Date.now();
+    const createOptions = normalizeVideoTaskCreateOptions(options);
+    createOptions.upyunReferenceKeys ||= [];
+    if (translation) {
+        try {
+            const created = await createTranslatedVideoTask({...config,model},translation,systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt,normalizeVideoReferenceInput(references),createOptions,onProgress);
+            created.task.upyunReferenceKeys = createOptions.upyunReferenceKeys;
+            return created;
+        } catch (error) {
+            await cleanupUpyunReferences(createOptions.upyunReferenceKeys);
+            throw error;
+        }
+    }
+    let body: Awaited<ReturnType<typeof createVideoRequestBody>>;
     try {
-        const createOptions = normalizeVideoTaskCreateOptions(options);
+        body = await createVideoRequestBody(config, model, systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt, normalizeVideoReferenceInput(references), createOptions.upyunReferenceKeys, createOptions.signal);
+    } catch (error) {
+        await cleanupUpyunReferences(createOptions.upyunReferenceKeys);
+        throw error;
+    }
+    const startedAt = Date.now();
+    let requestEndpoint = "/videos";
+    const requestLogBody = stringifyCanvasRequestBody(body);
+    try {
         const accountProxy = usesAccountProxy(config);
         const headers = { ...aiHeaders(config), ...(accountProxy && createOptions.clientTaskId ? { "X-Client-Video-Task-ID": createOptions.clientTaskId } : {}), ...(accountProxy && createOptions.source ? { "X-Video-Task-Source": createOptions.source } : {}), ...(accountProxy && createOptions.sourceId ? { "X-Video-Task-Source-ID": createOptions.sourceId } : {}) };
         const directProvider = !accountProxy ? directAIProviderForConfig(config) : null;
@@ -133,6 +153,7 @@ export async function createVideoGenerationTask(config: AiConfig, prompt: string
             : !accountProxy && isMiniMaxH3Config(config, model)
                 ? miniMaxApiUrl(config, "/v2/video_generation")
                 : aiApiUrl(config, !accountProxy && (isGrok2APIVideoConfig(config, model) || isCogVideoX3Model(model)) ? "/videos/generations" : "/videos");
+        requestEndpoint = createUrl;
         const requestBody = !accountProxy && isGeminiConfig(config, model) ? withoutVideoModel(body) : body;
         createOptions.signal?.throwIfAborted();
         if (accountProxy) createOptions.onServerTask?.();
@@ -142,17 +163,34 @@ export async function createVideoGenerationTask(config: AiConfig, prompt: string
         if (!created.id && !created.video_id) throw new Error("视频接口没有返回任务 ID");
         refreshRemoteUser(config);
         const task = await syncGeneratedVideo(created, config);
+        task.upyunReferenceKeys = createOptions.upyunReferenceKeys;
         if (typeof task.progress === "number") onProgress?.(task.progress, task);
+        if (createOptions.source === "canvas" && createOptions.sourceId) await saveCanvasRequestLog({ id: nanoid(), nodeId: createOptions.sourceId, createdAt: startedAt, method: "POST", endpoint: createUrl, model, channelId: channel?.id || "", channelName: channel?.name || "本地直连", status: 200, durationMs: Date.now() - startedAt, requestBody: requestLogBody, responseBody: stringifyCanvasRequestBody(created), error: "" });
         return { task, pollId: videoPollId(model, task), startedAt, requestBody: body };
     } catch (error) {
+        await cleanupUpyunReferences(createOptions.upyunReferenceKeys);
         const { message, detail } = readAxiosError(error, "视频生成失败");
+        if (createOptions.source === "canvas" && createOptions.sourceId) await saveCanvasRequestLog({ id: nanoid(), nodeId: createOptions.sourceId, createdAt: startedAt, method: "POST", endpoint: requestEndpoint, model, channelId: localChannelForActiveModel(config)?.id || config.activeChannelId || "", channelName: localChannelForActiveModel(config)?.name || "本地直连", status: axios.isAxiosError(error) ? error.response?.status || 0 : 0, durationMs: Date.now() - startedAt, requestBody: requestLogBody, responseBody: stringifyCanvasRequestBody(detail), error: message });
         void writeVideoAICallLog(config, model, "/videos", "POST", startedAt, axios.isAxiosError(error) ? error.response?.status || 0 : 0, stringifyLogPayload(summarizeVideoRequestBody(body)), stringifyLogPayload(detail), message);
         throw new VideoRequestError(message, detail);
     }
 }
 
 async function createTranslatedVideoTask(config: AiConfig, match: MatchedTranslation, prompt: string, references: Required<VideoReferenceInput>, options: VideoTaskCreateOptions, onProgress?: VideoProgressHandler): Promise<CreatedVideoGenerationTask> {
-    const imageURL = async (image: ReferenceImage) => publicHttpUrl(image.url) || publicHttpUrl(image.dataUrl) || imageToDataUrl(image);
+    const imageURL = async (image: ReferenceImage) => {
+        const publicUrl = publicHttpUrl(image.url) || publicHttpUrl(image.dataUrl);
+        if (publicUrl && new URL(publicUrl).protocol === "https:") return publicUrl;
+        const upyun = loadUpyunReferenceStorage();
+        if (!isUpyunReferenceStorageReady(upyun)) return publicUrl || imageToDataUrl(image);
+        options.signal?.throwIfAborted();
+        const source = await resolveImageUrl(image.storageKey, image.dataUrl || image.url || "");
+        if (!source) throw new VideoRequestError("参考图片不可用，无法上传至又拍云");
+        const response = await fetch(source, { signal: options.signal });
+        if (!response.ok) throw new VideoRequestError(`读取参考图片失败：HTTP ${response.status}`);
+        const uploaded = await uploadUpyunReferenceImage(await response.blob(), image.name || "reference.png", options.signal);
+        options.upyunReferenceKeys?.push(uploaded.objectKey);
+        return uploaded.url;
+    };
     const mediaURL = async (media: ReferenceAudio) => translationMediaAddress(await resolveMediaUrl(media.storageKey, media.url));
     const input: TranslationInput = {
         kind: "video",
@@ -248,7 +286,10 @@ function normalizeVideoTaskCreateOptions(options?: string | VideoTaskCreateOptio
 export async function pollCreatedVideoGenerationTask(config: AiConfig, task: VideoResponse, { startedAt = Date.now(), requestBody, initialDelayMs = 0, onProgress, onPoll }: { startedAt?: number; requestBody?: unknown; initialDelayMs?: number; onProgress?: VideoProgressHandler; onPoll?: (task: VideoResponse) => void } = {}) {
     const model = config.model || config.videoModel;
     const pollId = videoPollId(model, task);
-    if (!pollId) throw new VideoRequestError("视频接口没有返回任务 ID", task);
+    if (!pollId) {
+        if (task.upyunReferenceKeys?.length) task.upyunReferenceKeys = await cleanupUpyunReferences(task.upyunReferenceKeys);
+        throw new VideoRequestError("视频接口没有返回任务 ID", task);
+    }
     const directProvider = !usesAccountProxy(config) ? directAIProviderForConfig(config) : null;
     const directPoll = directProvider && !task.parameter_translation ? (await import("@/services/api/direct-ai")).pollDirectVideoTask : null;
     let currentTask = task;
@@ -256,16 +297,19 @@ export async function pollCreatedVideoGenerationTask(config: AiConfig, task: Vid
         ? () => directPoll(config, directProvider, pollId)
         : async () => unwrapVideoResponseForConfig(config, model, (await axios.get<ApiVideoResponse>(aiVideoPollUrl(config, model, pollId), { headers: aiHeaders(config), params: usesAccountProxy(config) ? { model } : undefined })).data);
     let completed: VideoResponse | null = null;
+    let terminalTask: VideoResponse | undefined;
     try {
         if (initialDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, initialDelayMs));
         for (; ;) {
             const polled: VideoResponse = await pollOnce();
             const video = polled.parameter_translation ? await syncGeneratedVideo(polled, config, true) : await cacheProtectedVideo(config, model, await cacheProtectedGeminiVideo(config, model, polled));
+            video.upyunReferenceKeys = task.upyunReferenceKeys;
             onPoll?.(video);
-            if (isFailedVideoStatus(video.status)) throw new VideoRequestError(video.error?.message || "视频生成失败", video);
+            if (isFailedVideoStatus(video.status)) { terminalTask = video; throw new VideoRequestError(video.error?.message || "视频生成失败", video); }
             if (typeof video.progress === "number") onProgress?.(video.progress, video);
             if (isCompletedVideoStatus(video.status) || video.video_url || video.url) {
                 completed = video;
+                terminalTask = video;
                 break;
             }
             await new Promise((resolve) => setTimeout(resolve, VIDEO_POLL_INTERVAL_MS));
@@ -280,11 +324,20 @@ export async function pollCreatedVideoGenerationTask(config: AiConfig, task: Vid
         const { message, detail } = readAxiosError(error, "视频生成失败");
         void writeVideoAICallLog(config, model, "/videos", "POST", startedAt, axios.isAxiosError(error) ? error.response?.status || 0 : 0, stringifyLogPayload(requestBody ? summarizeVideoRequestBody(requestBody) : { taskId: pollId }), stringifyLogPayload(detail), message);
         throw new VideoRequestError(message, detail);
+    } finally {
+        if (terminalTask?.upyunReferenceKeys?.length) {
+            terminalTask.upyunReferenceKeys = await cleanupUpyunReferences(terminalTask.upyunReferenceKeys);
+            onPoll?.(terminalTask);
+        }
     }
 }
 
 export async function pollVideoGenerationTaskStatus(config: AiConfig, task: VideoResponse, signal?: AbortSignal) {
-    if (task.translationSnapshot) return syncGeneratedVideo(await pollLocalTranslatedVideo(config,task,signal),config,true);
+    if (task.translationSnapshot) {
+        const updated = await syncGeneratedVideo(await pollLocalTranslatedVideo(config,task,signal),config,true);
+        if (isCompletedVideoStatus(updated.status) || isFailedVideoStatus(updated.status)) updated.upyunReferenceKeys = await cleanupUpyunReferences(task.upyunReferenceKeys || []);
+        return updated;
+    }
     const model = config.model || config.videoModel;
     const pollId = videoPollId(model, task);
     if (!pollId) throw new VideoRequestError("视频接口没有返回任务 ID", task);
@@ -292,7 +345,19 @@ export async function pollVideoGenerationTaskStatus(config: AiConfig, task: Vide
     const result: VideoResponse = directProvider && !task.parameter_translation
         ? await (await import("@/services/api/direct-ai")).pollDirectVideoTask(config, directProvider, pollId, signal)
         : unwrapVideoResponseForConfig(config, model, (await axios.get<ApiVideoResponse>(aiVideoPollUrl(config, model, pollId), { headers: aiHeaders(config), params: usesAccountProxy(config) ? { model } : undefined, signal })).data);
-    return syncGeneratedVideo(result.parameter_translation ? result : await cacheProtectedGeminiVideo(config, model, await cacheProtectedVideo(config, model, result)), config, true);
+    const updated = await syncGeneratedVideo(result.parameter_translation ? result : await cacheProtectedGeminiVideo(config, model, await cacheProtectedVideo(config, model, result)), config, true);
+    updated.upyunReferenceKeys = task.upyunReferenceKeys;
+    if (isCompletedVideoStatus(updated.status) || isFailedVideoStatus(updated.status)) updated.upyunReferenceKeys = await cleanupUpyunReferences(task.upyunReferenceKeys || []);
+    return updated;
+}
+
+async function cleanupUpyunReferences(objectKeys: string[]) {
+    const remaining: string[] = [];
+    for (const objectKey of objectKeys) {
+        try { await deleteUpyunReferenceImage(objectKey); }
+        catch { remaining.push(objectKey); }
+    }
+    return remaining;
 }
 
 function videoSyncKey(config: AiConfig, task: VideoResponse) {
@@ -346,7 +411,17 @@ export async function cacheProtectedVideo(config: AiConfig, model: string, task:
     const blob = await response.blob();
     const translatedContent = task.parameter_translation && !url;
     if ((contentRequest || translatedContent) && (!blob.size || /json|^text\//i.test(blob.type))) throw new VideoRequestError("视频内容接口没有返回媒体文件", task);
-    const media = await uploadMediaFile((contentRequest || translatedContent) && !blob.type.startsWith("video/") ? new Blob([blob], { type: "video/mp4" }) : blob, "generated-video", `video-content:${videoSyncKey(config, task)}`);
+    const videoBlob = (contentRequest || translatedContent) && !blob.type.startsWith("video/") ? new Blob([blob], { type: "video/mp4" }) : blob;
+    let media: Awaited<ReturnType<typeof uploadMediaFile>>;
+    try {
+        media = await uploadMediaFile(videoBlob, "generated-video", `video-content:${videoSyncKey(config, task)}`);
+    } catch (error) {
+        try {
+            media = await cacheMediaFileLocally(videoBlob, "generated-video");
+        } catch {
+            throw new VideoRequestError(`视频已下载，但云端存储和本地缓存均失败：${error instanceof Error ? error.message : "存储失败"}`, task);
+        }
+    }
     return { ...task, url: media.url, video_url: media.url, storageKey: media.storageKey };
 }
 
@@ -392,7 +467,7 @@ async function createAgnesVideoV25RequestBody(config: AiConfig, model: string, p
     return body;
 }
 
-async function createVideoRequestBody(config: AiConfig, model: string, prompt: string, input: Required<VideoReferenceInput>) {
+async function createVideoRequestBody(config: AiConfig, model: string, prompt: string, input: Required<VideoReferenceInput>, upyunReferenceKeys: string[] = [], signal?: AbortSignal) {
     if (videoChannelProtocol(config, model) === "autodl") {
         const capabilities = getAutoDLCapabilities(await fetchAutoDLWorkflow(autoDLBaseUrl(config, model), model));
         if (!capabilities) throw new VideoRequestError("当前 AutoDL 工作流尚未适配");
@@ -416,7 +491,7 @@ async function createVideoRequestBody(config: AiConfig, model: string, prompt: s
     const size = normalizeVideoSize(config.size);
     if (isGeminiVideoModel(model) && isGeminiConfig(config, model)) return createGeminiVeoRequestBody(config, model, prompt, input);
     if (isGrok2APIVideoConfig(config, model)) return createGrok2APIVideoRequestBody(config, model, prompt, input);
-    if (isMiniMaxH3Config(config, model)) return createMiniMaxH3VideoRequestBody(config, model, prompt, input);
+    if (isMiniMaxH3Config(config, model)) return createMiniMaxH3VideoRequestBody(config, model, prompt, input, upyunReferenceKeys, signal);
     if (isCogVideoX3Model(model)) return createCogVideoX3RequestBody(config, model, prompt, input);
     if (isAgnesVideoV25Model(model)) return createAgnesVideoV25RequestBody(config, model, prompt, input);
     if (isAgnesVideoModel(model)) {
@@ -493,10 +568,10 @@ async function createVideoRequestBody(config: AiConfig, model: string, prompt: s
     if (tokenDance || apimartWan3 || supportsVideoAudioGeneration(model)) body.append("video_generate_audio", String(boolConfig(config.videoGenerateAudio, false)));
     if (tokenDance) body.append("video_watermark", String(boolConfig(config.videoWatermark, false)));
     const imageReferenceLimit = kieKlingOmni === "text-to-video" ? 0 : kieKlingOmni === "reference-to-video" ? input.references.length : kieKlingOmni === "transformation" ? 4 : kling ? 2 : 10;
-    const files = await Promise.all(input.references.slice(0, imageReferenceLimit).map(imageReferenceToFormValue));
+    const files = await Promise.all(input.references.slice(0, imageReferenceLimit).map((image) => imageReferenceToFormValue(image, signal, upyunReferenceKeys)));
     files.forEach((file) => body.append("input_reference[]", file));
-    if (!kling && input.firstFrame) body.append("first_frame_url", await imageReferenceToFormValue(input.firstFrame));
-    if (!kling && input.lastFrame) body.append("last_frame_url", await imageReferenceToFormValue(input.lastFrame));
+    if (!kling && input.firstFrame) body.append("first_frame_url", await imageReferenceToFormValue(input.firstFrame, signal, upyunReferenceKeys));
+    if (!kling && input.lastFrame) body.append("last_frame_url", await imageReferenceToFormValue(input.lastFrame, signal, upyunReferenceKeys));
     const videoFiles = kling && kieKlingOmni !== "reference-to-video" && kieKlingOmni !== "transformation" ? [] : await Promise.all(input.videoReferences.slice(0, kieKlingOmni ? 1 : input.videoReferences.length).map(mediaReferenceToFormValue));
     videoFiles.forEach((file) => body.append("video_reference[]", file));
     const audioFiles = kling ? [] : await Promise.all(input.audioReferences.map(mediaReferenceToFormValue));
@@ -528,7 +603,7 @@ async function createArkSeedanceVideoRequestBody(config: AiConfig, model: string
     };
 }
 
-async function createMiniMaxH3VideoRequestBody(config: AiConfig, model: string, prompt: string, input: Required<VideoReferenceInput>) {
+async function createMiniMaxH3VideoRequestBody(config: AiConfig, model: string, prompt: string, input: Required<VideoReferenceInput>, upyunReferenceKeys: string[], signal?: AbortSignal) {
     const hasFrames = Boolean(input.firstFrame || input.lastFrame);
     const hasReferences = Boolean(input.references.length || input.videoReferences.length || input.audioReferences.length);
     if (hasFrames && hasReferences) throw new VideoRequestError("MiniMax-H3 首尾帧不能与参考图片、视频或音频同时使用");
@@ -542,11 +617,11 @@ async function createMiniMaxH3VideoRequestBody(config: AiConfig, model: string, 
             { reference: input.firstFrame, role: "first_frame" },
             { reference: input.lastFrame, role: "last_frame" },
         ].filter((item): item is { reference: ReferenceImage; role: string } => Boolean(item.reference));
-        const urls = await Promise.all(frames.map((item) => miniMaxReferenceValue(imageReferenceToFormValue(item.reference))));
+        const urls = await Promise.all(frames.map((item) => miniMaxReferenceValue(imageReferenceToFormValue(item.reference, signal, upyunReferenceKeys))));
         frames.forEach((item, index) => content.push({ type: "image_url", image_url: { url: urls[index] }, role: item.role }));
     } else if (hasReferences) {
         const [images, videos, audios] = await Promise.all([
-            Promise.all(input.references.map((reference) => miniMaxReferenceValue(imageReferenceToFormValue(reference)))),
+            Promise.all(input.references.map((reference) => miniMaxReferenceValue(imageReferenceToFormValue(reference, signal, upyunReferenceKeys)))),
             Promise.all(input.videoReferences.map((reference) => miniMaxReferenceValue(mediaReferenceToFormValue(reference)))),
             Promise.all(input.audioReferences.map((reference) => miniMaxReferenceValue(mediaReferenceToFormValue(reference)))),
         ]);
@@ -730,9 +805,24 @@ async function imageReferenceToFile(image: ReferenceImage) {
     return dataUrlToFile({ ...image, dataUrl: await imageToDataUrl(image) });
 }
 
-async function imageReferenceToFormValue(image: ReferenceImage) {
+async function imageReferenceToFormValue(image: ReferenceImage, signal?: AbortSignal, upyunReferenceKeys: string[] = []) {
     const resolvedUrl = await resolveImageUrl(image.storageKey, "");
-    for (const url of [image.url, resolvedUrl, image.dataUrl]) {
+    const imageUrls = [image.url, resolvedUrl, image.dataUrl];
+    for (const url of imageUrls) {
+        const publicUrl = publicHttpUrl(url);
+        if (publicUrl && new URL(publicUrl).protocol === "https:") return publicUrl;
+    }
+    const upyun = loadUpyunReferenceStorage();
+    if (isUpyunReferenceStorageReady(upyun)) {
+        const source = await resolveImageUrl(image.storageKey, image.dataUrl || image.url || "");
+        if (!source) throw new VideoRequestError("参考图片不可用，无法上传至又拍云");
+        const response = await fetch(source, { signal });
+        if (!response.ok) throw new VideoRequestError(`读取参考图片失败：HTTP ${response.status}`);
+        const uploaded = await uploadUpyunReferenceImage(await response.blob(), image.name || "reference.png", signal);
+        upyunReferenceKeys.push(uploaded.objectKey);
+        return uploaded.url;
+    }
+    for (const url of imageUrls) {
         const publicUrl = publicHttpUrl(url);
         if (publicUrl) return publicUrl;
     }
@@ -1060,8 +1150,15 @@ function looksLikeBase64(value: string) {
 }
 
 function normalizeVideoResponse(value: unknown): VideoResponse {
-    const record = typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+    const record = flattenVideoResponseRecord(value);
     const id = firstString(record.id, record.request_id, record.task_id, record.video_id, firstTaskId(record));
+    const error = typeof record.error === "string"
+        ? { message: record.error }
+        : record.error && typeof record.error === "object"
+            ? record.error as { message?: string }
+            : undefined;
+    const status = firstString(record.status, record.state, record.task_status);
+    const failed = Boolean(error?.message) || /^(fail|failed|error|cancelled|canceled)$/i.test(firstString(record.code));
     return {
         ...(record as VideoResponse),
         id,
@@ -1072,10 +1169,26 @@ function normalizeVideoResponse(value: unknown): VideoResponse {
         channelId: firstString(record.channelId, record.channel_id),
         userChannelId: firstString(record.userChannelId, record.user_channel_id),
         channelName: firstString(record.channelName, record.channel_name),
-        status: firstString(record.status, record.state, record.task_status),
-        video_url: firstString(record.video_url, record.videoUrl, record.remixed_from_video_id, record.output_url, record.download_url, firstVideoUrl(record)),
+        status: status || (failed ? "failed" : undefined),
+        video_url: firstString(record.video_url, record.videoUrl, record.remixed_from_video_id, record.output_url, record.download_url, record.content_url, record.contentUrl, record.content, firstVideoUrl(record)),
         progress: typeof record.progress === "number" ? record.progress : (typeof record.progress === "string" ? parseFloat(record.progress) : undefined),
+        error,
     };
+}
+
+function flattenVideoResponseRecord(value: unknown, depth = 0): Record<string, unknown> {
+    if (depth > 8 || !value || typeof value !== "object") return {};
+    const record = Array.isArray(value)
+        ? (value.find((item) => item && typeof item === "object") as Record<string, unknown> | undefined)
+        : value as Record<string, unknown>;
+    if (!record) return {};
+    for (const key of ["data", "result", "output", "response"]) {
+        const nested = record[key];
+        if (!nested || typeof nested !== "object") continue;
+        const flattened = flattenVideoResponseRecord(nested, depth + 1);
+        if (Object.keys(flattened).length) return { ...record, ...flattened };
+    }
+    return record;
 }
 
 function buildVideoGenerationResult(task: VideoResponse, url: string, durationMs: number): VideoGenerationResult {

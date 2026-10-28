@@ -504,6 +504,7 @@ function LoadingContent({ node, theme, now }: Pick<NodeContentRendererProps, "no
                     <span className="rounded-full px-2 py-1 text-xs" style={{ background: theme.toolbar.panel, color: theme.node.text }}>
                         {formatDuration(elapsedMs)}
                     </span>
+                    {node.metadata?.errorDetails ? <span className="max-w-full text-center text-[11px] text-red-400">{node.metadata.errorDetails}</span> : null}
                 </div>
                 <div className="space-y-1">
                     <div className="flex items-center justify-between text-[11px]" style={{ color: theme.node.muted }}>

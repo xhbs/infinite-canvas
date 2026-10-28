@@ -59,6 +59,8 @@ func New() *gin.Engine {
 		handler.GetCanvasAudioTask(c.Writer, c.Request, c.Param("id"))
 	})
 	v1.POST("/ai-logs", gin.WrapF(handler.ClientAICallLog))
+	v1.POST("/canvas/request-logs", gin.WrapF(handler.SaveCanvasRequestLog))
+	v1.GET("/canvas/request-logs", gin.WrapF(handler.UserCanvasRequestLogs))
 	v1.POST("/videos", gin.WrapF(handler.AIVideos))
 	v1.GET("/video-tasks", gin.WrapF(handler.UserVideoTasks))
 	v1.DELETE("/video-tasks/:id", func(c *gin.Context) {
@@ -82,6 +84,8 @@ func New() *gin.Engine {
 		handler.DeleteUserAgentSkill(c.Writer, c.Request, c.Param("id"))
 	})
 	v1.POST("/storage/measure", gin.WrapF(handler.MeasureUserStorageProvider))
+	v1.POST("/storage/upyun-reference-upload", gin.WrapF(handler.UploadUpyunReference))
+	v1.DELETE("/storage/upyun-reference-upload", gin.WrapF(handler.DeleteUpyunReference))
 	v1.POST("/files", gin.WrapF(handler.UploadFile))
 	v1.POST("/files/direct", gin.WrapF(handler.RegisterDirectFile))
 	v1.DELETE("/files/:id", func(c *gin.Context) {

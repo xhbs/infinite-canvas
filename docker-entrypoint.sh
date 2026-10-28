@@ -5,7 +5,7 @@ PORT=8080 /app/server &
 API_PID=$!
 
 cd /app/web
-PORT=3000 node server.js &
+API_BASE_URL=http://127.0.0.1:8080 PORT=3000 node server.js &
 WEB_PID=$!
 
 shutdown() {

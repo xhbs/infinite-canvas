@@ -429,10 +429,12 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     const [canvasNow, setCanvasNow] = useState(Date.now());
     const resolvedAgentConfig = useMemo<CanvasAgentConfig>(
         () => {
-            const defaults = { textApiMode: "chat" as const, autoGenerateMedia: false };
+            const defaults = { textApiMode: "chat" as const, autoGenerateImage: true, autoGenerateVideo: false, autoGenerateAudio: false };
             return agentConfig ? { ...defaults, ...agentConfig } : {
                 textApiMode: "chat",
-                autoGenerateMedia: false,
+                autoGenerateImage: true,
+                autoGenerateVideo: false,
+                autoGenerateAudio: false,
                 imageQuality: effectiveConfig.quality,
                 imageSize: effectiveConfig.size,
                 videoQuality: effectiveConfig.vquality,
@@ -736,7 +738,13 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                         if (!isNodeTaskActive(node.id, node.metadata?.clientTaskId)) return;
                         setNodes((prev) => applyCanvasVideoTaskUpdate(prev, node.id, task, generationConfig, node.metadata?.startedAt || Date.now(), { width: node.width, height: node.height }, node.metadata?.clientTaskId));
                     })
-                    .catch(() => undefined)
+                    .catch((error) => {
+                        if (controller.signal.aborted || !isNodeTaskActive(node.id, node.metadata?.clientTaskId)) return;
+                        const errorDetails = error instanceof Error ? error.message : "视频任务恢复失败，正在重试";
+                        setNodes((prev) => prev.map((item) => item.id === node.id && item.metadata?.clientTaskId === node.metadata?.clientTaskId
+                            ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails } }
+                            : item));
+                    })
                     .finally(() => {
                         pollingVideoNodeIdsRef.current.delete(node.id);
                     });
@@ -3469,7 +3477,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                         position: isEmptyVideoNode ? sourceNode.position : { x: parent.x + (sourceNode?.width || spec.width) + 96, y: parent.y },
                         width: isEmptyVideoNode ? sourceNode.width : spec.width,
                         height: isEmptyVideoNode ? sourceNode.height : spec.height,
-                        metadata: { prompt: effectivePrompt, cameraControl: sourceNode?.metadata?.cameraControl, status: NODE_STATUS_LOADING, model: videoGenerationConfig.model, channelId: videoGenerationConfig.videoChannelId || videoGenerationConfig.activeChannelId, workflowRef, size: videoGenerationConfig.size, seconds: videoGenerationConfig.videoSeconds, vquality: videoGenerationConfig.vquality, mode: videoGenerationConfig.videoMode, negativePrompt: videoGenerationConfig.videoNegativePrompt, multiShot: videoGenerationConfig.videoMultiShot, shotType: videoGenerationConfig.videoShotType, generateAudio: videoGenerationConfig.videoGenerateAudio, characterOrientation: videoGenerationConfig.videoCharacterOrientation, watermark: videoGenerationConfig.videoWatermark, references: generationReferenceUrls({ ...generationContext, referenceImages: videoReferenceImages, firstFrame, lastFrame }), firstFrameNodeId: sourceNode?.metadata?.firstFrameNodeId, lastFrameNodeId: sourceNode?.metadata?.lastFrameNodeId, klingImageNodeIds: sourceNode?.metadata?.klingImageNodeIds, klingMultiPrompt: sourceNode?.metadata?.klingMultiPrompt, klingElementList: sourceNode?.metadata?.klingElementList, startedAt: generationStartedAt, progress: 0, clientTaskId, videoTaskId: clientTaskId },
+                        metadata: { prompt, cameraControl: sourceNode?.metadata?.cameraControl, status: NODE_STATUS_LOADING, model: videoGenerationConfig.model, channelId: videoGenerationConfig.videoChannelId || videoGenerationConfig.activeChannelId, workflowRef, size: videoGenerationConfig.size, seconds: videoGenerationConfig.videoSeconds, vquality: videoGenerationConfig.vquality, mode: videoGenerationConfig.videoMode, negativePrompt: videoGenerationConfig.videoNegativePrompt, multiShot: videoGenerationConfig.videoMultiShot, shotType: videoGenerationConfig.videoShotType, generateAudio: videoGenerationConfig.videoGenerateAudio, characterOrientation: videoGenerationConfig.videoCharacterOrientation, watermark: videoGenerationConfig.videoWatermark, references: generationReferenceUrls({ ...generationContext, referenceImages: videoReferenceImages, firstFrame, lastFrame }), firstFrameNodeId: sourceNode?.metadata?.firstFrameNodeId, lastFrameNodeId: sourceNode?.metadata?.lastFrameNodeId, klingImageNodeIds: sourceNode?.metadata?.klingImageNodeIds, klingMultiPrompt: sourceNode?.metadata?.klingMultiPrompt, klingElementList: sourceNode?.metadata?.klingElementList, startedAt: generationStartedAt, progress: 0, clientTaskId, videoTaskId: clientTaskId },
                     };
                     pendingChildIds = [videoId];
                     setNodes((prev) => (isEmptyVideoNode ? prev.map((node) => (node.id === nodeId ? { ...node, ...videoNode, ...(overwriteExisting ? { position: node.position, width: node.width, height: node.height, metadata: { ...node.metadata, ...videoNode.metadata, taskBackend: undefined, videoTaskVideoId: undefined, videoTaskTranslation: undefined } } : {}) } : node)) : [...prev.map((node) => (node.id === nodeId ? { ...node, metadata: { ...node.metadata, status: NODE_STATUS_SUCCESS } } : node)), videoNode]));
@@ -3596,10 +3604,12 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 connections: connectionsRef.current,
                 selectedNodeIds: selectedNodeIdsRef.current,
                 config: agentEffectiveConfig,
-                autoGenerateMedia: resolvedAgentConfig.autoGenerateMedia,
+                autoGenerateImage: resolvedAgentConfig.autoGenerateImage,
+                autoGenerateVideo: resolvedAgentConfig.autoGenerateVideo,
+                autoGenerateAudio: resolvedAgentConfig.autoGenerateAudio,
                 agentState,
             }),
-        [agentEffectiveConfig, currentProject?.title, projectId, resolvedAgentConfig.autoGenerateMedia],
+        [agentEffectiveConfig, currentProject?.title, projectId, resolvedAgentConfig.autoGenerateImage, resolvedAgentConfig.autoGenerateVideo, resolvedAgentConfig.autoGenerateAudio],
     );
 
     const executeCanvasAgentAction = useCallback(
@@ -3674,7 +3684,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 };
             };
 
-            const isAgentWriteAction = action.name === "generate_image" || action.name === "edit_image" || action.name === "generate_video" || action.name === "generate_audio" || action.name === "create_text_node" || action.name === "update_text_node" || action.name === "update_node" || action.name === "delete_node" || action.name === "create_connection" || action.name === "delete_connection" || action.name === "create_group" || action.name === "arrange_nodes";
+            const isAgentWriteAction = action.name === "generate_image" || action.name === "edit_image" || action.name === "generate_video" || action.name === "generate_audio" || action.name === "create_text_node" || action.name === "update_text_node" || action.name === "update_node" || action.name === "delete_node" || action.name === "delete_nodes" || action.name === "create_connection" || action.name === "delete_connection" || action.name === "create_group" || action.name === "arrange_nodes";
             const autoTitlePending = useCanvasStore.getState().projects.find((project) => project.id === projectId)?.autoTitlePending === true;
             if (autoTitlePending && action.name !== "create_primary_script_node" && isAgentWriteAction) {
                 updateProject(projectId, { autoTitlePending: false });
@@ -3746,7 +3756,9 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                         imageSize: agentEffectiveConfig.size,
                         videoQuality: agentEffectiveConfig.vquality,
                         videoSize: agentEffectiveConfig.videoSize,
-                        autoGenerateMedia: resolvedAgentConfig.autoGenerateMedia,
+                        autoGenerateImage: resolvedAgentConfig.autoGenerateImage,
+                        autoGenerateVideo: resolvedAgentConfig.autoGenerateVideo,
+                        autoGenerateAudio: resolvedAgentConfig.autoGenerateAudio,
                         imageCount: 1,
                         videoSeconds: agentEffectiveConfig.videoSeconds,
                         videoGenerateAudio: agentEffectiveConfig.videoGenerateAudio,
@@ -3850,6 +3862,17 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     if (!getNode(nodeId)) return missingNodeResult(nodeId);
                     const beforeNodeIds = nodesRef.current.map((node) => node.id);
                     deleteNodes(new Set([nodeId]));
+                    const remainingNodeIds = new Set(nodesRef.current.map((node) => node.id));
+                    return { ok: true, deletedNodeIds: beforeNodeIds.filter((id) => !remainingNodeIds.has(id)) };
+                }
+
+                if (action.name === "delete_nodes") {
+                    const nodeIds = Array.isArray(args.nodeIds) ? [...new Set(args.nodeIds.filter((id): id is string => typeof id === "string"))] : [];
+                    if (nodeIds.length < 2) return { ok: false, code: "invalid_node_ids", message: "批量删除至少需要两个节点" };
+                    const missingNodeIds = nodeIds.filter((id) => !getNode(id));
+                    if (missingNodeIds.length) return { ok: false, code: "node_not_found", message: `未找到节点：${missingNodeIds.join("、")}` };
+                    const beforeNodeIds = nodesRef.current.map((node) => node.id);
+                    deleteNodes(new Set(nodeIds));
                     const remainingNodeIds = new Set(nodesRef.current.map((node) => node.id));
                     return { ok: true, deletedNodeIds: beforeNodeIds.filter((id) => !remainingNodeIds.has(id)) };
                 }
@@ -4008,7 +4031,8 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     commitConnections([...connectionsRef.current, ...createdConnections]);
                     selectOnly(node.id);
 
-                    if (!resolvedAgentConfig.autoGenerateMedia) {
+                    const autoGenerate = mode === "video" ? resolvedAgentConfig.autoGenerateVideo : mode === "audio" ? resolvedAgentConfig.autoGenerateAudio : resolvedAgentConfig.autoGenerateImage;
+                    if (!autoGenerate) {
                         return {
                             ok: true,
                             message: "媒体节点已创建并完成参数配置，尚未提交生成",
@@ -4055,7 +4079,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 return { ok: false, code: "tool_error", message: error instanceof Error ? error.message : "画布工具执行失败" };
             }
         },
-        [agentEffectiveConfig, createGroupFromSelection, currentProject?.title, deleteConnection, deleteNodes, getCanvasCenter, handleGenerateNode, isAiConfigReady, projectId, renameProject, resolvedAgentConfig.autoGenerateMedia, updateProject],
+        [agentEffectiveConfig, createGroupFromSelection, currentProject?.title, deleteConnection, deleteNodes, getCanvasCenter, handleGenerateNode, isAiConfigReady, projectId, renameProject, resolvedAgentConfig.autoGenerateImage, resolvedAgentConfig.autoGenerateVideo, resolvedAgentConfig.autoGenerateAudio, updateProject],
     );
 
     const handleRetryNode = useCallback(

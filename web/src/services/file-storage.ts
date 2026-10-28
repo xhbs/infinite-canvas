@@ -25,6 +25,10 @@ export async function uploadMediaFile(input: string | Blob, prefix = "file", syn
         }
     });
     if (uploaded) return uploaded;
+    return cacheMediaFileLocally(blob, prefix);
+}
+
+export async function cacheMediaFileLocally(blob: Blob, prefix = "file"): Promise<UploadedFile> {
     const storageKey = `${prefix}:${nanoid()}`;
     await store.setItem(storageKey, blob);
     const url = URL.createObjectURL(blob);

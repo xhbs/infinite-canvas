@@ -55,6 +55,51 @@ func MeasureUserStorageProvider(w http.ResponseWriter, r *http.Request) {
 	OK(w, result)
 }
 
+// UploadUpyunReference uploads one reference image from the local server to Upyun.
+func UploadUpyunReference(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 51*1024*1024)
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		Fail(w, "请选择要上传的参考图片（最大 50 MB）")
+		return
+	}
+	defer file.Close()
+	object, err := service.UploadUpyunReference(r.Context(), service.UpyunReferenceUploadInput{
+		Operator: r.FormValue("operator"),
+		Password: r.FormValue("password"),
+		Bucket: r.FormValue("bucket"),
+		PublicURL: r.FormValue("publicBaseUrl"),
+		ObjectKey: r.FormValue("objectKey"),
+		MimeType: header.Header.Get("Content-Type"),
+		Size: header.Size,
+		Body: file,
+	})
+	if err != nil {
+		FailError(w, err)
+		return
+	}
+	OK(w, object)
+}
+
+// DeleteUpyunReference removes one temporary reference image from Upyun.
+func DeleteUpyunReference(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		Operator string `json:"operator"`
+		Password string `json:"password"`
+		Bucket string `json:"bucket"`
+		ObjectKey string `json:"objectKey"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		Fail(w, "删除参数格式错误")
+		return
+	}
+	if err := service.DeleteUpyunReference(r.Context(), request.Operator, request.Password, request.Bucket, request.ObjectKey); err != nil {
+		FailError(w, err)
+		return
+	}
+	OK(w, true)
+}
+
 // UploadFile 上传文件到对象存储。
 func UploadFile(w http.ResponseWriter, r *http.Request) {
 	file, header, err := r.FormFile("file")
