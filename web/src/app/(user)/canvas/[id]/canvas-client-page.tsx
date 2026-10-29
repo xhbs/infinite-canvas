@@ -3709,7 +3709,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 };
             };
 
-            const isAgentWriteAction = action.name === "generate_image" || action.name === "edit_image" || action.name === "generate_video" || action.name === "generate_audio" || action.name === "create_text_node" || action.name === "update_text_node" || action.name === "update_node" || action.name === "delete_node" || action.name === "delete_nodes" || action.name === "create_connection" || action.name === "delete_connection" || action.name === "create_group" || action.name === "arrange_nodes";
+            const isAgentWriteAction = action.name === "generate_image" || action.name === "edit_image" || action.name === "generate_video" || action.name === "generate_audio" || action.name === "create_text_node" || action.name === "import_image_data" || action.name === "update_text_node" || action.name === "update_node" || action.name === "delete_node" || action.name === "delete_nodes" || action.name === "create_connection" || action.name === "delete_connection" || action.name === "create_group" || action.name === "arrange_nodes";
             const autoTitlePending = useCanvasStore.getState().projects.find((project) => project.id === projectId)?.autoTitlePending === true;
             if (autoTitlePending && action.name !== "create_primary_script_node" && isAgentWriteAction) {
                 updateProject(projectId, { autoTitlePending: false });
@@ -3852,6 +3852,17 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                         renameProject(projectId, projectTitle);
                     }
                     return { ok: true, nodeId: node.id, connectionIds: createdConnections.map((connection) => connection.id), node: canvasAgentNodeSummary(node) };
+                }
+
+                if (action.name === "import_image_data") {
+                    const binary = atob(stringValue("dataBase64"));
+                    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+                    const fileName = stringValue("fileName").split(/[\\/]/).pop() || "image.png";
+                    const image = await uploadImage(new Blob([bytes], { type: stringValue("mimeType") }), { localOnly: true });
+                    const position = getCanvasCenter();
+                    appendImportedImageNode(image, fileName, position, CanvasNodeType.Image);
+                    focusCanvasPosition(position);
+                    return { ok: true, fileName, width: image.width, height: image.height, bytes: image.bytes, storage: "browser-local" };
                 }
 
                 if (action.name === "update_text_node") {
@@ -4104,7 +4115,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 return { ok: false, code: "tool_error", message: error instanceof Error ? error.message : "画布工具执行失败" };
             }
         },
-        [agentEffectiveConfig, createGroupFromSelection, currentProject?.title, deleteConnection, deleteNodes, focusCanvasPosition, getCanvasCenter, handleGenerateNode, isAiConfigReady, projectId, renameProject, resolvedAgentConfig.autoGenerateImage, resolvedAgentConfig.autoGenerateVideo, resolvedAgentConfig.autoGenerateAudio, updateProject],
+        [agentEffectiveConfig, appendImportedImageNode, createGroupFromSelection, currentProject?.title, deleteConnection, deleteNodes, focusCanvasPosition, getCanvasCenter, handleGenerateNode, isAiConfigReady, projectId, renameProject, resolvedAgentConfig.autoGenerateImage, resolvedAgentConfig.autoGenerateVideo, resolvedAgentConfig.autoGenerateAudio, updateProject],
     );
 
     const handleRetryNode = useCallback(

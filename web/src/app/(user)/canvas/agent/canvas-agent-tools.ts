@@ -16,6 +16,7 @@ export const CANVAS_AGENT_ACTION_NAMES = [
     "set_agent_state",
     "create_primary_script_node",
     "create_text_node",
+    "import_image_data",
     "update_text_node",
     "update_node",
     "delete_node",
@@ -132,6 +133,7 @@ export const CANVAS_AGENT_TOOLS: CanvasAgentToolDefinition[] = [
         { title: STRING, content: STRING, sourceNodeIds: STRING_ARRAY },
         ["title", "content"],
     ),
+    defineTool("import_image_data", "将 MCP Agent 从本机读取的图片内容导入当前画布，仅保存到浏览器本地，不上传云端。", { fileName: STRING, mimeType: STRING, dataBase64: STRING }, ["fileName", "mimeType", "dataBase64"]),
     defineTool("update_text_node", "更新现有文本节点的标题或正文。", { nodeId: STRING, title: STRING, content: STRING }, ["nodeId"]),
     defineTool("update_node", "只更新现有节点标题；不允许任意字段覆盖。", { nodeId: STRING, title: STRING }, ["nodeId", "title"]),
     defineTool("delete_node", "按用户要求使用画布现有删除链路直接删除节点及关联连线，无需再次确认。", { nodeId: STRING }, ["nodeId"]),
@@ -253,6 +255,15 @@ export function normalizeCanvasAgentAction(name: unknown, args: unknown, id = na
                 sourceNodeIds: stringArray(input.sourceNodeIds),
             };
             break;
+        case "import_image_data": {
+            const fileName = requiredString(input.fileName, "fileName");
+            const mimeType = requiredString(input.mimeType, "mimeType");
+            const dataBase64 = requiredString(input.dataBase64, "dataBase64");
+            if (!/^image\/(png|jpeg|webp|gif|avif)$/.test(mimeType)) throw new Error("仅支持 PNG、JPEG、WebP、GIF 或 AVIF 图片");
+            if (!/^[A-Za-z0-9+/]+={0,2}$/.test(dataBase64) || dataBase64.length > 14_000_000) throw new Error("图片数据无效或超过 10 MB");
+            normalized = { fileName, mimeType, dataBase64 };
+            break;
+        }
         case "update_text_node":
             normalized = {
                 nodeId: requiredString(input.nodeId, "nodeId"),
@@ -400,6 +411,7 @@ export function canvasAgentActionLabel(action: CanvasAgentAction) {
         set_agent_state: "正在保存创作进度",
         create_primary_script_node: "正在创建主剧本节点",
         create_text_node: "正在创建文本节点",
+        import_image_data: "正在导入本地图片",
         update_text_node: "正在更新文本节点",
         update_node: "正在更新节点",
         delete_node: "正在删除节点",

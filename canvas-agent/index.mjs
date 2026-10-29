@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import express from "express";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { dirname, extname, resolve } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { randomBytes, randomUUID } from "node:crypto";
@@ -26,6 +26,17 @@ const workspace = dirname(entry);
 const origins = new Set(process.env.CANVAS_AGENT_ORIGINS?.split(",").map((value) => value.trim()).filter(Boolean) || savedConfig?.origins || []);
 const sessions = new Map();
 const methods = new Set(["model/list", "thread/start", "thread/resume", "thread/archive", "turn/start", "turn/interrupt", "bridge/stop"]);
+const localImageTool = {
+    name: "upload_local_image",
+    description: "读取 Agent 本机的图片文件并导入当前画布浏览器本地存储，不上传云端。",
+    inputSchema: {
+        type: "object",
+        properties: { path: { type: "string", description: "Agent 所在机器可读取的图片绝对路径" } },
+        required: ["path"],
+        additionalProperties: false,
+    },
+};
+const imageMimeTypes = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif", ".avif": "image/avif" };
 
 async function openCanvas() {
     const target = URL.canParse(process.argv[3] || "") ? new URL(process.argv[3]) : null;
@@ -164,11 +175,25 @@ async function startMcp() {
     server.setRequestHandler(ListToolsRequestSchema, async () => {
         try {
             const tools = await request(toolsPath);
-            return { tools: source === "codex" ? tools : tools.filter(({ name }) => name !== "set_agent_state" && name !== "read_skill_file") };
+            const visibleTools = tools.filter(({ name }) => name !== "import_image_data");
+            return { tools: [...(source === "codex" ? visibleTools : visibleTools.filter(({ name }) => name !== "set_agent_state" && name !== "read_skill_file")), localImageTool] };
         } catch { return { tools: [] }; }
     });
     server.setRequestHandler(CallToolRequestSchema, async ({ params }, { signal }) => {
         try {
+            if (params.name === "upload_local_image") {
+                const imagePath = params.arguments?.path;
+                if (typeof imagePath !== "string" || !imagePath.trim()) throw new Error("请提供图片文件路径");
+                const absolutePath = resolve(imagePath);
+                const extension = extname(absolutePath).toLowerCase();
+                const mimeType = imageMimeTypes[extension];
+                if (!mimeType) throw new Error("仅支持 PNG、JPEG、WebP、GIF 或 AVIF 图片");
+                const size = statSync(absolutePath).size;
+                if (!size || size > 10 * 1024 * 1024) throw new Error("图片为空或超过 10 MB");
+                const dataBase64 = readFileSync(absolutePath).toString("base64");
+                const result = await request("/tools/call", { name: "import_image_data", arguments: { fileName: absolutePath.split(/[\\/]/).pop(), mimeType, dataBase64 } }, signal);
+                return { isError: result?.ok === false, content: [{ type: "text", text: JSON.stringify(result) }] };
+            }
             const result = await request("/tools/call", { name: params.name, arguments: params.arguments || {} }, signal);
             return { isError: result?.ok === false, content: [{ type: "text", text: JSON.stringify(result) }] };
         } catch (error) {
