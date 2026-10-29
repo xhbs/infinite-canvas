@@ -301,6 +301,9 @@ func copyAIResponseBody(w http.ResponseWriter, body io.Reader, capture bool) str
 }
 
 func saveAIProxyLog(context aiLogContext, status int, responseBody string, errorMessage string) {
+	if strings.HasPrefix(context.Endpoint, "/videos") {
+		return
+	}
 	if context.StartedAt.IsZero() {
 		context.StartedAt = time.Now()
 	}

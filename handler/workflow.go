@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/tigerowo/infinite-canvas/service"
 )
@@ -71,7 +72,7 @@ func ClientAICallLog(w http.ResponseWriter, r *http.Request) {
 	}
 	var request service.AICallLogInput
 	_ = json.NewDecoder(r.Body).Decode(&request)
-	if !service.LocalDirectAILogEnabled() {
+	if !service.LocalDirectAILogEnabled() && !strings.Contains(request.Endpoint, "/videos") {
 		OK(w, true)
 		return
 	}

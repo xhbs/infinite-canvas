@@ -42,24 +42,24 @@ description: 当前后端主要数据表与字段说明
 
 ### ai_call_logs
 
-AI 调用诊断日志表。管理员 AI 日志沿用现有日志流程；画布视频请求日志也写入此表，通过 `user_id` 和 `node_id` 限定用户可见范围，每个用户的每个节点最多保留最近 200 条。
+AI 调用诊断日志表。视频生成请求统一写入此表，可在管理员 AI 日志中查看，不与画布节点绑定；视频请求记录开始时间、结束状态时间、耗时、请求体和响应体。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `id` | string | 主键 |
 | `user_id` | string | 所属用户 ID |
-| `node_id` | string | 画布节点 ID；普通 AI 调用日志为空 |
 | `endpoint` | string | 请求端点 |
 | `method` | string | HTTP 方法 |
 | `model` | string | 模型名称 |
 | `channel_id` / `channel_name` | string | 使用的模型渠道 |
 | `status` | number | HTTP 状态码；未收到响应时为 `0` |
 | `duration_ms` | number | 请求耗时 |
+| `started_at` / `completed_at` / `failed_at` | string | 请求开始时间及成功完成或失败时间 |
 | `request_body` / `response_body` | text | 请求内容摘要与响应内容 |
 | `error` | text | 错误信息 |
 | `created_at` | string | 记录创建时间 |
 
-画布请求日志不保存鉴权头、文件二进制或用户展示名，请求体、响应体和错误文本各最多保存 60 KiB。
+视频请求日志不保存鉴权头或文件二进制；文件类请求体以字段和文件元信息记录，请求体、响应体和错误文本遵循 AI 调用日志长度限制。
 
 ### users
 

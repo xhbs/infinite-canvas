@@ -90,7 +90,7 @@ export default function AdminAICallLogsPage() {
 
     const columns = useMemo(
         () => [
-            { title: "时间", dataIndex: "createdAt", width: 170, render: (value: string) => formatTime(value) },
+            { title: "开始 / 结束", dataIndex: "startedAt", width: 210, render: (_: string, item: AdminAICallLog) => <span>{formatTime(item.startedAt || item.createdAt)}<br />{formatTime(item.completedAt || item.failedAt || item.createdAt)}</span> },
             { title: "用户", dataIndex: "userDisplayName", width: 150, render: (_: string, item: AdminAICallLog) => item.userDisplayName || item.userId || "-" },
             { title: "接口", dataIndex: "endpoint", width: 170 },
             { title: "模型", dataIndex: "model", width: 180, ellipsis: true },

@@ -18,7 +18,6 @@ import { autoSyncToCloud, imageToDataUrl, resolveImageUrl } from "@/services/ima
 import { buildApiUrl, channelIdForActiveModel, channelProtocolForConfig, directAIProviderForConfig, localChannelForActiveModel, type AiConfig, type VideoElementReference } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 import { deleteUpyunReferenceImage, isUpyunReferenceStorageReady, loadUpyunReferenceStorage, uploadUpyunReferenceImage } from "@/services/upyun-reference-storage";
-import { saveCanvasRequestLog, stringifyCanvasRequestBody } from "@/services/canvas-request-logs";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
 
@@ -142,7 +141,7 @@ export async function createVideoGenerationTask(config: AiConfig, prompt: string
     }
     const startedAt = Date.now();
     let requestEndpoint = "/videos";
-    const requestLogBody = stringifyCanvasRequestBody(body);
+    const requestLogBody = stringifyVideoRequestBody(body);
     try {
         const accountProxy = usesAccountProxy(config);
         const headers = { ...aiHeaders(config), ...(accountProxy && createOptions.clientTaskId ? { "X-Client-Video-Task-ID": createOptions.clientTaskId } : {}), ...(accountProxy && createOptions.source ? { "X-Video-Task-Source": createOptions.source } : {}), ...(accountProxy && createOptions.sourceId ? { "X-Video-Task-Source-ID": createOptions.sourceId } : {}) };
@@ -165,13 +164,11 @@ export async function createVideoGenerationTask(config: AiConfig, prompt: string
         const task = await syncGeneratedVideo(created, config);
         task.upyunReferenceKeys = createOptions.upyunReferenceKeys;
         if (typeof task.progress === "number") onProgress?.(task.progress, task);
-        if (createOptions.source === "canvas" && createOptions.sourceId) await saveCanvasRequestLog({ id: nanoid(), nodeId: createOptions.sourceId, createdAt: startedAt, method: "POST", endpoint: createUrl, model, channelId: channel?.id || "", channelName: channel?.name || "本地直连", status: 200, durationMs: Date.now() - startedAt, requestBody: requestLogBody, responseBody: stringifyCanvasRequestBody(created), error: "" });
         return { task, pollId: videoPollId(model, task), startedAt, requestBody: body };
     } catch (error) {
         await cleanupUpyunReferences(createOptions.upyunReferenceKeys);
         const { message, detail } = readAxiosError(error, "视频生成失败");
-        if (createOptions.source === "canvas" && createOptions.sourceId) await saveCanvasRequestLog({ id: nanoid(), nodeId: createOptions.sourceId, createdAt: startedAt, method: "POST", endpoint: requestEndpoint, model, channelId: localChannelForActiveModel(config)?.id || config.activeChannelId || "", channelName: localChannelForActiveModel(config)?.name || "本地直连", status: axios.isAxiosError(error) ? error.response?.status || 0 : 0, durationMs: Date.now() - startedAt, requestBody: requestLogBody, responseBody: stringifyCanvasRequestBody(detail), error: message });
-        void writeVideoAICallLog(config, model, "/videos", "POST", startedAt, axios.isAxiosError(error) ? error.response?.status || 0 : 0, stringifyLogPayload(summarizeVideoRequestBody(body)), stringifyLogPayload(detail), message);
+        void writeVideoAICallLog(config, model, requestEndpoint, "POST", startedAt, axios.isAxiosError(error) ? error.response?.status || 0 : 0, requestLogBody, stringifyLogPayload(detail), message, false);
         throw new VideoRequestError(message, detail);
     }
 }
@@ -214,6 +211,7 @@ async function createTranslatedVideoTask(config: AiConfig, match: MatchedTransla
     };
     const startedAt = Date.now();
     let task: VideoResponse;
+    try {
     if (match.accountProxy) {
         options.signal?.throwIfAborted();
         options.onServerTask?.();
@@ -248,6 +246,11 @@ async function createTranslatedVideoTask(config: AiConfig, match: MatchedTransla
             parameter_translation: true,
             translationSnapshot: { match, input, baseUrl: channel?.baseUrl || config.baseUrl, protocol: channel?.protocol || "openai", taskIds: result.taskIds || [], completed: {} },
         };
+    }
+    } catch (error) {
+        const { message, detail } = readAxiosError(error, "视频生成失败");
+        void writeVideoAICallLog(config, config.model, "/videos", "POST", startedAt, axios.isAxiosError(error) ? error.response?.status || 0 : 0, stringifyVideoRequestBody(translationBody(config, input)), stringifyLogPayload(detail), message, false);
+        throw error;
     }
     refreshRemoteUser(config);
     task = await syncGeneratedVideo(task, config, true);
@@ -317,12 +320,12 @@ export async function pollCreatedVideoGenerationTask(config: AiConfig, task: Vid
         const videoUrl = completed?.video_url || completed?.url || "";
         if (!videoUrl) throw new VideoRequestError("视频生成完成但没有返回视频地址", completed);
         const result = buildVideoGenerationResult(completed, videoUrl, Date.now() - startedAt);
-        void writeVideoAICallLog(config, model, "/videos", "POST", startedAt, 200, stringifyLogPayload(requestBody ? summarizeVideoRequestBody(requestBody) : { taskId: pollId }), stringifyLogPayload({ task: completed, video: result }), "");
+        void writeVideoAICallLog(config, model, "/videos", "POST", startedAt, 200, stringifyVideoRequestBody(requestBody || { taskId: pollId }), stringifyLogPayload({ task: completed, video: result }), "", true);
         refreshRemoteUser(config);
         return result;
     } catch (error) {
         const { message, detail } = readAxiosError(error, "视频生成失败");
-        void writeVideoAICallLog(config, model, "/videos", "POST", startedAt, axios.isAxiosError(error) ? error.response?.status || 0 : 0, stringifyLogPayload(requestBody ? summarizeVideoRequestBody(requestBody) : { taskId: pollId }), stringifyLogPayload(detail), message);
+        void writeVideoAICallLog(config, model, "/videos", "POST", startedAt, axios.isAxiosError(error) ? error.response?.status || 0 : 0, stringifyVideoRequestBody(requestBody || { taskId: pollId }), stringifyLogPayload(detail), message, false);
         throw new VideoRequestError(message, detail);
     } finally {
         if (terminalTask?.upyunReferenceKeys?.length) {
@@ -1067,11 +1070,11 @@ function readAxiosError(error: unknown, fallback: string) {
     return { message: error instanceof Error ? error.message : fallback, detail: error instanceof Error ? error.stack || error.message : error };
 }
 
-async function writeVideoAICallLog(config: AiConfig, model: string, endpoint: string, method: "GET" | "POST", startedAt: number, status: number, requestBody: string, responseBody: string, error: string) {
-    if (config.channelMode !== "local" || usesAccountProxy(config)) return;
+async function writeVideoAICallLog(config: AiConfig, model: string, endpoint: string, method: "GET" | "POST", startedAt: number, status: number, requestBody: string, responseBody: string, error: string, completed: boolean) {
     const token = useUserStore.getState().token;
     if (!token) return;
     const channel = localChannelForActiveModel(config);
+    const endedAt = new Date().toISOString();
     await fetch("/api/v1/ai-logs", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -1083,28 +1086,15 @@ async function writeVideoAICallLog(config: AiConfig, model: string, endpoint: st
             channelName: channel?.name || "本地直连",
             status,
             durationMs: Date.now() - startedAt,
+            startedAt: new Date(startedAt).toISOString(),
+            completedAt: completed ? endedAt : "",
+            failedAt: completed ? "" : endedAt,
             credits: 0,
             requestBody,
             responseBody,
             error,
         }),
     }).catch(() => { });
-}
-
-function summarizeVideoRequestBody(value: unknown) {
-    if (value instanceof FormData) {
-        const fields: Record<string, string[]> = {};
-        const files: Array<{ field: string; name: string; size: number; type: string }> = [];
-        value.forEach((item, key) => {
-            if (item instanceof File) {
-                files.push({ field: key, name: item.name, size: item.size, type: item.type });
-                return;
-            }
-            fields[key] = [...(fields[key] || []), String(item)];
-        });
-        return { fields, files };
-    }
-    return value;
 }
 
 function formatErrorDetail(detail: unknown) {
@@ -1115,6 +1105,17 @@ function formatErrorDetail(detail: unknown) {
     } catch {
         return String(detail);
     }
+}
+
+function stringifyVideoRequestBody(value: unknown) {
+    if (!(value instanceof FormData)) return stringifyLogPayload(value);
+    const fields: Record<string, string[]> = {};
+    const files: Array<{ field: string; name: string; size: number; type: string }> = [];
+    value.forEach((item, key) => {
+        if (item instanceof File) files.push({ field: key, name: item.name, size: item.size, type: item.type });
+        else fields[key] = [...(fields[key] || []), item];
+    });
+    return JSON.stringify({ fields, files }, null, 2);
 }
 
 function stringifyLogPayload(value: unknown) {

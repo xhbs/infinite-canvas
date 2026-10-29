@@ -325,6 +325,9 @@ export type AdminAICallLog = {
     status: number;
     failed: boolean;
     durationMs: number;
+    startedAt: string;
+    completedAt: string;
+    failedAt: string;
     credits: number;
     requestBody: string;
     responseBody: string;

@@ -7,7 +7,6 @@ import { Download, Ellipsis, FolderPlus, Image as ImageIcon, Info, MessageSquare
 import { canvasThemes } from "@/lib/canvas-theme";
 import { formatBytes, getDataUrlByteSize } from "@/lib/image-utils";
 import { useCopyText } from "@/hooks/use-copy-text";
-import { getCanvasRequestLogs, type CanvasRequestLog } from "@/services/canvas-request-logs";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { CanvasNodeType, type CanvasNodeData, type ViewportTransform } from "../types";
 import { isCanvasImageNodeType, isPanoramaNodeType } from "../utils/canvas-panorama";
@@ -256,9 +255,7 @@ export function CanvasNodeHoverToolbar({
 
 export function CanvasNodeInfoModal({ node, open, onClose }: { node: CanvasNodeData | null; open: boolean; onClose: () => void }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
-    const [view, setView] = useState<"info" | "json" | "requests">("info");
-    const [requestLogs, setRequestLogs] = useState<CanvasRequestLog[]>([]);
-    const copyText = useCopyText();
+    const [view, setView] = useState<"info" | "json">("info");
     const imageBytes = isCanvasImageNodeType(node?.type) && node?.metadata?.content ? getDataUrlByteSize(node.metadata.content) : 0;
     const batchCount = isCanvasImageNodeType(node?.type) ? node?.metadata?.batchChildIds?.length || 0 : 0;
     const json = useMemo(() => {
@@ -280,13 +277,6 @@ export function CanvasNodeInfoModal({ node, open, onClose }: { node: CanvasNodeD
         if (open) setView("info");
     }, [node?.id, open]);
 
-    useEffect(() => {
-        let active = true;
-        if (open && node) void getCanvasRequestLogs(node.id).then((logs) => { if (active) setRequestLogs(logs); });
-        else setRequestLogs([]);
-        return () => { active = false; };
-    }, [node?.id, open]);
-
     const title = (
         <div className="flex items-center justify-between gap-4 pr-12">
             <span>节点信息</span>
@@ -297,7 +287,6 @@ export function CanvasNodeInfoModal({ node, open, onClose }: { node: CanvasNodeD
                 options={[
                     { label: "信息", value: "info" },
                     { label: "JSON", value: "json" },
-                    { label: `请求日志${requestLogs.length ? ` (${requestLogs.length})` : ""}`, value: "requests" },
                 ]}
             />
         </div>
@@ -328,21 +317,7 @@ export function CanvasNodeInfoModal({ node, open, onClose }: { node: CanvasNodeD
                         <pre className="thin-scrollbar h-full overflow-auto rounded-lg border p-3 text-xs leading-5" style={{ background: theme.node.fill, borderColor: theme.node.stroke, color: theme.node.text }}>
                             {json}
                         </pre>
-                    ) : (
-                        <div className="thin-scrollbar h-full space-y-3 overflow-auto pr-1">
-                            {requestLogs.length ? requestLogs.map((log) => (
-                                <section key={log.id} className="rounded-lg border p-3" style={{ borderColor: theme.node.stroke }}>
-                                    <div className="mb-2 flex items-center justify-between gap-3 text-xs opacity-70">
-                                        <span>{new Date(log.createdAt).toLocaleString()} · {log.method} · HTTP {log.status || "未收到响应"} · {log.durationMs} ms</span>
-                                        <button type="button" className="shrink-0 underline" onClick={() => copyText(JSON.stringify(log, null, 2), "请求日志已复制")}>复制</button>
-                                    </div>
-                                    <div className="mb-2 break-all text-xs">{log.model} · {log.endpoint}</div>
-                                    {log.error ? <div className="mb-2 whitespace-pre-wrap break-words text-xs text-red-400">{log.error}</div> : null}
-                                    <pre className="thin-scrollbar max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-md p-2 text-[11px] leading-4" style={{ background: theme.node.fill, color: theme.node.text }}>请求\n{log.requestBody}\n\n响应\n{log.responseBody || "（无响应内容）"}</pre>
-                                </section>
-                            )) : <div className="py-8 text-center opacity-50">该节点暂无画布视频请求日志</div>}
-                        </div>
-                    )}
+                    ) : null}
                 </div>
             ) : null}
         </Modal>

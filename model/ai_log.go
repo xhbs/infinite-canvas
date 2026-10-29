@@ -3,7 +3,6 @@ package model
 type AICallLog struct {
 	ID              string `json:"id" gorm:"primaryKey"`
 	UserID          string `json:"userId" gorm:"index"`
-	NodeID          string `json:"nodeId" gorm:"index"`
 	UserDisplayName string `json:"userDisplayName" gorm:"->;-:migration"`
 	Endpoint        string `json:"endpoint" gorm:"index"`
 	Method          string `json:"method"`
@@ -13,6 +12,9 @@ type AICallLog struct {
 	Status          int    `json:"status" gorm:"index"`
 	Failed          bool   `json:"failed" gorm:"-"`
 	DurationMs      int64  `json:"durationMs"`
+	StartedAt       string `json:"startedAt"`
+	CompletedAt     string `json:"completedAt"`
+	FailedAt        string `json:"failedAt"`
 	Credits         float64 `json:"credits" gorm:"type:decimal(20,2)"`
 	RequestBody     string `json:"requestBody" gorm:"type:text"`
 	ResponseBody    string `json:"responseBody" gorm:"type:text"`
