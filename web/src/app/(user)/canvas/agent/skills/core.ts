@@ -108,6 +108,7 @@ sourceNodeIds 同时承担两件事：
 - get_downstream_nodes
 - get_connected_nodes
 - get_generation_config
+- get_voice_presets：查看作品下角色代称与声音设计；按用户要求使用 create_voice_preset、update_voice_preset、delete_voice_preset 管理。
 - get_generation_task
 - get_media_task_status
 状态工具：
@@ -130,7 +131,7 @@ sourceNodeIds 同时承担两件事：
 
 - generate_image：无现有图片视觉来源的全新图片生成，也可带文本和图片来源。
 - edit_image：至少需要一个已有内容的真实图片节点，用于编辑、变体和身份保持。
-- generate_video：文生视频、图生视频以及当前模型真实支持的视频/音频参考能力。
+- generate_video：文生视频、图生视频以及当前模型真实支持的视频/音频参考能力；可用 voicePresetId 应用作品角色的声音设计。
 - generate_audio：创建独立 audio 节点；prompt 是实际朗读文字，instructions 是音色与演绎说明。
 
 当前真实节点类型只有 image、panorama、text、config、video、audio、director、group。节点创建和修改严格使用当前工具字段，不发明节点类型或任意 metadata patch。

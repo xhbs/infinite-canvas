@@ -34,10 +34,12 @@ import { saveAs } from "file-saver";
 import { ImageSettingsPanel, imageFormatLabel, imageQualityLabel, imageSizeLabel, imageSizeOptions } from "@/components/image-settings-panel";
 import { ModelPicker } from "@/components/model-picker";
 import { PromptSelectDialog } from "@/components/prompts/prompt-select-dialog";
+import { StyleSelector } from "@/components/styles/style-selector";
 import { AssetPickerModal, type InsertAssetPayload } from "@/app/(user)/canvas/components/asset-picker-modal";
 import { CanvasNodeMaskEditDialog, type CanvasImageMaskEditPayload } from "@/app/(user)/canvas/components/canvas-node-mask-edit-dialog";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { IMAGE_MASK_EDIT_PROMPT_PREFIX } from "@/lib/image-reference-prompt";
+import { appendGenerationStyle } from "@/lib/generation-style";
 import {
     CreativeWorkflowWorkspace,
     type WorkflowExternalTaskFailure,
@@ -55,6 +57,8 @@ import { deleteImageGenerationLogs, fetchImageGenerationLogs, saveImageGeneratio
 import { deleteStoredImages, imageToDataUrl, resolveImageUrl, uploadImage, uploadRemoteImageToServer } from "@/services/image-storage";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { useUserStore } from "@/stores/use-user-store";
+import { useStyleStore } from "@/stores/use-style-store";
+import type { GenerationStyle } from "@/services/api/styles";
 import type { ReferenceImage } from "@/types/image";
 
 type GeneratedImage = {
@@ -74,6 +78,7 @@ type GenerationResult = {
     status: "pending" | "success" | "failed";
     createdAt: number;
     prompt: string;
+    style?: RequestSnapshot["style"];
     model: string;
     config: GenerationLogConfig;
     references: ReferenceImage[];
@@ -96,6 +101,7 @@ type GenerationLog = {
     createdAt: number;
     title: string;
     prompt: string;
+    style?: RequestSnapshot["style"];
     time: string;
     model: string;
     config: GenerationLogConfig;
@@ -122,7 +128,7 @@ type GenerationLog = {
 };
 
 type GenerationLogConfig = Pick<AiConfig, "channelMode" | "model" | "imageModel" | "activeChannelId" | "imageChannelId" | "quality" | "size" | "count" | "apiMode" | "streamImages" | "streamPartialImages" | "responseFormatB64Json" | "codexCli">;
-type RequestSnapshot = { text: string; requestConfig: AiConfig; displayConfig: GenerationLogConfig; references: ReferenceImage[]; workflowRef?: WorkflowRef };
+type RequestSnapshot = { text: string; requestText: string; style?: Pick<GenerationStyle, "id" | "name" | "prompt">; requestConfig: AiConfig; displayConfig: GenerationLogConfig; references: ReferenceImage[]; workflowRef?: WorkflowRef };
 type GenerationCategory = { id: string; name: string; createdAt: number };
 type ResultViewMode = "all" | "category";
 type WorkflowPollContext = { token: string; signal: AbortSignal };
@@ -160,6 +166,22 @@ export default function ImagePage() {
     const [activeResultCategoryId, setActiveResultCategoryId] = useState<string | null>(null);
     const [workbenchLayout, setWorkbenchLayoutState] = useState<WorkbenchLayout>("side");
     const [promptDialogOpen, setPromptDialogOpen] = useState(false);
+    const [selectedStyleId, setSelectedStyleId] = useState("");
+    const [styleSelectionReady, setStyleSelectionReady] = useState(false);
+    const styles = useStyleStore((state) => state.styles);
+    const stylesLoadedFor = useStyleStore((state) => state.loadedFor);
+    const loadStyles = useStyleStore((state) => state.load);
+    const selectedStyle = stylesLoadedFor === token ? styles.find((style) => style.id === selectedStyleId && (style.appliesTo === "image" || style.appliesTo === "both")) : undefined;
+    useEffect(() => { if (token) void loadStyles().catch(() => undefined); }, [loadStyles, token]);
+    useEffect(() => {
+        if (!isUserReady) return;
+        const key = `infinite-canvas:image-style:${userId || "guest"}`;
+        setSelectedStyleId(localStorage.getItem(key) || "");
+        setStyleSelectionReady(true);
+    }, [isUserReady, userId]);
+    useEffect(() => {
+        if (styleSelectionReady) localStorage.setItem(`infinite-canvas:image-style:${userId || "guest"}`, selectedStyleId);
+    }, [selectedStyleId, styleSelectionReady, userId]);
     const [assetPickerOpen, setAssetPickerOpen] = useState(false);
     const [maskEditTarget, setMaskEditTarget] = useState<{ image: GeneratedImage; model: string; channelId: string; quality: string; size: string; open: boolean } | null>(null);
     const [workflowDrawerOpen, setWorkflowDrawerOpen] = useState(false);
@@ -418,7 +440,7 @@ export default function ImagePage() {
 
     const retryLog = async (log: GenerationLog) => {
         const retryChannelId = imageTaskChannelId(log.task);
-        const snapshot = buildRequestSnapshot({ promptText: log.prompt, referenceItems: log.references, taskCount: Number(log.config.count) || 1, configOverride: { ...log.config, ...(retryChannelId ? { imageChannelId: retryChannelId, activeChannelId: retryChannelId } : {}) }, workflowRef: log.providerWorkflowRef || null });
+        const snapshot = buildRequestSnapshot({ promptText: log.prompt, referenceItems: log.references, taskCount: Number(log.config.count) || 1, configOverride: { ...log.config, ...(retryChannelId ? { imageChannelId: retryChannelId, activeChannelId: retryChannelId } : {}) }, workflowRef: log.providerWorkflowRef || null, style: log.style });
         if (!snapshot) return;
         await submitGenerationBatch(snapshot);
     };
@@ -472,6 +494,7 @@ export default function ImagePage() {
             return buildLog({
                 id,
                 prompt: snapshot.text,
+                style: snapshot.style,
                 model: snapshot.displayConfig.imageModel || snapshot.displayConfig.model,
                 config: { ...snapshot.displayConfig, count: "1" },
                 references: snapshot.references,
@@ -509,7 +532,7 @@ export default function ImagePage() {
                 const created = await submitWorkflowTask(workflowToken, {
                     ref: snapshot.workflowRef,
                     expectedCapability: "image",
-                    prompt: snapshot.text,
+                    prompt: snapshot.requestText,
                     systemPrompt: snapshot.requestConfig.systemPrompt,
                     referenceImages,
                     size: snapshot.requestConfig.size,
@@ -524,7 +547,7 @@ export default function ImagePage() {
             } else {
                 task = await createCanvasImageTask(
                     { ...snapshot.requestConfig, seedIndex: index, seedCount: taskCount, count: "1" } as AiConfig & { seedIndex?: number; seedCount?: number },
-                    snapshot.text,
+                    snapshot.requestText,
                     snapshot.references,
                     { source: "image-workbench", sourceId: pendingLog.id, clientTaskId: imageLogTaskId(pendingLog) },
                 );
@@ -587,6 +610,7 @@ export default function ImagePage() {
                 await saveLog(
                     buildLog({
                         prompt: snapshot.text,
+                        style: snapshot.style,
                         model: snapshot.displayConfig.imageModel || snapshot.displayConfig.model,
                         config: { ...snapshot.displayConfig, count: "1" },
                         references: snapshot.references,
@@ -609,6 +633,7 @@ export default function ImagePage() {
                 await saveLog(
                     buildLog({
                         prompt: snapshot.text,
+                        style: snapshot.style,
                         model: snapshot.displayConfig.imageModel || snapshot.displayConfig.model,
                         config: { ...snapshot.displayConfig, count: "1" },
                         references: snapshot.references,
@@ -1083,7 +1108,7 @@ export default function ImagePage() {
         message.success("提示词已复制");
     };
 
-    const buildRequestSnapshot = ({ promptText = prompt, referenceItems = references, taskCount = generationCount, configOverride, workflowRef = config.imageWorkflowRef }: { promptText?: string; referenceItems?: ReferenceImage[]; taskCount?: number; configOverride?: Partial<GenerationLogConfig>; workflowRef?: WorkflowRef | null } = {}) => {
+    const buildRequestSnapshot = ({ promptText = prompt, referenceItems = references, taskCount = generationCount, configOverride, workflowRef = config.imageWorkflowRef, style = selectedStyle }: { promptText?: string; referenceItems?: ReferenceImage[]; taskCount?: number; configOverride?: Partial<GenerationLogConfig>; workflowRef?: WorkflowRef | null; style?: RequestSnapshot["style"] } = {}) => {
         const text = promptText.trim();
         if (!text && !workflowRef) {
             message.error("请输入生图提示词");
@@ -1101,6 +1126,8 @@ export default function ImagePage() {
         }
         return {
             text,
+            requestText: appendGenerationStyle(text, style?.prompt),
+            style,
             requestConfig,
             displayConfig: buildGenerationLogConfig({ ...requestConfig, count: String(taskCount) }),
             references: [...referenceItems],
@@ -1111,7 +1138,7 @@ export default function ImagePage() {
     const runGenerationTask = async (resultId: string, snapshot: RequestSnapshot) => {
         const itemStartedAt = performance.now();
         try {
-            const result = snapshot.references.length ? await requestEdit(snapshot.requestConfig, snapshot.text, snapshot.references) : await requestGeneration(snapshot.requestConfig, snapshot.text);
+            const result = snapshot.references.length ? await requestEdit(snapshot.requestConfig, snapshot.requestText, snapshot.references) : await requestGeneration(snapshot.requestConfig, snapshot.requestText);
             const image = result[0];
             if (!image) throw new Error("接口没有返回图片");
             const meta = image.width && image.height && image.mimeType ? { width: image.width, height: image.height, mimeType: image.mimeType } : await readImageMeta(image.dataUrl);
@@ -1126,7 +1153,7 @@ export default function ImagePage() {
 
     const retryResult = (result: GenerationResult) => {
         const retryChannelId = imageTaskChannelId(result.task);
-        const snapshot = buildRequestSnapshot({ promptText: result.prompt, referenceItems: result.references, taskCount: 1, configOverride: { ...result.config, ...(retryChannelId ? { imageChannelId: retryChannelId, activeChannelId: retryChannelId } : {}) }, workflowRef: result.providerWorkflowRef || null });
+        const snapshot = buildRequestSnapshot({ promptText: result.prompt, referenceItems: result.references, taskCount: 1, configOverride: { ...result.config, ...(retryChannelId ? { imageChannelId: retryChannelId, activeChannelId: retryChannelId } : {}) }, workflowRef: result.providerWorkflowRef || null, style: result.style });
         if (!snapshot) return;
         setResults((value) => value.filter((item) => item.id !== result.id));
         void submitGenerationBatch(snapshot);
@@ -1242,6 +1269,8 @@ export default function ImagePage() {
                             openConfigDialog={openConfigDialog}
                             onLayoutChange={setWorkbenchLayout}
                             onPromptChange={setPrompt}
+                            selectedStyleId={selectedStyleId}
+                            onStyleChange={(style) => setSelectedStyleId(style?.id || "")}
                             onOpenPromptLibrary={() => setPromptDialogOpen(true)}
                             onOpenAssetPicker={() => setAssetPickerOpen(true)}
                             onPastePrompt={() => void pastePromptFromClipboard()}
@@ -1335,6 +1364,8 @@ export default function ImagePage() {
                             openConfigDialog={openConfigDialog}
                             onLayoutChange={setWorkbenchLayout}
                             onPromptChange={setPrompt}
+                            selectedStyleId={selectedStyleId}
+                            onStyleChange={(style) => setSelectedStyleId(style?.id || "")}
                             onOpenPromptLibrary={() => setPromptDialogOpen(true)}
                             onOpenAssetPicker={() => setAssetPickerOpen(true)}
                             onPastePrompt={() => void pastePromptFromClipboard()}
@@ -1443,6 +1474,8 @@ function WorkbenchPanel({
     openConfigDialog,
     onLayoutChange,
     onPromptChange,
+    selectedStyleId,
+    onStyleChange,
     onOpenPromptLibrary,
     onOpenAssetPicker,
     onPastePrompt,
@@ -1465,6 +1498,8 @@ function WorkbenchPanel({
     openConfigDialog: (shouldPromptContinue?: boolean) => void;
     onLayoutChange: (layout: WorkbenchLayout) => void;
     onPromptChange: (value: string) => void;
+    selectedStyleId: string;
+    onStyleChange: (style?: GenerationStyle) => void;
     onOpenPromptLibrary: () => void;
     onOpenAssetPicker: () => void;
     onPastePrompt: () => void;
@@ -1496,6 +1531,7 @@ function WorkbenchPanel({
                             <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                                 <Button title="清空输入" icon={<Trash2 className="size-4" />} onClick={onClearPrompt} />
                                 <Button title="提示词库" icon={<BookOpen className="size-4" />} onClick={onOpenPromptLibrary} />
+                                <StyleSelector type="image" value={selectedStyleId} onChange={onStyleChange} />
                                 <Button title="我的素材" icon={<FolderPlus className="size-4" />} onClick={onOpenAssetPicker} />
                                 <Button
                                     title="参数配置"
@@ -1574,6 +1610,7 @@ function WorkbenchPanel({
                             <Button size="small" icon={<ClipboardPaste className="size-3.5" />} onClick={onPastePrompt}>读取剪贴板</Button>
                             <Button size="small" icon={<Trash2 className="size-3.5" />} onClick={onClearPrompt}>清空</Button>
                             <Button size="small" icon={<BookOpen className="size-3.5" />} onClick={onOpenPromptLibrary}>提示词库</Button>
+                            <StyleSelector type="image" value={selectedStyleId} onChange={onStyleChange} />
                             <Button size="small" icon={<FolderPlus className="size-3.5" />} onClick={onOpenAssetPicker}>我的素材</Button>
                         </div>
                         <Input.TextArea value={prompt} onChange={(event) => onPromptChange(event.target.value)} rows={6} placeholder="描述画面主体、风格、构图、光线和用途" />
@@ -2363,6 +2400,7 @@ function createPendingResult(id: string, snapshot: RequestSnapshot): GenerationR
         status: "pending",
         createdAt: Date.now(),
         prompt: snapshot.text,
+        style: snapshot.style,
         model: snapshot.displayConfig.imageModel || snapshot.displayConfig.model,
         config: snapshot.displayConfig,
         references: snapshot.references,
@@ -2947,6 +2985,7 @@ function clampWorkflowButtonPosition(position: { x?: number; y?: number }) {
 function buildLog({
     id,
     prompt,
+    style,
     model,
     config,
     references,
@@ -2969,6 +3008,7 @@ function buildLog({
 }: {
     id?: string;
     prompt: string;
+    style?: RequestSnapshot["style"];
     model: string;
     config: GenerationLogConfig;
     references: ReferenceImage[];
@@ -2996,6 +3036,7 @@ function buildLog({
         createdAt: logCreatedAt,
         title: prompt.slice(0, 12) || "未命名",
         prompt,
+        style,
         time: time || formatLogTime(logCreatedAt),
         model,
         config: logConfig,

@@ -14,10 +14,12 @@ import { useAutoDLWorkflow } from "@/hooks/use-autodl-workflow";
 import { getAutoDLCapabilities, isAutoDLConfig, normalizeAutoDLDuration } from "@/lib/autodl";
 import { KlingV26WorkbenchPanel } from "@/app/(user)/video/components/kling-v26-workbench-panel";
 import { PromptSelectDialog } from "@/components/prompts/prompt-select-dialog";
+import { StyleSelector } from "@/components/styles/style-selector";
 import { VideoSettingsPanel, isKIEKlingV3Config, kieKlingOmniVariant, normalizeVideoResolutionValue, normalizeVideoSizeValue, videoResolutionOptions, videoSizeForResolution, videoSizeOptions } from "@/components/video-settings-panel";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { formatBytes, formatDuration } from "@/lib/image-utils";
 import { isMiniMaxH3Config } from "@/lib/minimax-video";
+import { appendGenerationStyle } from "@/lib/generation-style";
 import { ARK_SEEDANCE_REFERENCE_LIMITS, boolConfig, isSeedanceVideoConfig, normalizeSeedanceRatio, seedanceReferenceLabel, seedanceVideoReferenceError, seedanceVideoReferenceHint, SEEDANCE_REFERENCE_LIMITS } from "@/lib/seedance-video";
 import { COGVIDEOX3_DURATIONS, isAgnesVideoV25Model, isCogVideoX3Model, modelKey, normalizeCogVideoX3Duration, supportsVideoAudioGeneration, supportsVideoFrameReferences } from "@/lib/video-model-capabilities";
 import { deleteStoredMedia, downloadRemoteMedia, resolveMediaUrl, uploadMediaFile, uploadRemoteMediaToServer } from "@/services/file-storage";
@@ -30,6 +32,8 @@ import { useAssetStore } from "@/stores/use-asset-store";
 import { channelProtocolForConfig, normalizeLocalChannels, useConfigStore, useEffectiveConfig, type AiConfig, type VideoElementItem, type VideoElementReference } from "@/stores/use-config-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { useUserStore } from "@/stores/use-user-store";
+import { useStyleStore } from "@/stores/use-style-store";
+import type { GenerationStyle } from "@/services/api/styles";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
 import { parseWorkflowRef, type WorkflowRef } from "@/lib/workflow-channel";
@@ -53,6 +57,7 @@ type GenerationResult = {
     taskLogId?: string;
     createdAt: number;
     prompt: string;
+    style?: Pick<GenerationStyle, "id" | "name" | "prompt">;
     negativePrompt?: string;
     model: string;
     providerWorkflowRef?: WorkflowRef;
@@ -77,6 +82,7 @@ type GenerationLog = {
     createdAt: number;
     title: string;
     prompt: string;
+    style?: Pick<GenerationStyle, "id" | "name" | "prompt">;
     time: string;
     model: string;
     providerWorkflowRef?: WorkflowRef;
@@ -132,6 +138,21 @@ export default function VideoPage() {
     const token = useUserStore((state) => state.token);
     const userId = useUserStore((state) => state.user?.id || "");
     const isUserReady = useUserStore((state) => state.isReady);
+    const [selectedStyleId, setSelectedStyleId] = useState("");
+    const [styleSelectionReady, setStyleSelectionReady] = useState(false);
+    const styles = useStyleStore((state) => state.styles);
+    const stylesLoadedFor = useStyleStore((state) => state.loadedFor);
+    const loadStyles = useStyleStore((state) => state.load);
+    const selectedStyle = stylesLoadedFor === token ? styles.find((style) => style.id === selectedStyleId && (style.appliesTo === "video" || style.appliesTo === "both")) : undefined;
+    useEffect(() => { if (token) void loadStyles().catch(() => undefined); }, [loadStyles, token]);
+    useEffect(() => {
+        if (!isUserReady) return;
+        setSelectedStyleId(localStorage.getItem(`infinite-canvas:video-style:${userId || "guest"}`) || "");
+        setStyleSelectionReady(true);
+    }, [isUserReady, userId]);
+    useEffect(() => {
+        if (styleSelectionReady) localStorage.setItem(`infinite-canvas:video-style:${userId || "guest"}`, selectedStyleId);
+    }, [selectedStyleId, styleSelectionReady, userId]);
     const [prompt, setPrompt] = useState("");
     const [negativePrompt, setNegativePrompt] = useState("");
     const [references, setReferences] = useState<ReferenceImage[]>([]);
@@ -588,12 +609,12 @@ export default function VideoPage() {
         await submitGenerationSnapshot(snapshot);
     };
 
-    const buildRequestSnapshot = ({ promptText = prompt, negativePromptText, referenceItems = references, firstFrameItem = firstFrame, lastFrameItem = lastFrame, videoReferenceItems = videoReferences, audioReferenceItems = audioReferences, taskCountValue = taskCount, configValue = videoConfig, modelValue = model, workflowRef = videoConfig.videoWorkflowRef }: { promptText?: string; negativePromptText?: string; referenceItems?: ReferenceImage[]; firstFrameItem?: ReferenceImage | null; lastFrameItem?: ReferenceImage | null; videoReferenceItems?: ReferenceVideo[]; audioReferenceItems?: ReferenceAudio[]; taskCountValue?: number; configValue?: AiConfig; modelValue?: string; workflowRef?: WorkflowRef | null } = {}) => {
+    const buildRequestSnapshot = ({ promptText = prompt, negativePromptText, referenceItems = references, firstFrameItem = firstFrame, lastFrameItem = lastFrame, videoReferenceItems = videoReferences, audioReferenceItems = audioReferences, taskCountValue = taskCount, configValue = videoConfig, modelValue = model, workflowRef = videoConfig.videoWorkflowRef, style = selectedStyle }: { promptText?: string; negativePromptText?: string; referenceItems?: ReferenceImage[]; firstFrameItem?: ReferenceImage | null; lastFrameItem?: ReferenceImage | null; videoReferenceItems?: ReferenceVideo[]; audioReferenceItems?: ReferenceAudio[]; taskCountValue?: number; configValue?: AiConfig; modelValue?: string; workflowRef?: WorkflowRef | null; style?: GenerationResult["style"] } = {}) => {
         const text = promptText.trim();
         const currentNegativePrompt = (negativePromptText ?? configValue.videoNegativePrompt ?? negativePrompt).trim();
         if (workflowRef) {
             if (!token) { message.error("工作流生成需要先登录"); return null; }
-            return { text, model: modelValue, config: { ...configValue, videoNegativePrompt: currentNegativePrompt }, references: [...referenceItems], firstFrame: firstFrameItem, lastFrame: lastFrameItem, videoReferences: [...videoReferenceItems], audioReferences: [...audioReferenceItems], taskCount: normalizeVideoCount(taskCountValue), workflowRef };
+            return { text, requestText: appendGenerationStyle(text, style?.prompt), style, model: modelValue, config: { ...configValue, videoNegativePrompt: currentNegativePrompt }, references: [...referenceItems], firstFrame: firstFrameItem, lastFrame: lastFrameItem, videoReferences: [...videoReferenceItems], audioReferences: [...audioReferenceItems], taskCount: normalizeVideoCount(taskCountValue), workflowRef };
         }
         const klingV26 = isAPIMartKlingV26Config(configValue, modelValue);
         const klingV3 = isKlingV3Config(configValue, modelValue);
@@ -655,10 +676,10 @@ export default function VideoPage() {
         const normalizedConfig = buildVideoConfig({ ...configValue, videoNegativePrompt: currentNegativePrompt }, modelValue);
         if (omni === "reference-to-video" && videoReferenceItems.length) normalizedConfig.videoGenerateAudio = "false";
         const imageReferences = omni === "text-to-video" ? [] : omni === "reference-to-video" ? [...referenceItems] : [...referenceItems].slice(0, kling ? omni === "transformation" ? 4 : 2 : referenceItems.length);
-        return { text, model: modelValue, config: normalizedConfig, references: imageReferences, firstFrame: frameReferencesEnabled ? firstFrameItem : null, lastFrame: frameReferencesEnabled ? lastFrameItem : null, videoReferences: acceptsVideoReferences ? [...videoReferenceItems].slice(0, 1) : kling ? [] : [...videoReferenceItems], audioReferences: kling ? [] : [...audioReferenceItems], taskCount: normalizeVideoCount(taskCountValue) };
+        return { text, requestText: appendGenerationStyle(text, style?.prompt), style, model: modelValue, config: normalizedConfig, references: imageReferences, firstFrame: frameReferencesEnabled ? firstFrameItem : null, lastFrame: frameReferencesEnabled ? lastFrameItem : null, videoReferences: acceptsVideoReferences ? [...videoReferenceItems].slice(0, 1) : kling ? [] : [...videoReferenceItems], audioReferences: kling ? [] : [...audioReferenceItems], taskCount: normalizeVideoCount(taskCountValue) };
     };
 
-    const submitGenerationSnapshot = async (snapshot: { text: string; model: string; config: AiConfig; references: ReferenceImage[]; firstFrame?: ReferenceImage | null; lastFrame?: ReferenceImage | null; videoReferences: ReferenceVideo[]; audioReferences: ReferenceAudio[]; taskCount: number; workflowRef?: WorkflowRef | null }) => {
+    const submitGenerationSnapshot = async (snapshot: { text: string; requestText: string; style?: GenerationResult["style"]; model: string; config: AiConfig; references: ReferenceImage[]; firstFrame?: ReferenceImage | null; lastFrame?: ReferenceImage | null; videoReferences: ReferenceVideo[]; audioReferences: ReferenceAudio[]; taskCount: number; workflowRef?: WorkflowRef | null }) => {
         const workflowToken = snapshot.workflowRef ? useUserStore.getState().token : "";
         const submissionId = snapshot.workflowRef ? ++workflowSubmissionRef.current : 0;
         const active = () => !snapshot.workflowRef || useUserStore.getState().token === workflowToken;
@@ -668,7 +689,7 @@ export default function VideoPage() {
         const pendingLogs = Array.from({ length: snapshot.taskCount }, (): GenerationLog => {
             const clientTaskId = `client_video_task_${nanoid()}`;
             const task: VideoResponse = { id: clientTaskId, task_id: clientTaskId, model: snapshot.model, status: "queued", progress: 0, created_at: Date.now(), size: snapshot.config.size, seconds: snapshot.config.videoSeconds };
-            return { ...buildLog({ prompt: snapshot.text, model: snapshot.model, config: snapshot.config, references: snapshot.references, firstFrame: snapshot.firstFrame, lastFrame: snapshot.lastFrame, videoReferences: snapshot.videoReferences, audioReferences: snapshot.audioReferences, durationMs: 0, status: "生成中", task, taskCount: snapshot.taskCount, lastPolledAt: Date.now(), providerWorkflowRef: snapshot.workflowRef || undefined }), taskBackend: snapshot.workflowRef ? "workflow" : usesBackendVideoTasks(snapshot.config) ? "account" : undefined };
+            return { ...buildLog({ prompt: snapshot.text, style: snapshot.style, model: snapshot.model, config: snapshot.config, references: snapshot.references, firstFrame: snapshot.firstFrame, lastFrame: snapshot.lastFrame, videoReferences: snapshot.videoReferences, audioReferences: snapshot.audioReferences, durationMs: 0, status: "生成中", task, taskCount: snapshot.taskCount, lastPolledAt: Date.now(), providerWorkflowRef: snapshot.workflowRef || undefined }), taskBackend: snapshot.workflowRef ? "workflow" : usesBackendVideoTasks(snapshot.config) ? "account" : undefined };
         });
         try {
             await Promise.all(pendingLogs.map((log) => logStore.setItem(log.id, serializeLog(log))));
@@ -718,7 +739,7 @@ export default function VideoPage() {
                 const submitted = await submitWorkflowTask(workflowToken, {
                     ref: snapshot.workflowRef,
                     expectedCapability: "video",
-                    prompt: snapshot.text,
+                    prompt: snapshot.requestText,
                     systemPrompt: snapshot.config.systemPrompts.video || snapshot.config.systemPrompt,
                     referenceImages: workflowImages,
                     referenceVideos: workflowVideos,
@@ -742,7 +763,7 @@ export default function VideoPage() {
                 setResults((value) => updateResultByLogId(value, pendingLog.id, { task, progress: task.progress, lastPolledAt: nextLog.lastPolledAt }));
                 return nextLog;
             }
-            const created = await createVideoGenerationTask(snapshot.config, snapshot.text, { references: snapshot.references, firstFrame: snapshot.firstFrame, lastFrame: snapshot.lastFrame, videoReferences: snapshot.videoReferences, audioReferences: snapshot.audioReferences }, (progress) => {
+            const created = await createVideoGenerationTask(snapshot.config, snapshot.requestText, { references: snapshot.references, firstFrame: snapshot.firstFrame, lastFrame: snapshot.lastFrame, videoReferences: snapshot.videoReferences, audioReferences: snapshot.audioReferences }, (progress) => {
                 if (active()) setResults((value) => active() ? updateResultByLogId(value, pendingLog.id, { progress }) : value);
             }, { signal, onServerTask, clientTaskId: pendingLog.task?.id, source: "video-workbench", sourceId: pendingLog.id });
             if (!active()) throw signal.reason || new Error("登录状态已变化");
@@ -833,7 +854,7 @@ export default function VideoPage() {
 
     const retryResult = (result: GenerationResult) => {
         const retryChannelId = videoTaskChannelId(result.task);
-        const snapshot = buildRequestSnapshot({ promptText: result.prompt, negativePromptText: result.config.videoNegativePrompt || "", referenceItems: result.references, firstFrameItem: result.firstFrame, lastFrameItem: result.lastFrame, videoReferenceItems: result.videoReferences, audioReferenceItems: result.audioReferences, taskCountValue: 1, configValue: { ...videoConfig, ...result.config, ...(retryChannelId ? { videoChannelId: retryChannelId, activeChannelId: retryChannelId } : {}), model: result.model, videoModel: result.model }, modelValue: result.model, workflowRef: result.providerWorkflowRef || null });
+        const snapshot = buildRequestSnapshot({ promptText: result.prompt, negativePromptText: result.config.videoNegativePrompt || "", referenceItems: result.references, firstFrameItem: result.firstFrame, lastFrameItem: result.lastFrame, videoReferenceItems: result.videoReferences, audioReferenceItems: result.audioReferences, taskCountValue: 1, configValue: { ...videoConfig, ...result.config, ...(retryChannelId ? { videoChannelId: retryChannelId, activeChannelId: retryChannelId } : {}), model: result.model, videoModel: result.model }, modelValue: result.model, workflowRef: result.providerWorkflowRef || null, style: result.style });
         if (!snapshot) return;
         setResults((value) => value.filter((item) => item.id !== result.id));
         void submitGenerationSnapshot(snapshot);
@@ -1209,7 +1230,7 @@ export default function VideoPage() {
 
     const retryGenerationLog = (log: GenerationLog) => {
         const retryChannelId = videoTaskChannelId(log.task);
-        const snapshot = buildRequestSnapshot({ promptText: log.prompt, negativePromptText: log.config.videoNegativePrompt || "", referenceItems: log.references || [], firstFrameItem: log.firstFrame || null, lastFrameItem: log.lastFrame || null, videoReferenceItems: log.videoReferences || [], audioReferenceItems: log.audioReferences || [], taskCountValue: 1, configValue: { ...videoConfig, ...log.config, ...(retryChannelId ? { videoChannelId: retryChannelId, activeChannelId: retryChannelId } : {}), model: log.model, videoModel: log.model }, modelValue: log.model, workflowRef: log.providerWorkflowRef || null });
+        const snapshot = buildRequestSnapshot({ promptText: log.prompt, negativePromptText: log.config.videoNegativePrompt || "", referenceItems: log.references || [], firstFrameItem: log.firstFrame || null, lastFrameItem: log.lastFrame || null, videoReferenceItems: log.videoReferences || [], audioReferenceItems: log.audioReferences || [], taskCountValue: 1, configValue: { ...videoConfig, ...log.config, ...(retryChannelId ? { videoChannelId: retryChannelId, activeChannelId: retryChannelId } : {}), model: log.model, videoModel: log.model }, modelValue: log.model, workflowRef: log.providerWorkflowRef || null, style: log.style });
         if (!snapshot) return;
         void submitGenerationSnapshot(snapshot);
     };
@@ -1248,6 +1269,8 @@ export default function VideoPage() {
                                 openConfigDialog={openConfigDialog}
                                 onLayoutChange={setWorkbenchLayout}
                                 onPromptChange={setPrompt}
+                                selectedStyleId={selectedStyleId}
+                                onStyleChange={(style) => setSelectedStyleId(style?.id || "")}
                                 onNegativePromptChange={(value) => { setNegativePrompt(value); updateConfig("videoNegativePrompt", value); }}
                                 onOpenPromptLibrary={() => setPromptDialogOpen(true)}
                                 onOpenAssetPicker={openAssetPicker}
@@ -1285,6 +1308,8 @@ export default function VideoPage() {
                             openConfigDialog={openConfigDialog}
                             onLayoutChange={setWorkbenchLayout}
                             onPromptChange={setPrompt}
+                            selectedStyleId={selectedStyleId}
+                            onStyleChange={(style) => setSelectedStyleId(style?.id || "")}
                             onOpenPromptLibrary={() => setPromptDialogOpen(true)}
                             onOpenAssetPicker={openAssetPicker}
                             onPastePrompt={() => void pastePromptFromClipboard()}
@@ -1382,6 +1407,8 @@ export default function VideoPage() {
                             openConfigDialog={openConfigDialog}
                             onLayoutChange={setWorkbenchLayout}
                             onPromptChange={setPrompt}
+                            selectedStyleId={selectedStyleId}
+                            onStyleChange={(style) => setSelectedStyleId(style?.id || "")}
                             onNegativePromptChange={(value) => { setNegativePrompt(value); updateConfig("videoNegativePrompt", value); }}
                             onOpenPromptLibrary={() => setPromptDialogOpen(true)}
                             onOpenAssetPicker={openAssetPicker}
@@ -1479,6 +1506,8 @@ function WorkbenchPanel({
     openConfigDialog,
     onLayoutChange,
     onPromptChange,
+    selectedStyleId,
+    onStyleChange,
     onNegativePromptChange,
     onOpenPromptLibrary,
     onOpenAssetPicker,
@@ -1521,6 +1550,8 @@ function WorkbenchPanel({
     openConfigDialog: (shouldPromptContinue?: boolean) => void;
     onLayoutChange: (layout: WorkbenchLayout) => void;
     onPromptChange: (value: string) => void;
+    selectedStyleId: string;
+    onStyleChange: (style?: GenerationStyle) => void;
     onNegativePromptChange?: (value: string) => void;
     onOpenPromptLibrary: () => void;
     onOpenAssetPicker: (target?: AssetPickerTarget) => void;
@@ -1586,6 +1617,7 @@ function WorkbenchPanel({
                             <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                                 <Button title="清空输入" icon={<Trash2 className="size-4" />} onClick={onClearPrompt} />
                                 <Button title="提示词库" icon={<BookOpen className="size-4" />} onClick={onOpenPromptLibrary} />
+                                <StyleSelector type="video" value={selectedStyleId} onChange={onStyleChange} />
                                 <Button title="我的素材" icon={<FolderPlus className="size-4" />} onClick={() => onOpenAssetPicker()} />
                                 <Button title="参数配置" className={`lg:hidden ${!bottomSettingsCollapsed ? "!border-sky-500/30 !bg-sky-500/10 !text-sky-500" : ""}`} icon={<SlidersHorizontal className="size-4" />} onClick={() => setBottomSettingsCollapsed?.(!bottomSettingsCollapsed)} />
                                 <Button title="切换到侧边工作台" icon={<PanelLeft className="size-4" />} onClick={() => onLayoutChange("side")} />
@@ -1651,6 +1683,7 @@ function WorkbenchPanel({
                             <Button size="small" icon={<ClipboardPaste className="size-3.5" />} onClick={onPastePrompt}>读取剪贴板</Button>
                             <Button size="small" icon={<Trash2 className="size-3.5" />} onClick={onClearPrompt}>清空</Button>
                             <Button size="small" icon={<BookOpen className="size-3.5" />} onClick={onOpenPromptLibrary}>提示词库</Button>
+                            <StyleSelector type="video" value={selectedStyleId} onChange={onStyleChange} />
                             <Button size="small" icon={<FolderPlus className="size-3.5" />} onClick={() => onOpenAssetPicker()}>我的素材</Button>
                         </div>
                         <Input.TextArea value={prompt} onChange={(event) => onPromptChange(event.target.value)} rows={6} placeholder="描述镜头运动、主体动作、场景氛围和画面风格" />
@@ -2232,12 +2265,13 @@ function ReferenceThumbnailOverlay({ references, className = "" }: { references?
     );
 }
 
-function createResultFromSnapshot(id: string, snapshot: { text: string; config: AiConfig; references: ReferenceImage[]; firstFrame?: ReferenceImage | null; lastFrame?: ReferenceImage | null; videoReferences: ReferenceVideo[]; audioReferences: ReferenceAudio[]; taskCount?: number }, model: string, status: GenerationResult["status"], extra: Partial<GenerationResult> = {}): GenerationResult {
+function createResultFromSnapshot(id: string, snapshot: { text: string; style?: GenerationResult["style"]; config: AiConfig; references: ReferenceImage[]; firstFrame?: ReferenceImage | null; lastFrame?: ReferenceImage | null; videoReferences: ReferenceVideo[]; audioReferences: ReferenceAudio[]; taskCount?: number }, model: string, status: GenerationResult["status"], extra: Partial<GenerationResult> = {}): GenerationResult {
     return {
         id,
         status,
         createdAt: Date.now(),
         prompt: snapshot.text,
+        style: snapshot.style,
         model,
         config: buildDisplayConfig(snapshot.config, model),
         references: snapshot.references,
@@ -2924,7 +2958,7 @@ function normalizeLogConfig(log: Partial<GenerationLog>): GenerationLogConfig {
     };
 }
 
-function buildLog({ prompt, model, config, references, firstFrame, lastFrame, videoReferences, audioReferences, taskCount, durationMs, status, task, video, error, errorDetail, lastPolledAt, providerWorkflowRef }: { prompt: string; model: string; config: AiConfig; references: ReferenceImage[]; firstFrame?: ReferenceImage | null; lastFrame?: ReferenceImage | null; videoReferences: ReferenceVideo[]; audioReferences: ReferenceAudio[]; taskCount?: number; durationMs: number; status: GenerationLog["status"]; task?: VideoResponse; video?: GeneratedVideo; error?: string; errorDetail?: string; lastPolledAt?: number; providerWorkflowRef?: WorkflowRef }): GenerationLog {
+function buildLog({ prompt, style, model, config, references, firstFrame, lastFrame, videoReferences, audioReferences, taskCount, durationMs, status, task, video, error, errorDetail, lastPolledAt, providerWorkflowRef }: { prompt: string; style?: GenerationResult["style"]; model: string; config: AiConfig; references: ReferenceImage[]; firstFrame?: ReferenceImage | null; lastFrame?: ReferenceImage | null; videoReferences: ReferenceVideo[]; audioReferences: ReferenceAudio[]; taskCount?: number; durationMs: number; status: GenerationLog["status"]; task?: VideoResponse; video?: GeneratedVideo; error?: string; errorDetail?: string; lastPolledAt?: number; providerWorkflowRef?: WorkflowRef }): GenerationLog {
     const logConfig = {
         channelMode: config.channelMode,
         activeChannelId: config.activeChannelId,
@@ -2949,6 +2983,7 @@ function buildLog({ prompt, model, config, references, firstFrame, lastFrame, vi
         createdAt: Date.now(),
         title: prompt.slice(0, 12) || "未命名",
         prompt,
+        style,
         time: new Date().toLocaleString("zh-CN", { hour12: false }),
         model,
         providerWorkflowRef,

@@ -82,6 +82,24 @@ export function createCanvasAgentState(): CanvasAgentState {
     };
 }
 
+export async function compactCanvasAgentSession(input: {
+    config: AiConfig;
+    protocolMessages: CanvasAgentProtocolMessage[];
+    contextCheckpoint?: string;
+    signal?: AbortSignal;
+}) {
+    return compactCanvasAgentHistory({
+        protocolMessages: input.protocolMessages,
+        contextCheckpoint: input.contextCheckpoint,
+        createCheckpoint: (previousCheckpoint, messages) => requestCanvasAgentCheckpoint({
+            config: input.config,
+            previousCheckpoint,
+            messages: serializeCanvasAgentMessagesForCheckpoint(messages),
+            signal: input.signal,
+        }),
+    });
+}
+
 export async function runCanvasAgent(input: RunCanvasAgentInput): Promise<RunCanvasAgentResult> {
     let state = input.initialState;
     let toolMode: CanvasAgentToolMode = input.preferredJsonMode || "native";
@@ -106,15 +124,11 @@ export async function runCanvasAgent(input: RunCanvasAgentInput): Promise<RunCan
     });
 
     const compactHistory = async () => {
-        const compacted = await compactCanvasAgentHistory({
+        const compacted = await compactCanvasAgentSession({
+            config: input.config,
             protocolMessages,
             contextCheckpoint,
-            createCheckpoint: (previousCheckpoint, messages) => requestCanvasAgentCheckpoint({
-                config: input.config,
-                previousCheckpoint,
-                messages: serializeCanvasAgentMessagesForCheckpoint(messages),
-                signal: input.signal,
-            }),
+            signal: input.signal,
         });
         if (!compacted.compacted) return false;
         protocolMessages = compacted.protocolMessages;

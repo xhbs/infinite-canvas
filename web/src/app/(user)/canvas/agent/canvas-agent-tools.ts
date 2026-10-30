@@ -11,6 +11,12 @@ export const CANVAS_AGENT_ACTION_NAMES = [
     "get_downstream_nodes",
     "get_connected_nodes",
     "get_generation_config",
+    "get_voice_presets",
+    "create_voice_preset",
+    "update_voice_preset",
+    "delete_voice_preset",
+    "create_style",
+    "update_style",
     "get_generation_task",
     "read_skill_file",
     "set_agent_state",
@@ -106,7 +112,31 @@ export const CANVAS_AGENT_TOOLS: CanvasAgentToolDefinition[] = [
     defineTool("get_upstream_nodes", "读取指定节点的所有直接上游节点。", { nodeId: STRING }, ["nodeId"]),
     defineTool("get_downstream_nodes", "读取指定节点的所有直接下游节点。", { nodeId: STRING }, ["nodeId"]),
     defineTool("get_connected_nodes", "读取指定节点直接连接的上下游节点。", { nodeId: STRING }, ["nodeId"]),
-    defineTool("get_generation_config", "读取全局模型和渠道，以及当前画布 Agent 独立保存的图片质量、图片尺寸、视频清晰度、视频尺寸、时长和声音配置。"),
+    defineTool("get_generation_config", "读取全局模型和渠道、当前画布 Agent 独立保存的图片/视频配置，以及账号风格列表。语音预设通过 get_voice_presets 管理；可在 generate_video 中通过 voicePresetId 应用作品中的角色声音设计。"),
+    defineTool("get_voice_presets", "查看当前账号的全部语音预设作品及其角色代称、声音设计。"),
+    defineTool("create_voice_preset", "在当前账号创建一部作品的语音预设；可同时创建角色代称和声音设计。", {
+        name: { ...STRING, maxLength: 100 },
+        description: { ...STRING, maxLength: 2000 },
+        roles: { type: "array", maxItems: 50, items: { type: "object", properties: { alias: { ...STRING, maxLength: 80 }, voiceDesign: { ...STRING, maxLength: 2000 } }, required: ["alias", "voiceDesign"], additionalProperties: false } },
+    }, ["name"]),
+    defineTool("update_voice_preset", "编辑当前账号已有作品语音预设；先通过 get_voice_presets 获取真实 voicePresetId。roles 若提供则整体替换角色列表。", {
+        voicePresetId: STRING,
+        name: { ...STRING, maxLength: 100 },
+        description: { ...STRING, maxLength: 2000 },
+        roles: { type: "array", maxItems: 50, items: { type: "object", properties: { id: STRING, alias: { ...STRING, maxLength: 80 }, voiceDesign: { ...STRING, maxLength: 2000 } }, required: ["alias", "voiceDesign"], additionalProperties: false } },
+    }, ["voicePresetId"]),
+    defineTool("delete_voice_preset", "删除当前账号指定语音预设作品及其角色；先通过 get_voice_presets 获取真实 voicePresetId。", { voicePresetId: STRING }, ["voicePresetId"]),
+    defineTool("create_style", "为当前登录账号新建可复用的图片/视频生成风格并保存到风格库。描述只在后续提交生成请求时拼入提示词，不会修改画布节点提示词。", {
+        name: { ...STRING, maxLength: 80 },
+        prompt: { ...STRING, maxLength: 4000 },
+        appliesTo: { type: "string", enum: ["image", "video", "both"] },
+    }, ["name", "prompt"]),
+    defineTool("update_style", "编辑当前账号已有风格；先通过 get_generation_config 获取真实 styleId。未传的字段保持原值。", {
+        styleId: STRING,
+        name: { ...STRING, maxLength: 80 },
+        prompt: { ...STRING, maxLength: 4000 },
+        appliesTo: { type: "string", enum: ["image", "video", "both"] },
+    }, ["styleId"]),
     defineTool("get_generation_task", "读取指定媒体节点的真实生成任务状态。", { nodeId: STRING }, ["nodeId"]),
     defineTool(
         "set_agent_state",
@@ -144,25 +174,26 @@ export const CANVAS_AGENT_TOOLS: CanvasAgentToolDefinition[] = [
     defineTool("arrange_nodes", "整理指定节点；不传 nodeIds 时整理当前画布顶层节点。", { nodeIds: STRING_ARRAY }),
     defineTool(
         "generate_image",
-        "创建图片节点和来源连线，并按 Agent 自动生成设置决定是否提交现有图片任务链路。sourceNodeIds 只放真实直接来源，独立生成必须传空数组；其中图片按数组顺序编号为图片1、图片2。",
+        "创建图片节点和来源连线，并按 Agent 自动生成设置决定是否提交现有图片任务链路。可用 styleId 选择 get_generation_config 返回的图片适用风格。sourceNodeIds 只放真实直接来源，独立生成必须传空数组；其中图片按数组顺序编号为图片1、图片2。",
         {
             prompt: STRING,
             title: STRING,
             sourceNodeIds: STRING_ARRAY,
             size: STRING,
             count: { type: "integer", minimum: 1, maximum: 15 },
+            styleId: STRING,
         },
         ["prompt", "sourceNodeIds"],
     ),
     defineTool(
         "edit_image",
-        "创建图片编辑节点和来源连线，并按 Agent 自动生成设置决定是否提交现有图片编辑链路；必须提供至少一个真实图片来源节点，图片按 sourceNodeIds 顺序编号。",
-        { prompt: STRING, title: STRING, sourceNodeIds: STRING_ARRAY, size: STRING, count: { type: "integer", minimum: 1, maximum: 15 } },
+        "创建图片编辑节点和来源连线，并按 Agent 自动生成设置决定是否提交现有图片编辑链路；可用 styleId 选择图片风格；必须提供至少一个真实图片来源节点，图片按 sourceNodeIds 顺序编号。",
+        { prompt: STRING, title: STRING, sourceNodeIds: STRING_ARRAY, size: STRING, count: { type: "integer", minimum: 1, maximum: 15 }, styleId: STRING },
         ["prompt", "sourceNodeIds"],
     ),
     defineTool(
         "generate_video",
-        "创建视频节点和来源连线，并按 Agent 自动生成设置决定是否提交现有视频任务链路。sourceNodeIds 只放真实直接来源，独立生成必须传空数组；其中图片、视频、音频分别按各自顺序编号。",
+        "创建视频节点和来源连线，并按 Agent 自动生成设置决定是否提交现有视频任务链路；可用 styleId 选择 get_generation_config 返回的视频适用风格。sourceNodeIds 只放真实直接来源，独立生成必须传空数组；其中图片、视频、音频分别按各自顺序编号。",
         {
             prompt: { type: "string", description: "完整视频提示词，可包含多个内部镜头。有已确认定稿且用户未要求修改时，直接完整填入定稿，不得摘要、删减或另写一版；保留镜头顺序、时间区间、对白/旁白全文和资产引用说明。各镜头时长之和须等于本次视频总时长；不能将各镜统一改成默认 videoSeconds，也不因有分镜就强制拆成多个生成任务。" },
             model: { type: "string", description: "当前视频模型名称，仅用于标注；实际使用前端配置的模型，不覆盖配置。" },
@@ -171,6 +202,8 @@ export const CANVAS_AGENT_TOOLS: CanvasAgentToolDefinition[] = [
             size: STRING,
             seconds: { type: "integer", minimum: -1, maximum: 30, description: "本次视频任务的总时长（秒），不是每个内部镜头的时长。按 videoDuration 的合法范围或离散值填写已确认时长；仅省略时使用当前 videoSeconds 默认值，不得把默认值当成上限。-1 仅用于支持智能时长的模型。" },
             generateAudio: { type: "boolean" },
+            styleId: STRING,
+            voicePresetId: STRING,
         },
         ["prompt", "sourceNodeIds"],
     ),
@@ -200,7 +233,56 @@ export function normalizeCanvasAgentAction(name: unknown, args: unknown, id = na
         case "get_canvas_summary":
         case "get_selected_nodes":
         case "get_generation_config":
+        case "get_voice_presets":
             break;
+        case "create_voice_preset":
+        case "update_voice_preset": {
+            const voicePresetId = actionName === "update_voice_preset" ? requiredString(input.voicePresetId, "voicePresetId") : undefined;
+            const name = optionalString(input.name);
+            const description = optionalString(input.description);
+            if (name && Array.from(name).length > 100) throw new Error("作品名称最多 100 字");
+            if (description && Array.from(description).length > 2000) throw new Error("作品说明最多 2000 字");
+            if (actionName === "create_voice_preset" && !name) throw new Error("新建语音预设需要作品名称");
+            let roles: Array<{ id?: string; alias: string; voiceDesign: string }> | undefined;
+            if (input.roles !== undefined) {
+                if (!Array.isArray(input.roles) || input.roles.length > 50) throw new Error("roles 必须是最多包含 50 项的数组");
+                roles = input.roles.map((role) => {
+                    if (!isRecord(role)) throw new Error("每个角色必须是对象");
+                    const id = optionalString(role.id);
+                    const alias = requiredString(role.alias, "alias");
+                    const voiceDesign = requiredString(role.voiceDesign, "voiceDesign");
+                    if (Array.from(alias).length > 80 || Array.from(voiceDesign).length > 2000) throw new Error("角色代称最多 80 字，声音设计最多 2000 字");
+                    return { ...(id ? { id } : {}), alias, voiceDesign };
+                });
+            }
+            if (actionName === "create_voice_preset" && !roles?.length) throw new Error("新建语音预设至少需要一个角色");
+            if (actionName === "update_voice_preset" && !name && !description && roles === undefined) throw new Error("更新语音预设至少需要提供作品名称、说明或角色列表");
+            normalized = { ...(voicePresetId ? { voicePresetId } : {}), ...(name ? { name } : {}), ...(description ? { description } : {}), ...(roles !== undefined ? { roles } : {}) };
+            break;
+        }
+        case "delete_voice_preset":
+            normalized = { voicePresetId: requiredString(input.voicePresetId, "voicePresetId") };
+            break;
+        case "create_style": {
+            const name = requiredString(input.name, "name");
+            const prompt = requiredString(input.prompt, "prompt");
+            if (Array.from(name).length > 80 || Array.from(prompt).length > 4000) throw new Error("风格名称最多 80 字，风格描述最多 4000 字");
+            const appliesTo = optionalString(input.appliesTo) || "both";
+            if (!["image", "video", "both"].includes(appliesTo)) throw new Error("风格适用范围必须是 image、video 或 both");
+            normalized = { name, prompt, appliesTo };
+            break;
+        }
+        case "update_style": {
+            const styleId = requiredString(input.styleId, "styleId");
+            const name = optionalString(input.name);
+            const prompt = optionalString(input.prompt);
+            const appliesTo = optionalString(input.appliesTo);
+            if (!name && !prompt && !appliesTo) throw new Error("update_style 至少需要提供 name、prompt 或 appliesTo");
+            if ((name && Array.from(name).length > 80) || (prompt && Array.from(prompt).length > 4000)) throw new Error("风格名称最多 80 字，风格描述最多 4000 字");
+            if (appliesTo && !["image", "video", "both"].includes(appliesTo)) throw new Error("风格适用范围必须是 image、video 或 both");
+            normalized = { styleId, ...(name ? { name } : {}), ...(prompt ? { prompt } : {}), ...(appliesTo ? { appliesTo } : {}) };
+            break;
+        }
         case "query_canvas_nodes": {
             const nodeType = optionalString(input.type);
             if (nodeType && !NODE_TYPES.includes(nodeType)) throw new Error("无效的节点类型");
@@ -307,6 +389,7 @@ export function normalizeCanvasAgentAction(name: unknown, args: unknown, id = na
                 ...(optionalString(input.title) ? { title: optionalString(input.title) } : {}),
                 ...(optionalString(input.size) ? { size: optionalString(input.size) } : {}),
                 ...(boundedInteger(input.count, 1, 15) ? { count: boundedInteger(input.count, 1, 15) } : {}),
+                ...(optionalString(input.styleId) ? { styleId: optionalString(input.styleId) } : {}),
             };
             if (actionName === "edit_image" && sourceNodeIds && !sourceNodeIds.length) throw new Error("edit_image 缺少图片来源节点");
             break;
@@ -323,6 +406,8 @@ export function normalizeCanvasAgentAction(name: unknown, args: unknown, id = na
                 ...(optionalString(input.size) ? { size: optionalString(input.size) } : {}),
                 ...(seconds !== undefined ? { seconds } : {}),
                 ...(typeof input.generateAudio === "boolean" ? { generateAudio: input.generateAudio } : {}),
+                ...(optionalString(input.styleId) ? { styleId: optionalString(input.styleId) } : {}),
+                ...(optionalString(input.voicePresetId) ? { voicePresetId: optionalString(input.voicePresetId) } : {}),
             };
             break;
         }
@@ -406,6 +491,12 @@ export function canvasAgentActionLabel(action: CanvasAgentAction) {
         get_downstream_nodes: "正在读取下游节点",
         get_connected_nodes: "正在读取关联节点",
         get_generation_config: "正在读取生成配置",
+        get_voice_presets: "正在读取语音预设",
+        create_voice_preset: "正在创建语音预设",
+        update_voice_preset: "正在更新语音预设",
+        delete_voice_preset: "正在删除语音预设",
+        create_style: "正在创建生成风格",
+        update_style: "正在更新生成风格",
         get_generation_task: "正在读取任务状态",
         read_skill_file: "正在读取 Skill 文件",
         set_agent_state: "正在保存创作进度",

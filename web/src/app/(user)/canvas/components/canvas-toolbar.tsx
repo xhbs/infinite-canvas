@@ -31,6 +31,7 @@ export function CanvasToolbar({
     onShowImageInfoChange,
     onOpenAssetLibrary,
     onOpenMyAssets,
+    onSetCanvasStyle,
 }: {
     selectedCount: number;
     canvasTool: "select" | "pan";
@@ -55,6 +56,7 @@ export function CanvasToolbar({
     onShowImageInfoChange: (show: boolean) => void;
     onOpenAssetLibrary: () => void;
     onOpenMyAssets: () => void;
+    onSetCanvasStyle: () => void;
 }) {
     const wrapRef = useRef<HTMLDivElement>(null);
     const colorTheme = useThemeStore((state) => state.theme);
@@ -113,6 +115,9 @@ export function CanvasToolbar({
                 </ToolbarButton>
                 <ToolbarButton id="tool-assets" label="我的素材" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onOpenMyAssets}>
                     <FolderOpen className="size-4.5" />
+                </ToolbarButton>
+                <ToolbarButton id="tool-bulk-style" label="一键设置风格" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onSetCanvasStyle}>
+                    <Palette className="size-4.5" />
                 </ToolbarButton>
                 <ToolbarButton
                     id="tool-style"

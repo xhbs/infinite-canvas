@@ -1,8 +1,9 @@
 "use client";
 
-import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     History,
+    Archive,
     Bot,
     Clapperboard,
     Copy,
@@ -40,7 +41,7 @@ import { useAssetStore } from "@/stores/use-asset-store";
 import { useAgentSkillStore } from "@/stores/use-agent-skill-store";
 import { useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
 import { useThemeStore } from "@/stores/use-theme-store";
-import { createCanvasAgentState, runCanvasAgent } from "../agent/canvas-agent-runtime";
+import { compactCanvasAgentSession, createCanvasAgentState, runCanvasAgent } from "../agent/canvas-agent-runtime";
 import { useCodexAgent } from "../agent/use-codex-agent";
 import type { CanvasAgentContext } from "../agent/canvas-agent-context";
 import type { CanvasAgentAction, CanvasAgentToolResult } from "../agent/canvas-agent-tools";
@@ -88,6 +89,7 @@ type CanvasAssistantPanelProps = {
     activeSessionId: string | null;
     agentConfig: CanvasAgentConfig;
     width: number;
+    fullPage?: boolean;
     onWidthChange: (width: number) => void;
     onFocusNode: (nodeId: string) => void;
     onSessionsChange: (sessions: CanvasAssistantSession[], activeSessionId: string | null) => void;
@@ -115,6 +117,7 @@ export function CanvasAssistantPanel({
     activeSessionId,
     agentConfig,
     width,
+    fullPage = false,
     onWidthChange,
     onFocusNode,
     onSessionsChange,
@@ -140,8 +143,8 @@ export function CanvasAssistantPanel({
     const messageListRef = useRef<HTMLDivElement>(null);
     const consumedReferenceNodeClickVersionRef = useRef(0);
     const [view, setView] = useState<"chat" | "history" | "connect">("chat");
-    const [prompt, setPrompt] = useState("");
     const [isRunning, setIsRunning] = useState(false);
+    const [isCompacting, setIsCompacting] = useState(false);
     const [checkedChatIds, setCheckedChatIds] = useState<string[]>([]);
     const [deleteChatIds, setDeleteChatIds] = useState<string[]>([]);
     const [settingsOpen, setSettingsOpen] = useState(false);
@@ -236,6 +239,40 @@ export function CanvasAssistantPanel({
         commitSessions([session, ...sessionsRef.current], session.id);
     };
 
+    const compactActiveSession = async () => {
+        if (!activeSession || mode !== "api" || isRunning || isCompacting) return;
+        setIsCompacting(true);
+        try {
+            const config = {
+                ...effectiveConfig,
+                model: effectiveConfig.textModel || effectiveConfig.model,
+                apiMode: agentConfig.textApiMode,
+                textStreaming: agentConfig.textStreaming === true,
+                textReasoningEnabled: agentConfig.textReasoningEnabled === true,
+            };
+            const compacted = await compactCanvasAgentSession({
+                config,
+                protocolMessages: activeSession.protocolMessages,
+                contextCheckpoint: activeSession.contextCheckpoint,
+            });
+            if (!compacted.compacted) {
+                appMessage.info("当前对话没有可归档的旧轮次");
+                return;
+            }
+            updateSession(activeSession.id, (session) => ({
+                ...session,
+                protocolMessages: compacted.protocolMessages,
+                contextCheckpoint: compacted.contextCheckpoint,
+                updatedAt: new Date().toISOString(),
+            }));
+            appMessage.success("对话上下文已压缩，历史消息仍保留在列表中");
+        } catch (error) {
+            appMessage.error(error instanceof Error ? error.message : "压缩上下文失败");
+        } finally {
+            setIsCompacting(false);
+        }
+    };
+
     const removeSessions = async (ids: string[]) => {
         const removing = sessionsRef.current.filter((session) => (session.provider || "api") === mode && ids.includes(session.id));
         await Promise.all(removing.filter((session) => session.codexThreadId).map((session) => codex.archive(session.codexThreadId!, session.codexServiceId)));
@@ -328,12 +365,11 @@ export function CanvasAssistantPanel({
         if (isRunning) return;
         const next = mode === "api" ? "codex" : "api";
         if (activeSessionIdRef.current) lastSessionIds.current[mode] = activeSessionIdRef.current;
-        drafts.current[mode] = { prompt, references: composerReferenceIds, skills: selectedSkills };
+        drafts.current[mode] = { prompt: drafts.current[mode]?.prompt || "", references: composerReferenceIds, skills: selectedSkills };
         const nextSessions = sessionsRef.current.filter((session) => (session.provider || "api") === next);
         commitSessions(sessionsRef.current, nextSessions.find((session) => session.id === lastSessionIds.current[next])?.id || nextSessions[0]?.id || null);
         onAgentConfigChange({ mode: next });
         setView("chat");
-        setPrompt(drafts.current[next]?.prompt || "");
         setComposerReferenceIds(drafts.current[next]?.references || []);
         setRemovedReferenceIds(new Set());
         setSelectedSkills(drafts.current[next]?.skills || []);
@@ -403,7 +439,6 @@ export function CanvasAssistantPanel({
         const assistantId = nanoid();
         appendMessage(session.id, userMessage);
         appendMessage(session.id, { id: assistantId, role: "assistant", text: "", status: "thinking", activity: "正在理解画布和创作目标" });
-        setPrompt("");
         setComposerReferenceIds([]);
         setSelectedSkills([]);
         setRemovedReferenceIds(new Set(selectedNodeIds));
@@ -502,17 +537,13 @@ export function CanvasAssistantPanel({
         void sendMessage(initialRequest.prompt, initialRequest.references, initialRequest.skills, initialRequest.skills.length > 0);
     }, [initialRequest, onInitialRequestConsumed]);
 
-    const submit = async (nextPrompt = prompt, referenceIds = composerReferenceIds) => {
-        const text = nextPrompt.trim();
-        if (!text || isRunning) return;
-        await sendMessage(text, resolveReferences(referenceIds));
-    };
-
-    const retryMessage = (message: CanvasAssistantMessage) => {
+    const sendMessageRef = useRef(sendMessage);
+    sendMessageRef.current = sendMessage;
+    const retryMessage = useCallback((message: CanvasAssistantMessage) => {
         const index = messages.findIndex((item) => item.id === message.id);
         const user = messages.slice(0, index).findLast((item) => item.role === "user");
-        if (user) void sendMessage(user.text, user.references, user.skills || []);
-    };
+        if (user) void sendMessageRef.current(user.text, user.references, user.skills || []);
+    }, [messages]);
 
     const startResize = () => {
         const move = (event: MouseEvent) => onWidthChange(Math.min(760, Math.max(464, window.innerWidth - event.clientX)));
@@ -538,9 +569,9 @@ export function CanvasAssistantPanel({
 
     return (
         <motion.div
-            className="flex shrink-0"
+            className={`flex shrink-0 ${fullPage ? "w-full" : ""}`}
             initial={{ width: 0, opacity: 0 }}
-            animate={{ width: closing ? 0 : width + 1, opacity: closing ? 0 : 1 }}
+            animate={{ width: closing ? 0 : fullPage ? "100%" : width + 1, opacity: closing ? 0 : 1 }}
             transition={{ duration: resizing ? 0 : PANEL_MOTION_SECONDS, ease: [0.22, 1, 0.36, 1] }}
             style={{ overflow: "clip", pointerEvents: closing ? "none" : undefined }}
         >
@@ -550,9 +581,9 @@ export function CanvasAssistantPanel({
                 initial={{ x: 48 }}
                 animate={{ x: closing ? 28 : 0 }}
                 transition={{ duration: resizing ? 0 : PANEL_MOTION_SECONDS, ease: [0.22, 1, 0.36, 1] }}
-                style={{ width, background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text }}
+                style={{ width: fullPage ? "100%" : width, background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text }}
             >
-                <button type="button" className="absolute inset-y-0 left-0 z-40 w-4 -translate-x-1/2 cursor-col-resize" onMouseDown={(event) => { event.preventDefault(); startResize(); }} aria-label="调整右侧面板宽度" />
+                {!fullPage ? <button type="button" className="absolute inset-y-0 left-0 z-40 w-4 -translate-x-1/2 cursor-col-resize" onMouseDown={(event) => { event.preventDefault(); startResize(); }} aria-label="调整右侧面板宽度" /> : null}
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3" style={{ borderColor: theme.node.stroke }}>
                     <div className="flex items-center gap-2 text-sm font-medium">
                         <Bot className="size-4" />
@@ -562,6 +593,9 @@ export function CanvasAssistantPanel({
                         </Tooltip>
                     </div>
                     <div className="flex items-center gap-1">
+                        {mode === "api" ? <Tooltip title="压缩上下文：归档较早的对话轮次，保留最近对话">
+                            <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={iconButtonStyle} icon={<Archive className="size-4" />} aria-label="压缩上下文" loading={isCompacting} disabled={isRunning || !activeSession?.protocolMessages.length} onClick={() => void compactActiveSession()} />
+                        </Tooltip> : null}
                         {mode === "codex" ? <Tooltip title="连接教程"><Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={iconButtonStyle} icon={<PlugZap className="size-4" />} aria-label="连接教程" disabled={isRunning} onClick={() => { setView("connect"); messageListRef.current?.scrollTo({ top: 0 }); }} /></Tooltip> : null}
                         {view === "history" ? (
                             <>
@@ -593,9 +627,9 @@ export function CanvasAssistantPanel({
                         <Tooltip title="Agent 设置">
                             <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={iconButtonStyle} icon={<Settings2 className="size-4" />} onClick={() => setSettingsOpen(true)} />
                         </Tooltip>
-                        <Tooltip title="收起对话">
+                        {!fullPage ? <Tooltip title="收起对话">
                             <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={iconButtonStyle} icon={<PanelRightClose className="size-4" />} onClick={collapse} />
-                        </Tooltip>
+                        </Tooltip> : null}
                     </div>
                 </div>
 
@@ -634,7 +668,8 @@ export function CanvasAssistantPanel({
                 ) : null}
                 {view === "chat" && !showCodexConnection ? (
                     <CanvasAssistantComposer
-                        prompt={prompt}
+                        key={mode}
+                        initialPrompt={drafts.current[mode]?.prompt || ""}
                         isRunning={isRunning}
                         codexControls={codexControls}
                         references={composerReferences}
@@ -643,16 +678,21 @@ export function CanvasAssistantPanel({
                         selectedSkills={selectedSkills}
                         agentConfig={agentConfig}
                         onAgentConfigChange={onAgentConfigChange}
-                        onPromptChange={setPrompt}
+                        onPromptDraftChange={(value) => {
+                            drafts.current[mode] = { ...(drafts.current[mode] || { references: [], skills: [] }), prompt: value };
+                        }}
                         onSkillSelect={selectComposerSkill}
                         onSkillRemove={removeComposerSkill}
                         onReferenceIdsChange={(ids) => {
                             consumedReferenceNodeClickVersionRef.current = referenceNodeClick.version;
                             const removedSelectedIds = composerReferenceIds.filter((id) => selectedNodeIds.has(id) && !ids.includes(id));
                             if (removedSelectedIds.length) setRemovedReferenceIds((previous) => new Set([...previous, ...removedSelectedIds]));
-                            setComposerReferenceIds(ids);
+                            setComposerReferenceIds((current) => current.length === ids.length && current.every((id, index) => id === ids[index]) ? current : ids);
                         }}
-                        onSubmit={submit}
+                        onSubmit={(value, ids) => {
+                            const text = (value || "").trim();
+                            if (text && !isRunning) return sendMessage(text, resolveReferences(ids || composerReferenceIds));
+                        }}
                         onStop={() => abortRef.current?.abort()}
                         onOpenUpload={onOpenUpload}
                         onOpenAssets={onOpenAssets}
@@ -782,7 +822,7 @@ function AssistantMarkdown({ children, components }: { children: string; compone
     );
 }
 
-function AssistantMessages({ messages, nodeById, onFocusNode, onRetry, codexMode }: { messages: CanvasAssistantMessage[]; nodeById: ReadonlyMap<string, CanvasNodeData>; onFocusNode: (nodeId: string) => void; onRetry: (message: CanvasAssistantMessage) => void; codexMode?: boolean }) {
+const AssistantMessages = memo(function AssistantMessages({ messages, nodeById, onFocusNode, onRetry, codexMode }: { messages: CanvasAssistantMessage[]; nodeById: ReadonlyMap<string, CanvasNodeData>; onFocusNode: (nodeId: string) => void; onRetry: (message: CanvasAssistantMessage) => void; codexMode?: boolean }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const copyText = useCopyText();
     const markdownComponents = useMemo<Components>(() => ({
@@ -852,7 +892,7 @@ function AssistantMessages({ messages, nodeById, onFocusNode, onRetry, codexMode
             })}
         </>
     );
-}
+});
 
 function AssistantHistory({
     sessions,

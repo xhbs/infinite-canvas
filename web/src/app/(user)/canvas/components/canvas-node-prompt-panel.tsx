@@ -5,6 +5,7 @@ import { ArrowUp, LoaderCircle, Maximize2, Square } from "lucide-react";
 import { Button, Modal, Tooltip } from "antd";
 
 import { ModelPicker } from "@/components/model-picker";
+import { StyleSelector } from "@/components/styles/style-selector";
 import { useAutoDLWorkflow } from "@/hooks/use-autodl-workflow";
 import { getAutoDLCapabilities, isAutoDLConfig } from "@/lib/autodl";
 import { defaultConfig, resolveModelForCapability, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
@@ -105,6 +106,12 @@ export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfi
                 style={{ background: "transparent", color: theme.node.text }}
                 placeholder={isPanorama ? "描述想生成的全景，或上传/连接图片作为参考" : promptPlaceholder(mode, hasImageContent, hasTextContent)}
             />
+            {mode === "image" || mode === "video" ? (
+                <div className="mt-2 flex items-center gap-2">
+                    <span className="text-xs opacity-60">生成风格</span>
+                    <StyleSelector type={mode} value={node.metadata?.styleId} buttonClassName="!h-7 !rounded-full !px-3 !text-xs" onChange={(style) => onConfigChange(node.id, { styleId: style?.id, styleName: style?.name, stylePrompt: style?.prompt })} />
+                </div>
+            ) : null}
 
             <div className="mt-2 flex min-w-0 items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">

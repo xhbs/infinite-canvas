@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { ArrowUp, Brain, FolderOpen, ImageIcon, Menu, Square, Upload, Video } from "lucide-react";
 import { Button, Dropdown } from "antd";
 
@@ -15,7 +15,7 @@ import { CanvasPromptChipInput } from "./canvas-prompt-chip-input";
 import { CanvasVideoSettingsPopover } from "./canvas-video-settings-popover";
 
 export type CanvasAssistantComposerProps = {
-    prompt: string;
+    initialPrompt: string;
     isRunning: boolean;
     codexControls?: ReactNode;
     references: CanvasAssistantReference[];
@@ -24,7 +24,7 @@ export type CanvasAssistantComposerProps = {
     selectedSkills?: CanvasAgentSkillSelection[];
     agentConfig: CanvasAgentConfig;
     onAgentConfigChange: (patch: Partial<CanvasAgentConfig>) => void;
-    onPromptChange: (prompt: string) => void;
+    onPromptDraftChange: (prompt: string) => void;
     onReferenceIdsChange: (ids: string[]) => void;
     onSkillSelect?: (skill: CanvasAgentSkillSelection) => void;
     onSkillRemove?: (id: string, source: CanvasAgentSkillSelection["source"]) => void;
@@ -36,7 +36,7 @@ export type CanvasAssistantComposerProps = {
 };
 
 export function CanvasAssistantComposer({
-    prompt,
+    initialPrompt,
     isRunning,
     codexControls,
     references,
@@ -45,7 +45,7 @@ export function CanvasAssistantComposer({
     selectedSkills,
     agentConfig,
     onAgentConfigChange,
-    onPromptChange,
+    onPromptDraftChange,
     onReferenceIdsChange,
     onSkillSelect,
     onSkillRemove,
@@ -56,6 +56,7 @@ export function CanvasAssistantComposer({
     onPasteImage,
 }: CanvasAssistantComposerProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
+    const [prompt, setPrompt] = useState(initialPrompt);
     const effectiveConfig = useEffectiveConfig();
     const reasoningEnabled = agentConfig.textReasoningEnabled === true;
     const imageConfig = useMemo(() => ({ ...effectiveConfig, quality: agentConfig.imageQuality, size: agentConfig.imageSize }), [agentConfig.imageQuality, agentConfig.imageSize, effectiveConfig]);
@@ -68,7 +69,15 @@ export function CanvasAssistantComposer({
             return true;
         });
     }, [availableReferences, references]);
-    const submit = (nextPrompt = prompt, referenceIds = references.map((reference) => reference.id)) => onSubmit(nextPrompt, referenceIds);
+    const changePrompt = (value: string) => {
+        setPrompt(value);
+        onPromptDraftChange(value);
+    };
+    const submit = async (nextPrompt = prompt, referenceIds = references.map((reference) => reference.id)) => {
+        const pending = onSubmit(nextPrompt, referenceIds);
+        changePrompt("");
+        await pending;
+    };
 
     return (
         <div className="px-2 pb-2" onWheelCapture={(event) => event.stopPropagation()}>
@@ -79,7 +88,7 @@ export function CanvasAssistantComposer({
                     pendingReferences={pendingReferences}
                     skills={selectedSkills}
                     onSkillRemove={onSkillRemove}
-                    onChange={onPromptChange}
+                    onChange={changePrompt}
                     onReferenceIdsChange={onReferenceIdsChange}
                     onPasteImage={onPasteImage}
                     onSubmit={submit}

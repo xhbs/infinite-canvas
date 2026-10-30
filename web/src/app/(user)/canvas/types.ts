@@ -37,6 +37,12 @@ export type CanvasNodeMetadata = {
     groupId?: string;
     composerContent?: string;
     prompt?: string;
+    styleId?: string;
+    styleName?: string;
+    stylePrompt?: string;
+    voicePresetId?: string;
+    voicePresetName?: string;
+    voicePresetRoles?: Array<{ alias: string; voiceDesign: string }>;
     excludeUpstreamText?: boolean;
     status?: CanvasNodeStatus;
     errorDetails?: string;

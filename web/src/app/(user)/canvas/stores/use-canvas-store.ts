@@ -6,6 +6,7 @@ import { localForageStorage } from "@/lib/localforage-storage";
 import { listCanvasProjects, saveCanvasProject, syncCanvasProjects } from "@/services/api/canvas-tasks";
 import { fetchUserConfig } from "@/services/api/user-config";
 import { useUserStore } from "@/stores/use-user-store";
+import { deleteAgentSessions, loadAgentSessions, saveAgentSessions } from "../agent/agent-session-storage";
 import type { CanvasBackgroundMode } from "@/lib/canvas-theme";
 import type { CanvasAgentConfig, CanvasAssistantSession, CanvasConnection, CanvasNodeData, CanvasPendingAgentRequest, ViewportTransform } from "../types";
 
@@ -58,6 +59,9 @@ let accountCanvasSyncEnabled = false;
 const projectSaveTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const pendingProjectSaves = new Map<string, { token: string; project: CanvasProject }>();
 const savingProjects = new Set<string>();
+const projectSyncChannel = typeof window !== "undefined" && "BroadcastChannel" in window
+    ? new BroadcastChannel("infinite-canvas:project-sync")
+    : null;
 
 function waitForUserStoreHydration() {
     if (useUserStore.persist.hasHydrated()) return Promise.resolve();
@@ -121,6 +125,8 @@ async function reconcileCanvasProjects(
     remoteProjects: CanvasProject[],
     localProjects: CanvasProject[],
 ) {
+    remoteProjects = await separateAgentSessions(remoteProjects);
+    localProjects = await separateAgentSessions(localProjects);
     const remoteById = new Map(
         remoteProjects.map((project) => [project.id, project]),
     );
@@ -157,6 +163,20 @@ async function reconcileCanvasProjects(
     return projects;
 }
 
+async function separateAgentSessions(projects: CanvasProject[]) {
+    return Promise.all(projects.map(async (project) => {
+        if (project.chatSessions?.length && !(await loadAgentSessions(project.id))) {
+            await saveAgentSessions(project.id, {
+                sessions: project.chatSessions,
+                activeSessionId: project.activeChatId || null,
+            });
+        }
+        const separated = { ...project, chatSessions: [], activeChatId: null };
+        if (project.chatSessions?.length) queueProjectSave(separated);
+        return separated;
+    }));
+}
+
 const canvasStorage: PersistStorage<CanvasStore> = {
     getItem: async (name) => {
         await waitForUserStoreHydration();
@@ -167,8 +187,8 @@ const canvasStorage: PersistStorage<CanvasStore> = {
             : null;
         const localProjects =
             (localParsed?.state as PersistedCanvasState)?.projects || [];
-        const localHasData =
-            Array.isArray(localProjects) && localProjects.length > 0;
+        const separatedLocalProjects = await separateAgentSessions(localProjects);
+        const localHasData = Array.isArray(separatedLocalProjects) && separatedLocalProjects.length > 0;
 
         if (token) {
             try {
@@ -183,7 +203,7 @@ const canvasStorage: PersistStorage<CanvasStore> = {
                     const projects = await reconcileCanvasProjects(
                         token,
                         remoteProjects,
-                        localProjects,
+                        separatedLocalProjects,
                     );
 
                     const nextState = { projects };
@@ -203,7 +223,7 @@ const canvasStorage: PersistStorage<CanvasStore> = {
                     remoteProjects.length > 0 &&
                     (accountCanvasSyncEnabled || !localHasData)
                 ) {
-                    const nextState = { projects: remoteProjects };
+                    const nextState = { projects: await separateAgentSessions(remoteProjects) };
                     const parsed = {
                         state: nextState,
                         version: 0,
@@ -224,8 +244,10 @@ const canvasStorage: PersistStorage<CanvasStore> = {
         }
 
         if (!localParsed) return null;
-        queuedPersistState = localParsed.state as PersistedCanvasState;
-        return localParsed;
+        const nextState = { ...localParsed.state, projects: separatedLocalProjects };
+        queuedPersistState = nextState as PersistedCanvasState;
+        await localForageStorage.setItem(name, JSON.stringify({ ...localParsed, state: nextState }));
+        return { ...localParsed, state: nextState };
     },
 
     setItem: (name, value) => {
@@ -280,6 +302,7 @@ export const useCanvasStore = create<CanvasStore>()(
             },
             importProject: (source) => {
                 const now = new Date().toISOString();
+                const chatSessions = (source.chatSessions || []).map((session) => ({ ...session, codexThreadId: undefined, codexServiceId: undefined }));
                 const project: CanvasProject = {
                     id: nanoid(),
                     title: source.title || "导入画布",
@@ -287,8 +310,8 @@ export const useCanvasStore = create<CanvasStore>()(
                     updatedAt: now,
                     nodes: source.nodes || [],
                     connections: source.connections || [],
-                    chatSessions: (source.chatSessions || []).map((session) => ({ ...session, codexThreadId: undefined, codexServiceId: undefined })),
-                    activeChatId: source.activeChatId || null,
+                    chatSessions: [],
+                    activeChatId: null,
                     agentConfig: source.agentConfig || null,
                     autoTitlePending: false,
                     backgroundMode: source.backgroundMode || "lines",
@@ -297,6 +320,7 @@ export const useCanvasStore = create<CanvasStore>()(
                     sidePanel: source.sidePanel || DEFAULT_CANVAS_SIDE_PANEL,
                     agentPanel: source.agentPanel || DEFAULT_CANVAS_AGENT_PANEL,
                 };
+                if (chatSessions.length) void saveAgentSessions(project.id, { sessions: chatSessions, activeSessionId: source.activeChatId || null });
                 set((state) => ({
                     projects: [project, ...state.projects],
                 }));
@@ -325,6 +349,7 @@ export const useCanvasStore = create<CanvasStore>()(
             },
             deleteProjects: (ids) => {
                 cancelProjectSaves(ids);
+                void Promise.all(ids.map(deleteAgentSessions));
                 set((state) => ({
                     projects: state.projects.filter(
                         (project) => !ids.includes(project.id),
@@ -336,6 +361,7 @@ export const useCanvasStore = create<CanvasStore>()(
                     (item) => item.id === id,
                 );
                 if (!project) return;
+                if (Object.entries(patch).every(([key, value]) => project[key as keyof CanvasProject] === value)) return;
                 const nextProject = {
                     ...project,
                     ...patch,
@@ -347,6 +373,9 @@ export const useCanvasStore = create<CanvasStore>()(
                     ),
                 }));
                 queueProjectSave(nextProject);
+                if (patch.nodes !== project.nodes || patch.connections !== project.connections) {
+                    projectSyncChannel?.postMessage(nextProject);
+                }
             },
             syncWithRemote: async (token, syncEnabled) => {
                 accountCanvasSyncEnabled = syncEnabled;
@@ -382,7 +411,7 @@ export const useCanvasStore = create<CanvasStore>()(
             storage: canvasStorage,
             partialize: (state) =>
                 ({
-                    projects: state.projects,
+                    projects: state.projects.map((project) => ({ ...project, chatSessions: [], activeChatId: null })),
                 }) as StorageValue<CanvasStore>["state"],
             onRehydrateStorage: () => () => {
                 useCanvasStore.setState({ hydrated: true });
@@ -390,6 +419,15 @@ export const useCanvasStore = create<CanvasStore>()(
         },
     ),
 );
+
+projectSyncChannel?.addEventListener("message", (event: MessageEvent<CanvasProject>) => {
+    const incomingProject = event.data;
+    if (!incomingProject?.id) return;
+    useCanvasStore.setState((state) => ({
+        projects: state.projects.map((project) => project.id === incomingProject.id ? incomingProject : project),
+    }));
+    window.dispatchEvent(new CustomEvent("canvas-project-sync", { detail: incomingProject }));
+});
 
 export function mergeCanvasProjects(
     remoteProjects: CanvasProject[],

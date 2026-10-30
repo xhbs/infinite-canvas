@@ -22,6 +22,9 @@ description: 当前后端主要数据表与字段说明
 - `users`
 - `credit_logs`
 - `prompts`
+- `styles`
+- `voice_presets`
+- `voice_preset_roles`
 - `agent_skills`
 - `agent_skill_files`
 - `assets`
@@ -39,6 +42,44 @@ description: 当前后端主要数据表与字段说明
 - `ai_call_logs`
 
 后续新增表时再同步补充本文档，未实际使用的规划表不提前写入。
+
+### styles
+
+用户保存的图片/视频生成风格，与提示词库分开管理，按账号隔离。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | string | 主键 |
+| `user_id` | string | 所属用户 ID |
+| `name` | string | 风格名称 |
+| `prompt` | text | 风格描述 |
+| `applies_to` | string | 适用范围：`image`、`video` 或 `both` |
+| `created_at` / `updated_at` | string | 创建及更新时间 |
+
+### voice_presets / voice_preset_roles
+
+账号级语音预设。一个预设对应一部作品，作品下保存多个角色代称及其声音设计；按账号隔离，更新作品时角色列表在同一事务中整体替换。
+
+`voice_presets` 字段：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | string | 主键 |
+| `user_id` | string | 所属用户 ID |
+| `name` | string | 作品名称 |
+| `description` | text | 作品说明（可选） |
+| `created_at` / `updated_at` | string | 创建及更新时间 |
+
+`voice_preset_roles` 字段：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | string | 主键 |
+| `preset_id` | string | 所属作品预设 ID |
+| `user_id` | string | 所属用户 ID，用于数据隔离 |
+| `alias` | string | 角色代称 |
+| `voice_design` | text | 角色声音设计 |
+| `created_at` / `updated_at` | string | 创建及更新时间 |
 
 ### ai_call_logs
 

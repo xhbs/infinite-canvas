@@ -77,6 +77,12 @@ func New() *gin.Engine {
 		handler.DeleteUserWorkflow(c.Writer, c.Request, c.Param("id"))
 	})
 	v1.GET("/agent-skills", gin.WrapF(handler.UserAgentSkills))
+	v1.GET("/styles", gin.WrapF(handler.UserStyles))
+	v1.POST("/styles", gin.WrapF(handler.SaveUserStyle))
+	v1.DELETE("/styles/:id", func(c *gin.Context) { handler.DeleteUserStyle(c.Writer, c.Request, c.Param("id")) })
+	v1.GET("/voice-presets", gin.WrapF(handler.UserVoicePresets))
+	v1.POST("/voice-presets", gin.WrapF(handler.SaveUserVoicePreset))
+	v1.DELETE("/voice-presets/:id", func(c *gin.Context) { handler.DeleteUserVoicePreset(c.Writer, c.Request, c.Param("id")) })
 	v1.POST("/agent-skills", gin.WrapF(handler.SaveUserAgentSkill))
 	v1.DELETE("/agent-skills/:id", func(c *gin.Context) {
 		handler.DeleteUserAgentSkill(c.Writer, c.Request, c.Param("id"))
