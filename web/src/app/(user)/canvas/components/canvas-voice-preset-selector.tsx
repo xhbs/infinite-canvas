@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { App, Button, Empty, Input, Modal, Popconfirm, Spin, Tag } from "antd";
-import { Check, Plus, Trash2, UserRound, X } from "lucide-react";
+import { Check, Mic, Plus, Trash2 } from "lucide-react";
 
+import { canvasThemes } from "@/lib/canvas-theme";
 import type { VoicePreset, VoicePresetRoleInput } from "@/services/api/voice-presets";
+import { useThemeStore } from "@/stores/use-theme-store";
 import { useUserStore } from "@/stores/use-user-store";
 import { useVoicePresetStore } from "@/stores/use-voice-preset-store";
 
@@ -16,6 +18,7 @@ type CanvasVoicePresetSelectorProps = {
 
 export function CanvasVoicePresetSelector({ value, valueName, onChange }: CanvasVoicePresetSelectorProps) {
     const { message } = App.useApp();
+    const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const token = useUserStore((state) => state.token);
     const { presets, isLoading, load, save, remove } = useVoicePresetStore();
     const [open, setOpen] = useState(false);
@@ -72,33 +75,38 @@ export function CanvasVoicePresetSelector({ value, valueName, onChange }: Canvas
         <Button
             type="text"
             size="small"
-            className={`!h-8 !w-8 !min-w-8 !px-0 ${value || selected ? "!text-rose-500" : ""}`}
-            icon={<UserRound className="size-4" />}
+            type="text"
+            className="!h-8 !w-8 !min-w-8 !shrink-0 !rounded-full !p-0 transition-colors hover:!bg-[var(--canvas-toolbar-hover)]"
+            style={{ "--canvas-toolbar-hover": theme.toolbar.itemHover, background: value || selected ? theme.toolbar.activeBg : "transparent", color: value || selected ? theme.toolbar.activeText : theme.node.text } as CSSProperties}
+            icon={<Mic className="size-4" />}
             aria-label={selected || valueName ? `语音预设：${selected?.name || valueName}` : "选择语音预设"}
             title={selected || valueName ? `语音预设：${selected?.name || valueName}` : "选择语音预设"}
             onClick={() => token ? setOpen(true) : message.info("请先登录后使用语音预设")}
         />
-        <Modal title={null} open={open} onCancel={() => { setOpen(false); setEditing(null); setEditOpen(false); }} footer={null} width="min(720px, calc(100vw - 24px))" centered destroyOnHidden styles={{ body: { padding: 0 } }}>
-            {editOpen ? <div className="p-5 sm:p-7">
-                <div className="mb-5 flex items-start gap-3">
-                    <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-rose-500/10 text-rose-600"><UserRound className="size-5" /></div>
+        <Modal title={null} open={open} onCancel={() => { setOpen(false); setEditing(null); setEditOpen(false); }} footer={null} width="min(760px, calc(100vw - 24px))" centered destroyOnHidden styles={{ body: { padding: 0 } }}>
+            {editOpen ? <div className="p-5 sm:p-6">
+                <div className="mb-6 flex items-start gap-3">
+                    <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--brand-accent-soft)] text-[var(--brand-accent)] dark:bg-rose-500/10 dark:text-rose-600"><Mic className="size-5" /></div>
                     <div className="min-w-0 flex-1"><div className="text-lg font-semibold">{editing ? "编辑语音预设" : "新建语音预设"}</div><p className="mt-1 text-sm text-muted-foreground">按作品保存角色代称和声音设计，仅应用于视频生成。</p></div>
-                    <Button type="text" shape="circle" aria-label="返回语音预设列表" icon={<X className="size-4" />} onClick={() => { setEditing(null); setEditOpen(false); setName(""); }} />
                 </div>
                 <div className="space-y-4">
-                    <Input size="large" value={name} onChange={(event) => setName(event.target.value)} placeholder="作品名称" maxLength={100} />
-                    <Input.TextArea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="作品说明（可选）" autoSize={{ minRows: 2, maxRows: 4 }} maxLength={2000} />
-                    <div className="flex items-center justify-between"><span className="text-sm font-medium">角色声音设计</span><Button size="small" icon={<Plus className="size-3.5" />} onClick={() => setRoles((current) => [...current, { alias: "", voiceDesign: "" }])}>添加角色</Button></div>
-                    {roles.map((role, index) => <div key={role.id || index} className="grid gap-2 rounded-xl border border-border p-3 sm:grid-cols-[minmax(120px,.7fr)_minmax(0,1.5fr)_auto] sm:items-start">
-                        <Input value={role.alias} maxLength={80} placeholder="角色代称" onChange={(event) => setRoles((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, alias: event.target.value } : item))} />
-                        <Input.TextArea value={role.voiceDesign} maxLength={2000} placeholder="声音设计，如音色、语速、年龄感、情绪特征" autoSize={{ minRows: 2, maxRows: 5 }} onChange={(event) => setRoles((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, voiceDesign: event.target.value } : item))} />
-                        <Button danger type="text" aria-label="删除角色" icon={<Trash2 className="size-4" />} onClick={() => setRoles((current) => current.filter((_, itemIndex) => itemIndex !== index))} />
-                    </div>)}
+                    <label className="block"><span className="mb-1.5 block text-xs font-medium text-muted-foreground">作品名称</span><Input size="large" value={name} onChange={(event) => setName(event.target.value)} placeholder="例如：云上旅程" maxLength={100} /></label>
+                    <label className="block"><span className="mb-1.5 block text-xs font-medium text-muted-foreground">作品说明 <span className="font-normal">（可选）</span></span><Input.TextArea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="补充作品背景或整体声音基调" autoSize={{ minRows: 2, maxRows: 4 }} maxLength={2000} /></label>
                 </div>
-                <div className="mt-6 flex justify-end gap-2 border-t border-border pt-4"><Button onClick={() => { setEditing(null); setEditOpen(false); setName(""); }}>返回</Button><Button type="primary" loading={saving} onClick={() => void submit()}>保存</Button></div>
+                <div className="mt-6">
+                    <div className="flex items-center justify-between"><span className="text-sm font-medium">角色声音设计</span><Button size="small" icon={<Plus className="size-3.5" />} onClick={() => setRoles((current) => [...current, { alias: "", voiceDesign: "" }])}>添加角色</Button></div>
+                    <div className="mt-3 space-y-2">
+                        {roles.map((role, index) => <div key={role.id || index} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 rounded-xl border border-border bg-muted/20 p-3 sm:grid-cols-[minmax(120px,.7fr)_minmax(0,1.5fr)_auto] sm:items-start">
+                            <label className="block"><span className="mb-1 block text-xs text-muted-foreground">角色代称</span><Input value={role.alias} maxLength={80} placeholder="例如：旁白" onChange={(event) => setRoles((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, alias: event.target.value } : item))} /></label>
+                            <label className="col-span-2 block sm:col-span-1"><span className="mb-1 block text-xs text-muted-foreground">声音设计</span><Input.TextArea value={role.voiceDesign} maxLength={2000} placeholder="音色、语速、年龄感、情绪特征" autoSize={{ minRows: 2, maxRows: 5 }} onChange={(event) => setRoles((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, voiceDesign: event.target.value } : item))} /></label>
+                            <Button className="mt-5" danger type="text" aria-label="删除角色" icon={<Trash2 className="size-4" />} onClick={() => setRoles((current) => current.filter((_, itemIndex) => itemIndex !== index))} />
+                        </div>)}
+                    </div>
+                </div>
+                <div className="mt-6 flex justify-end gap-2 border-t border-border pt-4"><Button onClick={() => { setEditing(null); setEditOpen(false); setName(""); }}>返回</Button><Button type="primary" loading={saving} onClick={() => void submit()}>保存预设</Button></div>
             </div> : <div>
                 <div className="border-b border-border bg-gradient-to-br from-rose-500/[.08] to-transparent px-5 py-5 sm:px-7">
-                    <div className="flex items-start gap-3"><div className="grid size-10 shrink-0 place-items-center rounded-xl bg-rose-500/10 text-rose-600"><UserRound className="size-5" /></div><div><div className="text-lg font-semibold">语音预设</div><p className="mt-1 text-sm text-muted-foreground">按作品复用角色声音设计</p></div>{value ? <Button className="ml-auto" type="text" onClick={() => { onChange(undefined); setOpen(false); }}>清除引用</Button> : null}</div>
+                    <div className="flex items-start gap-3"><div className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--brand-accent-soft)] text-[var(--brand-accent)] dark:bg-rose-500/10 dark:text-rose-600"><Mic className="size-5" /></div><div><div className="text-lg font-semibold">语音预设</div><p className="mt-1 text-sm text-muted-foreground">按作品复用角色声音设计</p></div>{value ? <Button className="ml-auto" type="text" onClick={() => { onChange(undefined); setOpen(false); }}>清除引用</Button> : null}</div>
                 </div>
                 <div className="thin-scrollbar max-h-[min(55vh,480px)] space-y-2 overflow-y-auto p-4 sm:p-6">
                     {isLoading ? <div className="grid h-28 place-items-center"><Spin /></div> : presets.length ? presets.map((preset) => <div key={preset.id} className={`flex items-center gap-3 rounded-xl border p-3 ${preset.id === value ? "border-rose-500/70 bg-rose-500/[.05]" : "border-border"}`}>

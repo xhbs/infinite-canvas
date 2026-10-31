@@ -154,7 +154,7 @@ function PickerCard({ title, kind, cover, loading, onClick }: { title: string; k
     return (
         <button
             type="button"
-            className="group relative cursor-pointer overflow-hidden rounded-lg border border-stone-200 bg-white text-left transition hover:border-stone-400 hover:shadow-md dark:border-stone-700 dark:bg-stone-900 dark:hover:border-stone-500"
+            className="group relative cursor-pointer overflow-hidden rounded-lg border border-stone-200 bg-card text-left transition hover:border-stone-400 hover:shadow-md dark:border-stone-700 dark:bg-stone-900 dark:hover:border-stone-500"
             onClick={onClick}
             disabled={loading}
         >
@@ -170,7 +170,7 @@ function PickerCard({ title, kind, cover, loading, onClick }: { title: string; k
                 </div>
             </div>
             {loading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-white/60 dark:bg-stone-900/60">
+                <div className="absolute inset-0 flex items-center justify-center bg-card/60 dark:bg-stone-900/60">
                     <Spin size="small" />
                 </div>
             )}

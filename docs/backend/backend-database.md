@@ -272,6 +272,8 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 | `started_at` | string | 上游开始时间 |
 | `completed_at` | string | 完成时间 |
 | `last_polled_at` | string | 最近轮询时间 |
+| `email_notification_status` | string | 视频邮件通知状态：`pending`、`sending`、`sent`；SMTP 未配置的任务为空 |
+| `email_notification_attempted_at` | string | 最近一次邮件发送尝试时间，用于重试退避和恢复中断发送 |
 
 后台轮询器按 `status + created_at` 查询未完成任务；旧数据库中如果残留废弃列，不再参与代码查询。
 

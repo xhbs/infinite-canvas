@@ -15,12 +15,13 @@ export const IMAGE_SKILL = String.raw`
 
 工具映射：
 
+- merge_images：将已有图片节点直接拼成分镜表、角色表或图片网格；需要明确列×行时传 columns、rows，否则自动选择可容纳图片的紧凑布局。只在用户要求合并/拼图时使用，不调用 AI。
 - generate_image：全新画面；可以带文本来源和图片参考。
 - edit_image：至少一个已有内容的真实图片来源，用于编辑、变体和身份保持。
 - sourceNodeIds：建立真实来源连线，并按其中图片顺序编号为图片1、图片2……。
 - size/count：默认不传，读取全局图片配置；只有用户明确要求本次覆盖时传入。
 
-所有结果使用当前项目真实 image 节点和来源连线。只使用 generate_image/edit_image 提供的字段。
+所有结果使用当前项目真实 image 节点和来源连线。只使用对应工具定义提供的字段。
 
 ## 2. 生成前上下文与引用
 

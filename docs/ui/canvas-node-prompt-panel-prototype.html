@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>画布节点提示词面板 - UI 原型</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap');
+
+    :root {
+      --paper: #f6f5f1;
+      --panel: #fffefa;
+      --ink: #292826;
+      --muted: #8a8983;
+      --line: #e6e3dc;
+      --soft: #f0eee8;
+      --accent: #df6b48;
+      --accent-soft: #fff0e8;
+      --blue: #5a8df4;
+      --shadow: 0 22px 60px rgba(44, 40, 32, .14), 0 3px 12px rgba(44, 40, 32, .06);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: "DM Sans", "Noto Sans SC", sans-serif;
+      background-color: var(--paper);
+      background-image: linear-gradient(rgba(112, 105, 92, .07) 1px, transparent 1px), linear-gradient(90deg, rgba(112, 105, 92, .07) 1px, transparent 1px);
+      background-size: 42px 42px;
+    }
+
+    button, input, textarea { font: inherit; }
+    button { cursor: pointer; }
+    .stage { min-height: 100vh; padding: 54px 28px 80px; }
+    .progress {
+      width: min(640px, 100%); margin: 0 auto 26px; padding: 13px 22px 15px;
+      border: 1px solid #87b0ff; border-radius: 22px; background: rgba(255,255,255,.64);
+      box-shadow: 0 0 0 2px rgba(90,141,244,.15), 0 8px 24px rgba(90,141,244,.12);
+    }
+    .progress-head { display:flex; justify-content:space-between; color:#89857e; font-size:14px; margin-bottom:9px; }
+    .progress-track { height:8px; border-radius:8px; background:#e4e0d8; overflow:hidden; }
+    .progress-track span { display:block; width:30%; height:100%; border-radius:inherit; background:var(--blue); }
+
+    .node {
+      width: min(780px, 100%); margin: 0 auto; padding: 17px 17px 16px;
+      border: 1px solid rgba(229,225,216,.95); border-radius: 22px; background: rgba(255,254,250,.96); box-shadow: var(--shadow);
+    }
+    .eyebrow { display:flex; justify-content:space-between; align-items:center; padding: 1px 2px 12px; color:var(--muted); font-size:13px; }
+    .eyebrow strong { color:#6e6b64; font-weight:600; }
+    .refs-label { color:#7b7871; font-size:13px; margin: 0 2px 8px; }
+    .refs { display:flex; gap:9px; overflow:hidden; padding: 0 1px 13px; }
+    .ref { flex: 0 0 58px; height:58px; border-radius:14px; border:1px solid #e8e0d6; background: linear-gradient(135deg,#d8bea3,#f5eee2 45%,#bcd4dc); box-shadow: inset 0 0 0 2px rgba(255,255,255,.48); }
+    .ref:nth-child(2n) { background: linear-gradient(135deg,#b9d0d0,#f0e6d2 55%,#cf9b7b); }
+    .ref:nth-child(3n) { background: linear-gradient(135deg,#c5b4a8,#d7e2e1 52%,#d39d75); }
+    .prompt { min-height: 180px; max-height: 180px; overflow:auto; padding: 11px 10px 9px; border-top:1px solid #f1eee8; border-bottom:1px solid #f1eee8; color:#46443f; font-size:15px; line-height:1.75; }
+    .prompt p { margin:0 0 5px; }
+    .prompt .bullet { color:#77736c; }
+
+    .toolbar { display:grid; grid-template-columns: minmax(0, 1fr) auto; align-items:center; gap:12px; padding:12px 1px 9px; }
+    .tools { display:flex; align-items:center; gap:4px; min-width:0; }
+    .icon-btn { width:34px; height:34px; display:grid; place-items:center; border:0; border-radius:10px; background:transparent; color:#4c4a45; transition:.18s ease; }
+    .icon-btn:hover { background:var(--soft); transform:translateY(-1px); }
+    .icon-btn.active { color:var(--accent); background:var(--accent-soft); }
+    .icon-btn svg { width:17px; height:17px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+    .divider { width:1px; height:19px; margin:0 5px; background:var(--line); }
+    .model { min-width:190px; height:40px; display:flex; align-items:center; justify-content:space-between; gap:14px; padding:0 13px; border:1px solid var(--line); border-radius:13px; background:#fff; color:#4b4944; box-shadow:0 2px 5px rgba(50,45,38,.06); }
+    .model-left { display:flex; align-items:center; gap:9px; white-space:nowrap; }
+    .model svg { width:16px; height:16px; stroke:#77736b; fill:none; stroke-width:1.8; }
+    .model small { display:block; color:#96928b; font-size:11px; margin-top:1px; }
+    .chevron { color:#77736b; font-size:16px; }
+
+    .controls { display:grid; grid-template-columns: minmax(0,1fr) auto; align-items:center; gap:12px; }
+    .chips { display:flex; gap:9px; min-width:0; overflow:auto; padding:1px 0 3px; }
+    .chip { height:42px; display:inline-flex; align-items:center; gap:9px; flex:0 0 auto; padding:0 14px; border:1px solid transparent; border-radius:13px; background:var(--soft); color:#5b5852; }
+    .chip:hover { border-color:#d9d4ca; background:#eae7df; }
+    .chip svg { width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.8; }
+    .chip b { font-size:14px; font-weight:500; }
+    .generate { height:42px; min-width:98px; display:inline-flex; justify-content:center; align-items:center; gap:8px; padding:0 17px; border:0; border-radius:13px; background:var(--ink); color:#fff; font-weight:600; box-shadow:0 4px 12px rgba(41,40,38,.18); }
+    .generate:hover { background:#3e3c38; transform:translateY(-1px); }
+    .generate.stop { background:#ee4d53; }
+    .generate svg { width:16px; height:16px; fill:currentColor; stroke:currentColor; }
+    .hint { margin-top:8px; color:#a19d95; font-size:11px; text-align:right; }
+
+    .modal-backdrop { position:fixed; inset:0; display:none; align-items:center; justify-content:center; padding:20px; background:rgba(37,34,29,.32); backdrop-filter:blur(7px); }
+    .modal-backdrop.show { display:flex; }
+    .voice-modal { width:min(620px,100%); max-height:min(760px, calc(100vh - 40px)); overflow:auto; border:1px solid #ece8e0; border-radius:22px; background:#fffefa; box-shadow:0 24px 80px rgba(40,35,28,.22); }
+    .modal-head { display:flex; align-items:flex-start; gap:12px; padding:24px 24px 18px; border-bottom:1px solid #f0ede7; }
+    .modal-icon { width:42px; height:42px; display:grid; place-items:center; flex:0 0 auto; border-radius:13px; color:var(--accent); background:var(--accent-soft); }
+    .modal-icon svg { width:21px; height:21px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+    .modal-title { margin:0; font-size:19px; letter-spacing:-.02em; }
+    .modal-subtitle { margin:4px 0 0; color:#8b877f; font-size:13px; }
+    .close { margin-left:auto; width:32px; height:32px; border:0; border-radius:9px; background:transparent; color:#8a867f; font-size:22px; }
+    .close:hover { background:var(--soft); color:var(--ink); }
+    .modal-body { padding:20px 24px; }
+    .field { margin-bottom:15px; }
+    .field label { display:block; margin-bottom:7px; color:#6e6a63; font-size:12px; font-weight:600; }
+    .field input, .field textarea { width:100%; border:1px solid #dedbd4; border-radius:11px; padding:11px 12px; outline:0; color:var(--ink); background:#fff; }
+    .field textarea { min-height:70px; resize:vertical; line-height:1.55; }
+    .field input:focus, .field textarea:focus { border-color:#bd9e8c; box-shadow:0 0 0 3px rgba(223,107,72,.12); }
+    .roles-head { display:flex; align-items:center; justify-content:space-between; margin:22px 0 9px; }
+    .roles-head strong { font-size:14px; }
+    .add-role { display:inline-flex; align-items:center; gap:5px; border:0; background:transparent; color:var(--accent); font-size:13px; font-weight:600; }
+    .add-role svg { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:2; }
+    .role { display:grid; grid-template-columns: 150px minmax(0,1fr) 34px; gap:10px; align-items:start; padding:12px; margin-bottom:9px; border:1px solid #e9e5de; border-radius:14px; background:#fcfbf8; }
+    .role input, .role textarea { width:100%; border:1px solid #e0dcd4; border-radius:9px; padding:9px 10px; outline:0; background:#fff; }
+    .role textarea { min-height:61px; resize:vertical; line-height:1.45; }
+    .remove { width:32px; height:32px; display:grid; place-items:center; border:0; border-radius:8px; color:#c85c55; background:transparent; }
+    .remove:hover { background:#fff0ed; }
+    .remove svg { width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.8; }
+    .modal-foot { display:flex; justify-content:flex-end; gap:9px; padding:16px 24px 20px; border-top:1px solid #f0ede7; }
+    .secondary, .primary { height:38px; padding:0 15px; border-radius:10px; font-weight:600; }
+    .secondary { border:1px solid #dedad2; background:#fff; color:#5c5953; }
+    .primary { border:0; background:var(--ink); color:#fff; }
+
+    @media (max-width: 600px) {
+      .stage { padding:22px 12px 48px; }
+      .node { padding:13px; border-radius:18px; }
+      .toolbar, .controls { grid-template-columns:1fr; }
+      .model { width:100%; }
+      .generate { width:100%; }
+      .hint { display:none; }
+      .role { grid-template-columns:1fr 34px; }
+      .role textarea { grid-column:1 / -1; grid-row:2; }
+      .remove { grid-column:2; grid-row:1; }
+      .modal-head, .modal-body, .modal-foot { padding-left:17px; padding-right:17px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <section class="progress" aria-label="创作进度">
+      <div class="progress-head"><span>当前创作进度</span><span>30%</span></div>
+      <div class="progress-track"><span></span></div>
+    </section>
+
+    <section class="node" aria-label="视频生成节点">
+      <div class="eyebrow"><span>视频生成</span><strong>未开始</strong></div>
+      <div class="refs-label">参考内容</div>
+      <div class="refs" aria-label="参考图片">
+        <div class="ref"></div><div class="ref"></div><div class="ref"></div><div class="ref"></div><div class="ref"></div><div class="ref"></div><div class="ref"></div><div class="ref"></div><div class="ref"></div><div class="ref"></div>
+      </div>
+      <div class="prompt" contenteditable="true" aria-label="提示词">
+        <p>【这一段的地面是云，不是草，不是土，不是海】</p>
+        <p>脚下的世界是一片**云面高地**：地面是云，厚实、踩得住，不是雾。</p>
+        <p class="bullet">- 有起伏：高处的云脊、低处的云沟，从近处一路铺向远处，看不到尽头。</p>
+        <p class="bullet">- 有受光：云脊迎光面暖白高光，云沟和背光面是通透浅灰蓝阴影。</p>
+        <p class="bullet">- 有质感：表面细密水汽絮、压得较实，能看出踩过压过的浅坑。</p>
+      </div>
+
+      <div class="toolbar">
+        <div class="tools">
+          <button class="icon-btn" title="放大编辑" aria-label="放大编辑"><svg viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M21 16v5h-5"/></svg></button>
+          <button class="icon-btn" title="提示词库" aria-label="提示词库"><svg viewBox="0 0 24 24"><path d="M5 4.5A2.5 2.5 0 0 1 7.5 2H20v17H7.5A2.5 2.5 0 0 0 5 21.5z"/><path d="M5 4.5v17M9 6h7M9 10h7"/></svg></button>
+          <button class="icon-btn active" title="风格" aria-label="风格"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4"/><circle cx="12" cy="12" r="8.5"/></svg></button>
+          <button class="icon-btn" id="voiceBtn" title="语音预设" aria-label="语音预设"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></svg></button>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="chips">
+          <button class="model" aria-label="选择模型"><span class="model-left"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></svg><span>MT-2.5-720P<small>视频模型</small></span></span><span class="chevron">⌄</span></button>
+          <button class="chip"><svg viewBox="0 0 24 24"><path d="M4 7h10M4 17h16M14 7l3-3 3 3M10 17l3-3 3 3"/></svg><b>720p · 横屏 · 3s</b></button>
+          <button class="chip"><svg viewBox="0 0 24 24"><path d="M4 7h16v12H4zM8 7l1.5-3h5L16 7M12 12.5a2.5 2.5 0 1 0 0 .01"/></svg><b>摄像机</b></button>
+        </div>
+        <button class="generate" id="generateBtn"><svg viewBox="0 0 24 24"><path d="m5 12 14-7-3 14-4-5z"/><path d="M12 14 19 5"/></svg><span>生成</span></button>
+      </div>
+      <div class="hint">风格与语音预设会在请求发送前自动附加，不会写入提示词输入框</div>
+    </section>
+  </main>
+
+  <div class="modal-backdrop" id="voiceModal" role="dialog" aria-modal="true" aria-labelledby="voiceTitle">
+    <section class="voice-modal">
+      <header class="modal-head">
+        <div class="modal-icon"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></svg></div>
+        <div><h2 class="modal-title" id="voiceTitle">新建语音预设</h2><p class="modal-subtitle">按作品保存角色代称和声音设计，仅用于视频生成</p></div>
+        <button class="close" id="closeVoice" aria-label="关闭">×</button>
+      </header>
+      <div class="modal-body">
+        <div class="field"><label for="workName">作品名称</label><input id="workName" placeholder="例如：云上旅程" /></div>
+        <div class="field"><label for="workDesc">作品说明 <span style="font-weight:400;color:#aaa">（可选）</span></label><textarea id="workDesc" placeholder="补充作品背景或整体声音基调"></textarea></div>
+        <div class="roles-head"><strong>角色声音设计</strong><button class="add-role" type="button"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>添加角色</button></div>
+        <div class="role"><input placeholder="角色代称" /><textarea placeholder="声音设计：音色、语速、年龄感、情绪特征"></textarea><button class="remove" aria-label="删除角色"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 14h10l1-14M9 7V4h6v3"/></svg></button></div>
+        <div class="role"><input placeholder="角色代称" /><textarea placeholder="声音设计：音色、语速、年龄感、情绪特征"></textarea><button class="remove" aria-label="删除角色"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 14h10l1-14M9 7V4h6v3"/></svg></button></div>
+      </div>
+      <footer class="modal-foot"><button class="secondary" id="cancelVoice">取消</button><button class="primary">保存预设</button></footer>
+    </section>
+  </div>
+
+  <script>
+    const modal = document.getElementById('voiceModal');
+    const open = () => modal.classList.add('show');
+    const close = () => modal.classList.remove('show');
+    document.getElementById('voiceBtn').addEventListener('click', open);
+    document.getElementById('closeVoice').addEventListener('click', close);
+    document.getElementById('cancelVoice').addEventListener('click', close);
+    modal.addEventListener('click', (event) => { if (event.target === modal) close(); });
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape') close(); });
+    document.getElementById('generateBtn').addEventListener('click', (event) => {
+      const button = event.currentTarget;
+      const stopping = button.classList.toggle('stop');
+      button.querySelector('span').textContent = stopping ? '停止' : '生成';
+      button.querySelector('svg').innerHTML = stopping ? '<rect x="7" y="7" width="10" height="10" rx="1"/>' : '<path d="m5 12 14-7-3 14-4-5z"/><path d="M12 14 19 5"/>';
+    });
+  </script>
+</body>
+</html>

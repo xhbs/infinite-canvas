@@ -4,16 +4,16 @@ import { theme as antdTheme } from "antd";
 
 const neutral = {
     light: {
-        primary: "#171717",
-        primaryHover: "#000000",
-        primaryText: "#ffffff",
-        menuBg: "#f5f5f5",
-        menuText: "#171717",
-        selectActiveBg: "#f5f5f5",
-        selectSelectedBg: "#f0f0f0",
-        selectText: "#171717",
-        tableSelectedBg: "rgba(17, 17, 17, 0.05)",
-        tableSelectedHoverBg: "rgba(17, 17, 17, 0.08)",
+        primary: "#292826",
+        primaryHover: "#3e3c38",
+        primaryText: "#fffefa",
+        menuBg: "#f0eee8",
+        menuText: "#292826",
+        selectActiveBg: "#f0eee8",
+        selectSelectedBg: "#fff0e8",
+        selectText: "#292826",
+        tableSelectedBg: "rgba(223, 107, 72, 0.08)",
+        tableSelectedHoverBg: "rgba(223, 107, 72, 0.12)",
     },
     dark: {
         primary: "#fafafa",
@@ -50,6 +50,16 @@ export function getAntThemeConfig(dark: boolean): ThemeConfig {
             colorLinkHover: color.primaryHover,
             colorLinkActive: color.primary,
             colorTextLightSolid: color.primaryText,
+            ...(dark ? {} : {
+                colorBgLayout: "#f6f5f1",
+                colorBgContainer: "#fffefa",
+                colorBgElevated: "#fffefa",
+                colorBorder: "#e6e3dc",
+                colorText: "#292826",
+                colorTextSecondary: "#77736b",
+                colorFillTertiary: "#f0eee8",
+                controlOutline: "rgba(223, 107, 72, 0.2)",
+            }),
         },
         components: {
             Button: {

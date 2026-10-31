@@ -111,16 +111,42 @@ export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfi
                 <div className="flex min-w-0 items-center justify-between gap-2">
                     <div className="flex min-w-0 shrink-0 items-center gap-1">
                         <Tooltip title="放大编辑">
-                            <Button type="text" className="!h-8 !w-8 !min-w-8 shrink-0 !rounded-full !bg-transparent !p-0" style={{ color: theme.node.text }} icon={<Maximize2 className="size-3.5" />} onClick={() => setExpanded(true)} aria-label="放大编辑" />
+                            <Button type="text" className="!h-8 !w-8 !min-w-8 shrink-0 !rounded-full !bg-transparent !p-0 transition-colors hover:!bg-[var(--canvas-toolbar-hover)]" style={{ color: theme.node.text, "--canvas-toolbar-hover": theme.toolbar.itemHover } as React.CSSProperties} icon={<Maximize2 className="size-3.5" />} onClick={() => setExpanded(true)} aria-label="放大编辑" />
                         </Tooltip>
                         <CanvasPromptLibrary onSelect={updatePrompt} />
-                        {mode === "image" || mode === "video" ? <StyleSelector type={mode} value={node.metadata?.styleId} valueName={node.metadata?.styleName} compact buttonClassName="!h-8 !w-8 !min-w-8 !px-0" onChange={(style) => onConfigChange(node.id, { styleId: style?.id, styleName: style?.name, stylePrompt: style?.prompt })} /> : null}
+                        {mode === "image" || mode === "video" ? <StyleSelector type={mode} value={node.metadata?.styleId} valueName={node.metadata?.styleName} compact buttonClassName="!h-8 !w-8 !min-w-8 !shrink-0 !rounded-full !p-0 transition-colors hover:!bg-[var(--canvas-toolbar-hover)]" onChange={(style) => onConfigChange(node.id, { styleId: style?.id, styleName: style?.name, stylePrompt: style?.prompt })} /> : null}
                         {mode === "video" ? <CanvasVoicePresetSelector value={node.metadata?.voicePresetId} valueName={node.metadata?.voicePresetName} onChange={(preset) => onConfigChange(node.id, { voicePresetId: preset?.id, voicePresetName: preset?.name, voicePresetRoles: preset?.roles.map(({ alias, voiceDesign }) => ({ alias, voiceDesign })) })} /> : null}
+                    </div>
+                </div>
+                <div className="flex min-w-0 items-center gap-2">
+                    <div className="thin-scrollbar flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pb-1">
+                    {mode === "image" ? <ModelPicker className="!h-10 !w-[180px] !min-w-0 !shrink-0" config={config} value={config.model} channelId={config.imageChannelId} workflowRef={node.metadata?.workflowRef} onWorkflowChange={(workflowRef) => onConfigChange(node.id, { workflowRef })} onChange={(model, channelId) => onConfigChange(node.id, { model, channelId })} capability="image" onMissingConfig={() => openConfigDialog(true)} /> : null}
+                    {mode === "video" ? <ModelPicker className="!h-10 !w-[180px] !min-w-0 !shrink-0" config={config} value={config.model} channelId={config.videoChannelId} workflowRef={node.metadata?.workflowRef} onWorkflowChange={(workflowRef) => onConfigChange(node.id, { workflowRef })} onChange={(model, channelId) => onConfigChange(node.id, { model, channelId })} capability="video" onMissingConfig={() => openConfigDialog(true)} /> : null}
+                    {mode === "audio" ? <ModelPicker className="!h-10 !w-[180px] !min-w-0 !shrink-0" config={config} value={config.model} channelId={config.audioChannelId || config.activeChannelId} workflowRef={node.metadata?.workflowRef} onWorkflowChange={(workflowRef) => onConfigChange(node.id, { workflowRef })} onChange={(model, channelId) => onConfigChange(node.id, { model, channelId })} capability="audio" onMissingConfig={() => openConfigDialog(true)} /> : null}
+                    {mode === "text" ? <ModelPicker className="!h-10 !w-[180px] !min-w-0 !shrink-0" config={config} value={config.model} channelId={config.textChannelId} onChange={(model, channelId) => onConfigChange(node.id, { model, channelId })} capability="text" onMissingConfig={() => openConfigDialog(true)} /> : null}
+                    {mode === "image" ? (
+                        <CanvasImageSettingsPopover
+                            config={node.metadata?.workflowRef ? { ...config, model: "" } : config}
+                            placement="topLeft"
+                            buttonClassName="!h-10 !w-[148px] !shrink-0 !justify-start !rounded-xl !px-3"
+                            onConfigChange={(key, value) => onConfigChange(node.id, key === "count" ? { count: Number(value) || 1 } : { [key]: value })}
+                            onMissingConfig={() => openConfigDialog(true)}
+                            onOpenChange={onImageSettingsOpenChange}
+                            showSize={!isPanorama}
+                        />
+                    ) : mode === "video" ? (
+                        <CanvasVideoSettingsPopover config={config} buttonClassName="!h-10 !w-[148px] !shrink-0 !justify-start !rounded-xl !px-3" frameOptions={videoFrameOptions} resourceOptions={videoResourceOptions} metadata={node.metadata} firstFrameNodeId={node.metadata?.firstFrameNodeId} lastFrameNodeId={node.metadata?.lastFrameNodeId} onFrameChange={(patch) => onConfigChange(node.id, patch)} onMetadataChange={(patch) => onConfigChange(node.id, patch)} onConfigChange={(key, value) => onConfigChange(node.id, videoConfigPatch(key, value))} />
+                    ) : mode === "audio" ? (
+                        <CanvasAudioSettingsPopover config={config} resourceOptions={videoResourceOptions} metadata={node.metadata} onMetadataChange={(patch) => onConfigChange(node.id, patch)} buttonClassName="!h-10 !w-[148px] !shrink-0 !justify-start !rounded-xl !px-3" onConfigChange={(key, value) => onConfigChange(node.id, audioConfigPatch(key, value))} />
+                    ) : null}
+                    {mode === "video" || (mode === "image" && !isPanorama) ? (
+                        <CanvasCameraControl value={node.metadata?.cameraControl} onChange={(cameraControl) => onConfigChange(node.id, { cameraControl })} buttonClassName="!h-10 !min-w-[92px] !justify-start !rounded-xl !px-3" />
+                    ) : null}
                     </div>
                     <Button
                         type="primary"
                         danger={showStop}
-                        className="!h-9 !min-w-16 shrink-0 !rounded-full !px-3"
+                        className="!h-10 !min-w-16 shrink-0 !rounded-xl !px-3"
                         disabled={(isStopping && !stopFailed) || (!canStop && (generating || !canSubmit))}
                         onClick={canStop ? () => onStop(node.id) : submit}
                         aria-label={canStop ? stopFailed ? "重试停止" : "停止" : isStopping ? "停止中" : "生成"}
@@ -135,38 +161,6 @@ export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfi
                             </span> : null}
                         </span>
                     </Button>
-                </div>
-                <div className="thin-scrollbar flex min-w-0 items-center gap-2 overflow-x-auto pb-1">
-                    {mode === "image" ? (
-                        <>
-                            <ModelPicker className="!w-[180px] !min-w-0 !shrink-0" config={config} value={config.model} channelId={config.imageChannelId} workflowRef={node.metadata?.workflowRef} onWorkflowChange={(workflowRef) => onConfigChange(node.id, { workflowRef })} onChange={(model, channelId) => onConfigChange(node.id, { model, channelId })} capability="image" onMissingConfig={() => openConfigDialog(true)} />
-                            <CanvasImageSettingsPopover
-                                config={node.metadata?.workflowRef ? { ...config, model: "" } : config}
-                                placement="topLeft"
-                                buttonClassName="!h-10 !w-[148px] !shrink-0 !justify-start !rounded-full !px-3"
-                                onConfigChange={(key, value) => onConfigChange(node.id, key === "count" ? { count: Number(value) || 1 } : { [key]: value })}
-                                onMissingConfig={() => openConfigDialog(true)}
-                                onOpenChange={onImageSettingsOpenChange}
-                                showSize={!isPanorama}
-                            />
-                        </>
-                    ) : mode === "video" ? (
-                        <>
-                            <ModelPicker className="!w-[180px] !min-w-0 !shrink-0" config={config} value={config.model} channelId={config.videoChannelId} workflowRef={node.metadata?.workflowRef} onWorkflowChange={(workflowRef) => onConfigChange(node.id, { workflowRef })} onChange={(model, channelId) => onConfigChange(node.id, { model, channelId })} capability="video" onMissingConfig={() => openConfigDialog(true)} />
-                            <CanvasVideoSettingsPopover config={config} buttonClassName="!h-10 !w-[148px] !shrink-0 !justify-start !rounded-full !px-3" frameOptions={videoFrameOptions} resourceOptions={videoResourceOptions} metadata={node.metadata} firstFrameNodeId={node.metadata?.firstFrameNodeId} lastFrameNodeId={node.metadata?.lastFrameNodeId} onFrameChange={(patch) => onConfigChange(node.id, patch)} onMetadataChange={(patch) => onConfigChange(node.id, patch)} onConfigChange={(key, value) => onConfigChange(node.id, videoConfigPatch(key, value))} />
-                        </>
-                    ) : mode === "audio" ? (
-                        <>
-                            <ModelPicker className="!w-[180px] !min-w-0 !shrink-0" config={config} value={config.model} channelId={config.audioChannelId || config.activeChannelId} workflowRef={node.metadata?.workflowRef} onWorkflowChange={(workflowRef) => onConfigChange(node.id, { workflowRef })} onChange={(model, channelId) => onConfigChange(node.id, { model, channelId })} capability="audio" onMissingConfig={() => openConfigDialog(true)} />
-                            <CanvasAudioSettingsPopover config={config} resourceOptions={videoResourceOptions} metadata={node.metadata} onMetadataChange={(patch) => onConfigChange(node.id, patch)} buttonClassName="!h-10 !w-[148px] !shrink-0 !justify-start !rounded-full !px-3" onConfigChange={(key, value) => onConfigChange(node.id, audioConfigPatch(key, value))} />
-                        </>
-                    ) : (
-                        <ModelPicker config={config} value={config.model} channelId={config.textChannelId} onChange={(model, channelId) => onConfigChange(node.id, { model, channelId })} capability="text" onMissingConfig={() => openConfigDialog(true)} />
-                    )}
-                    {mode === "video" || (mode === "image" && !isPanorama) ? (
-                        <CanvasCameraControl value={node.metadata?.cameraControl} onChange={(cameraControl) => onConfigChange(node.id, { cameraControl })} buttonClassName="!h-10 !min-w-[92px] !justify-start !rounded-full !px-3" />
-                    ) : null}
-                </div>
                 </div>
             </div>
             <Modal title="编辑提示词" open={expanded} centered width={760} footer={null} onCancel={() => setExpanded(false)} destroyOnHidden>

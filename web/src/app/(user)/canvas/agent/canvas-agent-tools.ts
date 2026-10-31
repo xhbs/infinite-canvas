@@ -31,6 +31,7 @@ export const CANVAS_AGENT_ACTION_NAMES = [
     "delete_connection",
     "create_group",
     "arrange_nodes",
+    "merge_images",
     "generate_image",
     "edit_image",
     "generate_video",
@@ -172,6 +173,12 @@ export const CANVAS_AGENT_TOOLS: CanvasAgentToolDefinition[] = [
     defineTool("delete_connection", "删除指定真实连线。", { connectionId: STRING }, ["connectionId"]),
     defineTool("create_group", "把两个或更多节点放进本项目 group 节点。", { title: STRING, nodeIds: STRING_ARRAY }, ["nodeIds"]),
     defineTool("arrange_nodes", "整理指定节点；不传 nodeIds 时整理当前画布顶层节点。", { nodeIds: STRING_ARRAY }),
+    defineTool("merge_images", "把 2 至 25 张已有图片节点在浏览器本地合并为一张图片，不调用 AI；图片按比例完整适配，使用紧凑边线。可省略 imageNodeIds 以使用当前选中图片；columns/rows 可同时省略以自动布局，或同时指定 1 至 5 的列数和行数。图片不足格数时留白。", {
+        imageNodeIds: { ...STRING_ARRAY, minItems: 2, maxItems: 25 },
+        columns: { type: "integer", minimum: 1, maximum: 5 },
+        rows: { type: "integer", minimum: 1, maximum: 5 },
+        title: STRING,
+    }),
     defineTool(
         "generate_image",
         "创建图片节点和来源连线，并按 Agent 自动生成设置决定是否提交现有图片任务链路。可用 styleId 选择 get_generation_config 返回的图片适用风格。sourceNodeIds 只放真实直接来源，独立生成必须传空数组；其中图片按数组顺序编号为图片1、图片2。",
@@ -380,6 +387,20 @@ export function normalizeCanvasAgentAction(name: unknown, args: unknown, id = na
         case "arrange_nodes":
             normalized = { nodeIds: stringArray(input.nodeIds) };
             break;
+        case "merge_images": {
+            const imageNodeIds = optionalStringArray(input.imageNodeIds, "imageNodeIds");
+            const columns = boundedInteger(input.columns, 1, 5);
+            const rows = boundedInteger(input.rows, 1, 5);
+            if (imageNodeIds && (imageNodeIds.length < 2 || imageNodeIds.length > 25)) throw new Error("merge_images 需要 2 至 25 个图片节点 ID");
+            if ((columns === undefined) !== (rows === undefined)) throw new Error("columns 和 rows 必须同时提供或同时省略");
+            if (columns !== undefined && rows !== undefined && imageNodeIds && imageNodeIds.length > columns * rows) throw new Error("布局格数不足以容纳所有图片");
+            normalized = {
+                ...(imageNodeIds ? { imageNodeIds } : {}),
+                ...(columns !== undefined && rows !== undefined ? { columns, rows } : {}),
+                ...(optionalString(input.title) ? { title: optionalString(input.title) } : {}),
+            };
+            break;
+        }
         case "generate_image":
         case "edit_image": {
             const sourceNodeIds = optionalStringArray(input.sourceNodeIds, "sourceNodeIds");
@@ -511,6 +532,7 @@ export function canvasAgentActionLabel(action: CanvasAgentAction) {
         delete_connection: "正在删除连线",
         create_group: "正在创建分组",
         arrange_nodes: "正在整理画布",
+        merge_images: "正在合并图片",
         generate_image: "正在创建图片节点",
         edit_image: "正在创建图片编辑节点",
         generate_video: "正在创建视频节点",
@@ -525,7 +547,7 @@ export function isCanvasAgentMediaAction(action: CanvasAgentAction) {
 }
 
 export function userLikelyRequestedCanvasAction(text: string) {
-    return /(?:创建|新增|插入|修改|更新|删除|连接|连线|分组|整理|生成|生图|执行|拆成|拆分|放到画布|开始做|(?:做|制作|添加|补充|移除|去掉).{0,8}(?:视频|音频|配音|旁白))/i.test(text);
+    return /(?:创建|新增|插入|修改|更新|删除|连接|连线|分组|整理|合并|拼图|拼版|生成|生图|执行|拆成|拆分|放到画布|开始做|(?:做|制作|添加|补充|移除|去掉).{0,8}(?:视频|音频|配音|旁白))/i.test(text);
 }
 
 function extractJsonObject(content: string) {

@@ -3,6 +3,8 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import dynamic from "next/dynamic";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { ChevronRight, Image as ImageIcon, Maximize2, Music2, Pause, Play, RefreshCw, Star, Video } from "lucide-react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -50,6 +52,7 @@ type CanvasNodeProps = {
     onToggleBatch?: (nodeId: string) => void;
     onSetBatchPrimary?: (node: CanvasNodeData) => void;
     onRetry?: (node: CanvasNodeData) => void;
+    onContinuePolling?: (node: CanvasNodeData) => void;
     onViewImage?: (node: CanvasNodeData) => void;
     onSelectReference?: (nodeId: string) => void;
     onContextMenu: (event: React.MouseEvent, nodeId: string) => void;
@@ -73,6 +76,7 @@ type NodeContentRendererProps = {
     onStopEditing: () => void;
     mentionReferences: CanvasResourceReference[];
     onRetry?: (node: CanvasNodeData) => void;
+    onContinuePolling?: (node: CanvasNodeData) => void;
     onViewImage?: (node: CanvasNodeData) => void;
     onToggleBatch?: () => void;
     onSetBatchPrimary?: () => void;
@@ -112,6 +116,7 @@ export const CanvasNode = React.memo(function CanvasNode({
     onToggleBatch,
     onSetBatchPrimary,
     onRetry,
+    onContinuePolling,
     onViewImage,
     onSelectReference,
     onContextMenu,
@@ -416,6 +421,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                             onContentChange={onContentChange}
                             onStopEditing={() => setIsEditingContent(false)}
                             onRetry={onRetry}
+                            onContinuePolling={onContinuePolling}
                             onViewImage={onViewImage}
                             onToggleBatch={() => onToggleBatch?.(data.id)}
                             onSetBatchPrimary={() => onSetBatchPrimary?.(data)}
@@ -463,7 +469,7 @@ function NodeContent(props: NodeContentRendererProps) {
         </div>
     );
     if ((props.node.metadata?.status === "loading" || props.node.metadata?.status === "stopping") && (props.node.type !== CanvasNodeType.Text || !props.node.metadata.content)) return <LoadingContent node={props.node} theme={props.theme} now={props.now} />;
-    if (props.node.metadata?.status === "error") return <ErrorContent node={props.node} theme={props.theme} onRetry={props.onRetry} />;
+    if (props.node.metadata?.status === "error") return <ErrorContent node={props.node} theme={props.theme} onRetry={props.onRetry} onContinuePolling={props.onContinuePolling} />;
 
     const Renderer = nodeContentRenderers[props.node.type];
     return Renderer ? <Renderer {...props} /> : <UnknownNodeContent theme={props.theme} />;
@@ -535,23 +541,24 @@ function LoadingContent({ node, theme, now }: Pick<NodeContentRendererProps, "no
     );
 }
 
-function ErrorContent({ node, theme, onRetry }: Pick<NodeContentRendererProps, "node" | "theme" | "onRetry">) {
+function ErrorContent({ node, theme, onRetry, onContinuePolling }: Pick<NodeContentRendererProps, "node" | "theme" | "onRetry" | "onContinuePolling">) {
+    const hasRemoteTaskId = Boolean((node.metadata?.videoTaskVideoId && node.metadata.videoTaskVideoId !== node.metadata.clientTaskId) || (node.metadata?.videoTaskId && node.metadata.videoTaskId !== node.metadata.clientTaskId));
+    const canContinuePolling = node.type === CanvasNodeType.Video && node.metadata?.videoTaskTerminal !== true && node.metadata?.videoPollingError !== false && hasRemoteTaskId;
     return (
         <div className="flex max-w-[260px] flex-col items-center gap-3 px-5 text-center">
             <div className="text-xs leading-5 text-red-300">{node.metadata?.errorDetails || "生成失败"}</div>
-            <button
-                type="button"
-                className="inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition hover:scale-[1.02]"
-                style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
-                onClick={(event) => {
-                    event.stopPropagation();
-                    onRetry?.(node);
-                }}
-                onMouseDown={(event) => event.stopPropagation()}
-            >
-                <RefreshCw className="size-3.5" />
-                重试
-            </button>
+            <div className="flex flex-wrap justify-center gap-2">
+                {canContinuePolling ? (
+                    <button type="button" className="inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition hover:opacity-80" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }} onClick={(event) => { event.stopPropagation(); onContinuePolling?.(node); }} onMouseDown={(event) => event.stopPropagation()}>
+                        <RefreshCw className="size-3.5" />
+                        继续查询
+                    </button>
+                ) : null}
+                <button type="button" className="inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition hover:opacity-80" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }} onClick={(event) => { event.stopPropagation(); onRetry?.(node); }} onMouseDown={(event) => event.stopPropagation()}>
+                    <RefreshCw className="size-3.5" />
+                    重新生成
+                </button>
+            </div>
         </div>
     );
 }
@@ -589,11 +596,13 @@ function TextContent({ node, theme, isEditingContent, textareaRef, mentionRefere
                 />
             ) : (
                 <div
-                    className="thin-scrollbar block h-full w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent p-4 font-mono"
-                    style={textStyle}
+                    className="thin-scrollbar block h-full w-full min-w-0 overflow-y-auto break-words bg-transparent p-4 [&_p]:my-2 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_h1]:mb-2 [&_h1]:mt-4 [&_h1]:text-[1.5em] [&_h1]:font-semibold [&_h1]:leading-tight [&_h1:first-child]:mt-0 [&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:text-[1.25em] [&_h2]:font-semibold [&_h2]:leading-tight [&_h2:first-child]:mt-0 [&_h3]:my-3 [&_h3]:text-[1.1em] [&_h3]:font-semibold [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-1 [&_blockquote]:my-3 [&_blockquote]:border-l-2 [&_blockquote]:border-[color:var(--markdown-border)] [&_blockquote]:pl-3 [&_blockquote]:opacity-80 [&_hr]:my-3 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-[color:var(--markdown-border)] [&_code]:rounded [&_code]:bg-[var(--markdown-surface)] [&_code]:px-1 [&_code]:font-mono [&_code]:text-[0.85em] [&_pre]:my-2 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-[var(--markdown-surface)] [&_pre]:p-2 [&_pre]:font-mono [&_pre]:text-[0.85em] [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_table]:my-2 [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&_table]:border-collapse [&_th]:border-b [&_th]:border-[color:var(--markdown-border)] [&_th]:px-2 [&_th]:py-1.5 [&_th]:text-left [&_td]:border-b [&_td]:border-[color:var(--markdown-border)] [&_td]:px-2 [&_td]:py-1.5 [&_a]:underline [&_a]:underline-offset-2 [&_img]:my-2 [&_img]:max-w-full [&_img]:rounded-md"
+                    style={{ ...textStyle, fontFamily: "inherit", "--markdown-surface": theme.toolbar.itemHover, "--markdown-border": theme.node.stroke } as React.CSSProperties}
                     onWheelCapture={(event) => event.stopPropagation()}
                 >
-                    {node.metadata?.content || <span style={{ color: theme.node.placeholder }}>双击编辑文字</span>}
+                    {node.metadata?.content ? (
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>{node.metadata.content}</ReactMarkdown>
+                    ) : <span style={{ color: theme.node.placeholder }}>双击编辑文字</span>}
                 </div>
             )}
         </div>

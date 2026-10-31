@@ -1603,7 +1603,7 @@ function WorkbenchPanel({
     if (layout === "bottom") {
         return (
             <div className="pointer-events-none fixed inset-x-0 bottom-5 z-40 flex justify-center px-5 sm:bottom-7 sm:px-10 lg:px-16">
-                <div className="pointer-events-auto w-full max-w-5xl rounded-[24px] bg-white/65 p-4 shadow-[0_32px_100px_rgba(15,23,42,.22),0_10px_34px_rgba(15,23,42,.10)] ring-1 ring-white/50 backdrop-blur-2xl dark:bg-stone-950/60 dark:ring-white/10 dark:shadow-[0_34px_110px_rgba(0,0,0,.58)]">
+                <div className="pointer-events-auto w-full max-w-5xl rounded-[24px] bg-card/65 p-4 shadow-[0_32px_100px_rgba(15,23,42,.22),0_10px_34px_rgba(15,23,42,.10)] ring-1 ring-white/50 backdrop-blur-2xl dark:bg-stone-950/60 dark:ring-white/10 dark:shadow-[0_34px_110px_rgba(0,0,0,.58)]">
                     <div className="flex flex-col gap-3">
                         <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
                             <Input.TextArea
@@ -1822,9 +1822,10 @@ function FrameReferenceSlot({ label, reference, compact, onUpload, onRemove }: {
 
 function ReferenceImageStrip({ references, compact = false, maxCount, onRemoveReference, onMoveReference }: { references: ReferenceImage[]; compact?: boolean; maxCount?: number; onRemoveReference: (id: string) => void; onMoveReference: (index: number, offset: number) => void }) {
     return (
-        <div className={`hover-scrollbar hover-scrollbar-hint flex w-full min-w-0 max-w-full gap-2 overflow-x-scroll overflow-y-hidden rounded-lg border border-dashed border-stone-300 p-2 overscroll-x-contain dark:border-stone-700 ${compact ? "min-h-14" : "min-h-24 pb-3"}`}>
+        <div className={`@container w-full min-w-0 max-w-full rounded-lg border border-dashed border-stone-300 p-2 dark:border-stone-700 ${compact ? "min-h-14" : "min-h-24 pb-3"}`}>
+            <div className="grid grid-cols-4 gap-2 @sm:grid-cols-6 @md:grid-cols-8 @lg:grid-cols-10">
             {references.map((item, index) => (
-                <div key={item.id} className={`${compact ? "size-12" : "size-20"} group relative shrink-0 overflow-hidden rounded-md border border-stone-200 dark:border-stone-800`}>
+                <div key={item.id} className="group relative aspect-square w-full min-w-0 overflow-hidden rounded-md border border-stone-200 dark:border-stone-800">
                     <img src={item.dataUrl} alt={item.name} className="size-full object-cover" />
                     <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">{seedanceReferenceLabel("image", index)}</span>
                     <ReferenceOrderButtons index={index} total={references.length} onMove={(offset) => onMoveReference(index, offset)} />
@@ -1833,16 +1834,18 @@ function ReferenceImageStrip({ references, compact = false, maxCount, onRemoveRe
                     </button>
                 </div>
             ))}
-            {!references.length ? <div className="flex min-w-full items-center justify-center text-sm text-stone-500">{maxCount ? `暂无参考图，最多 ${maxCount} 张` : "暂无参考图"}</div> : null}
+            {!references.length ? <div className="col-span-full flex min-w-0 items-center justify-center text-sm text-stone-500">{maxCount ? `暂无参考图，最多 ${maxCount} 张` : "暂无参考图"}</div> : null}
+            </div>
         </div>
     );
 }
 
 function ReferenceVideoStrip({ references, compact = false, maxCount = SEEDANCE_REFERENCE_LIMITS.videos, onRemoveReference, onMoveReference }: { references: ReferenceVideo[]; compact?: boolean; maxCount?: number; onRemoveReference: (id: string) => void; onMoveReference: (index: number, offset: number) => void }) {
     return (
-        <div className={`hover-scrollbar hover-scrollbar-hint flex w-full min-w-0 max-w-full gap-2 overflow-x-scroll overflow-y-hidden rounded-lg border border-dashed border-stone-300 p-2 overscroll-x-contain dark:border-stone-700 ${compact ? "min-h-14" : "min-h-24 pb-3"}`}>
+        <div className={`@container w-full min-w-0 max-w-full rounded-lg border border-dashed border-stone-300 p-2 dark:border-stone-700 ${compact ? "min-h-14" : "min-h-24 pb-3"}`}>
+            <div className="grid grid-cols-4 gap-2 @sm:grid-cols-6 @md:grid-cols-8 @lg:grid-cols-10">
             {references.map((item, index) => (
-                <div key={item.id} className={`${compact ? "h-12 w-20" : "h-20 w-32"} group relative shrink-0 overflow-hidden rounded-md border border-stone-200 bg-black dark:border-stone-800`}>
+                <div key={item.id} className="group relative aspect-video w-full min-w-0 overflow-hidden rounded-md border border-stone-200 bg-black dark:border-stone-800">
                     <video src={item.url} className="size-full object-cover" muted preload="metadata" />
                     <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">{seedanceReferenceLabel("video", index)}</span>
                     <ReferenceOrderButtons index={index} total={references.length} onMove={(offset) => onMoveReference(index, offset)} />
@@ -1851,29 +1854,32 @@ function ReferenceVideoStrip({ references, compact = false, maxCount = SEEDANCE_
                     </button>
                 </div>
             ))}
-            {!references.length ? <div className="flex min-w-full items-center justify-center text-sm text-stone-500">暂无参考视频，最多 {maxCount} 个</div> : null}
+            {!references.length ? <div className="col-span-full flex min-w-0 items-center justify-center text-sm text-stone-500">暂无参考视频，最多 {maxCount} 个</div> : null}
+            </div>
         </div>
     );
 }
 
 function ReferenceAudioStrip({ references, compact = false, maxCount = SEEDANCE_REFERENCE_LIMITS.audios, onRemoveReference, onMoveReference }: { references: ReferenceAudio[]; compact?: boolean; maxCount?: number; onRemoveReference: (id: string) => void; onMoveReference: (index: number, offset: number) => void }) {
     return (
-        <div className={`hover-scrollbar hover-scrollbar-hint flex w-full min-w-0 max-w-full gap-2 overflow-x-scroll overflow-y-hidden rounded-lg border border-dashed border-stone-300 p-2 overscroll-x-contain dark:border-stone-700 ${compact ? "min-h-14" : "min-h-24 pb-3"}`}>
+        <div className={`@container w-full min-w-0 max-w-full rounded-lg border border-dashed border-stone-300 p-2 dark:border-stone-700 ${compact ? "min-h-14" : "min-h-24 pb-3"}`}>
+            <div className="grid grid-cols-4 gap-2 @sm:grid-cols-6 @md:grid-cols-8 @lg:grid-cols-10">
             {references.map((item, index) => (
-                <div key={item.id} className={`${compact ? "h-12 w-40" : "h-20 w-48"} group relative flex shrink-0 flex-col justify-center gap-2 rounded-md border border-stone-200 bg-stone-50 px-2 dark:border-stone-800 dark:bg-stone-900`}>
+                <div key={item.id} className={`group relative flex min-h-12 w-full min-w-0 flex-col justify-center gap-2 rounded-md border border-stone-200 bg-stone-50 px-2 dark:border-stone-800 dark:bg-stone-900 ${compact ? "" : "min-h-20"}`}>
                     <div className="flex min-w-0 items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
                         <Music2 className="size-4 shrink-0" />
                         <span className="shrink-0 rounded bg-stone-200 px-1 text-[10px] text-stone-700 dark:bg-stone-800 dark:text-stone-200">{seedanceReferenceLabel("audio", index)}</span>
-                        <span className="truncate">{item.name}</span>
+                        <span className="min-w-0 truncate">{item.name}</span>
                     </div>
-                    {!compact ? <audio src={item.url} controls className="h-8 w-full" preload="metadata" /> : null}
+                    {!compact ? <audio src={item.url} controls className="h-8 w-full min-w-0" preload="metadata" /> : null}
                     <ReferenceOrderButtons index={index} total={references.length} onMove={(offset) => onMoveReference(index, offset)} />
                     <button type="button" className="absolute right-1 top-1 hidden size-6 items-center justify-center rounded bg-black/60 text-white group-hover:flex" onClick={() => onRemoveReference(item.id)} aria-label="移除参考音频">
                         <Trash2 className="size-3.5" />
                     </button>
                 </div>
             ))}
-            {!references.length ? <div className="flex min-w-full items-center justify-center text-center text-sm text-stone-500">暂无参考音频，最多 {maxCount} 个，mp3/wav，单个 15MB 内</div> : null}
+            {!references.length ? <div className="col-span-full flex min-w-0 items-center justify-center text-center text-sm text-stone-500">暂无参考音频，最多 {maxCount} 个，mp3/wav，单个 15MB 内</div> : null}
+            </div>
         </div>
     );
 }
@@ -2108,7 +2114,7 @@ function PendingVideoCard({ result, now, onCopyPrompt, onStop, onRetry, onDelete
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-stone-500 dark:text-stone-400">
                     {stopped ? <Square className="size-6" /> : <LoaderCircle className="size-6 animate-spin" />}
                     {stopped || stopping ? <span>{stopped ? "已停止" : result.error ? "停止未确认" : "停止中"}</span> : progress !== null ? <span className="animate-pulse font-semibold text-sky-500">正在创作 {progress}%</span> : <span>生成中</span>}
-                    <span className="rounded-full bg-white/80 px-2 py-1 text-xs text-stone-600 shadow-sm dark:bg-stone-950/70 dark:text-stone-300">{formatDuration(durationMs)}</span>
+                    <span className="rounded-full bg-card/80 px-2 py-1 text-xs text-stone-600 shadow-sm dark:bg-stone-950/70 dark:text-stone-300">{formatDuration(durationMs)}</span>
                     <Button type={stopped ? "default" : "primary"} danger={!stopped} disabled={stopping && !result.error} onClick={stopped ? onRetry : onStop} aria-label={stopped ? "重新生成" : stopping ? result.error ? "重试停止" : "停止中" : "停止"} className="!h-6 !min-w-12 !rounded-full !px-3">
                         {stopped ? <RotateCcw className="size-3" /> : stopping && !result.error ? <LoaderCircle className="size-3.5 animate-spin" /> : <Square className="size-3" fill="currentColor" />}
                         {stopped ? "重新生成" : null}
@@ -2166,7 +2172,7 @@ function HistoryLogCard({ log, index, selected, active, syncing, onSelectedChang
     return (
         <div className={`overflow-hidden rounded-lg border bg-background dark:bg-stone-950 ${active ? "border-stone-900 dark:border-stone-100" : "border-stone-200 dark:border-stone-800"}`}>
             <div className="relative aspect-video bg-stone-100 dark:bg-stone-900">
-                <div className="absolute left-1.5 top-1.5 z-10 flex items-center gap-1 rounded-md bg-white/85 px-1.5 py-1 shadow-sm dark:bg-stone-950/80">
+                <div className="absolute left-1.5 top-1.5 z-10 flex items-center gap-1 rounded-md bg-card/85 px-1.5 py-1 shadow-sm dark:bg-stone-950/80">
                     <Checkbox checked={selected} onChange={(event) => onSelectedChange(event.target.checked)} />
                     <Button size="small" type="text" danger title="删除" className="!h-6 !w-6 !p-0" icon={<Trash2 className="size-3.5" />} onClick={onDelete} />
                 </div>

@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { App, Button, Empty, Input, Modal, Popconfirm, Select, Spin, Tag } from "antd";
 import { Check, ChevronRight, Pencil, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
 
+import { canvasThemes } from "@/lib/canvas-theme";
 import { useStyleStore } from "@/stores/use-style-store";
+import { useThemeStore } from "@/stores/use-theme-store";
 import { useUserStore } from "@/stores/use-user-store";
 import type { GenerationStyle } from "@/services/api/styles";
 
@@ -22,6 +24,7 @@ const scopeLabel = (scope: GenerationStyle["appliesTo"]) => scope === "both" ? "
 
 export function StyleSelector({ type, value, onChange, className, buttonClassName, compact = false, valueName }: StyleSelectorProps) {
     const { message } = App.useApp();
+    const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const token = useUserStore((state) => state.token);
     const { styles, isLoading, load, save, remove } = useStyleStore();
     const [open, setOpen] = useState(false);
@@ -71,8 +74,8 @@ export function StyleSelector({ type, value, onChange, className, buttonClassNam
     };
 
     return <>
-        <Button className={buttonClassName} aria-label={compact ? selected || valueName ? `风格：${selected?.name || valueName}` : "选择风格" : undefined} title={compact ? selected || valueName ? `风格：${selected?.name || valueName}` : "选择风格" : undefined} onClick={() => token ? setOpen(true) : message.info("请先登录后使用风格库")}>
-            {compact ? <Sparkles className={`size-4 ${selected || valueName ? "text-amber-500" : ""}`} /> : selected ? <span className="inline-flex max-w-44 items-center gap-1.5"><Sparkles className="size-3.5 shrink-0" /><span className="truncate">{selected.name}</span></span> : "选择风格"}
+        <Button type={compact ? "text" : "default"} className={buttonClassName} style={compact ? { "--canvas-toolbar-hover": theme.toolbar.itemHover, background: selected || valueName ? theme.toolbar.activeBg : "transparent", color: selected || valueName ? theme.toolbar.activeText : theme.node.text } as CSSProperties : undefined} aria-label={compact ? selected || valueName ? `风格：${selected?.name || valueName}` : "选择风格" : undefined} title={compact ? selected || valueName ? `风格：${selected?.name || valueName}` : "选择风格" : undefined} onClick={() => token ? setOpen(true) : message.info("请先登录后使用风格库")}>
+            {compact ? <Sparkles className="size-4" /> : selected ? <span className="inline-flex max-w-44 items-center gap-1.5"><Sparkles className="size-3.5 shrink-0" /><span className="truncate">{selected.name}</span></span> : "选择风格"}
         </Button>
         <Modal
             title={null}
@@ -131,7 +134,7 @@ export function StyleSelector({ type, value, onChange, className, buttonClassNam
                     {isLoading ? <div className="grid h-36 place-items-center"><Spin /></div> : available.length ? <div className="grid gap-3 sm:grid-cols-2">
                         {available.map((style) => {
                             const active = style.id === value;
-                            return <article key={style.id} className={`group relative flex min-h-40 flex-col rounded-2xl border p-4 transition-all ${active ? "border-amber-500/70 bg-amber-500/[.06] shadow-sm" : "border-border bg-card hover:-translate-y-0.5 hover:border-foreground/20 hover:shadow-md"}`}>
+                            return <article key={style.id} className={`group relative flex min-h-40 flex-col rounded-2xl border p-4 transition-all ${active ? "border-[var(--brand-accent)] bg-[var(--brand-accent-soft)] shadow-sm dark:border-amber-500/70 dark:bg-amber-500/[.06]" : "border-border bg-card hover:-translate-y-0.5 hover:border-foreground/20 hover:shadow-md"}`}>
                                 <button type="button" aria-label={`使用${style.name}`} className="absolute inset-0 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500" onClick={() => { onChange(active ? undefined : style); setOpen(false); }} />
                                 <div className="relative flex items-start gap-2">
                                     <div className={`grid size-9 shrink-0 place-items-center rounded-xl ${active ? "bg-amber-500 text-white" : "bg-muted text-muted-foreground"}`}>{active ? <Check className="size-4" /> : <Sparkles className="size-4" />}</div>

@@ -139,5 +139,42 @@ func DeleteFinishedVideoTasksBefore(before string) error {
 	return db.
 		Where("completed_at <> ? AND completed_at < ?", "", before).
 		Where("status IN ?", []string{"completed", "failed", "cancelled", "canceled"}).
+		Where("(email_notification_status <> ? OR email_notification_status IS NULL OR email_notification_status = ?)", "pending", "sent").
 		Delete(&model.VideoTask{}).Error
+}
+
+func ListDueVideoTaskEmailNotifications(retryBefore string, limit int) ([]model.VideoTask, error) {
+	db, err := DB()
+	if err != nil {
+		return nil, err
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	var tasks []model.VideoTask
+	err = db.Where("status IN ?", []string{"completed", "failed"}).
+		Where("((email_notification_status = ? AND (email_notification_attempted_at = ? OR email_notification_attempted_at < ?)) OR (email_notification_status = ? AND email_notification_attempted_at < ?))", "pending", "", retryBefore, "sending", retryBefore).
+		Order("completed_at ASC").Limit(limit).Find(&tasks).Error
+	return tasks, err
+}
+
+func ClaimVideoTaskEmailNotification(id, now, retryBefore string) (bool, error) {
+	db, err := DB()
+	if err != nil {
+		return false, err
+	}
+	result := db.Model(&model.VideoTask{}).
+		Where("id = ? AND status IN ?", id, []string{"completed", "failed"}).
+		Where("((email_notification_status = ? AND (email_notification_attempted_at = ? OR email_notification_attempted_at < ?)) OR (email_notification_status = ? AND email_notification_attempted_at < ?))", "pending", "", retryBefore, "sending", retryBefore).
+		Updates(map[string]any{"email_notification_status": "sending", "email_notification_attempted_at": now})
+	return result.RowsAffected > 0, result.Error
+}
+
+func UpdateVideoTaskEmailNotification(id, status, attemptedAt string) error {
+	db, err := DB()
+	if err != nil {
+		return err
+	}
+	return db.Model(&model.VideoTask{}).Where("id = ? AND email_notification_status = ?", id, "sending").
+		Updates(map[string]any{"email_notification_status": status, "email_notification_attempted_at": attemptedAt}).Error
 }

@@ -129,6 +129,7 @@ sourceNodeIds 同时承担两件事：
 
 媒体工具：
 
+- merge_images：将 2 至 25 张已完成图片节点在浏览器本地拼版，不调用 AI；用户要求拼图/合并时使用，可传 imageNodeIds、columns、rows。
 - generate_image：无现有图片视觉来源的全新图片生成，也可带文本和图片来源。
 - edit_image：至少需要一个已有内容的真实图片节点，用于编辑、变体和身份保持。
 - generate_video：文生视频、图生视频以及当前模型真实支持的视频/音频参考能力；可用 voicePresetId 应用作品角色的声音设计。

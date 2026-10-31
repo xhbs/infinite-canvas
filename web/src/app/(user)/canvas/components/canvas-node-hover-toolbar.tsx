@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { App, Modal, Segmented, Tooltip } from "antd";
-import { Download, Ellipsis, FolderPlus, Image as ImageIcon, Info, MessageSquare, Minus, Music2, Plus, RefreshCw, Scissors, Settings2, Trash2, Upload, Video } from "lucide-react";
+import { App, Button, Modal, Segmented, Tooltip } from "antd";
+import { Download, Ellipsis, Eye, FolderPlus, Image as ImageIcon, Info, MessageSquare, Minus, Music2, Plus, RefreshCw, Scissors, Settings2, TextWrap, Trash2, Upload, Video } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { formatBytes, getDataUrlByteSize } from "@/lib/image-utils";
@@ -82,6 +84,7 @@ export function CanvasNodeHoverToolbar({
     onToggleFreeResize,
     onDelete,
 }: CanvasNodeHoverToolbarProps) {
+    const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const [quickToolsConfigs, setQuickToolsConfigs] = useState(() => ({
         [IMAGE_QUICK_TOOLS_STORAGE_KEY]: { ids: defaultImageQuickToolIds, showLabels: true },
         [PANORAMA_QUICK_TOOLS_STORAGE_KEY]: { ids: defaultPanoramaQuickToolIds, showLabels: true },
@@ -89,6 +92,8 @@ export function CanvasNodeHoverToolbar({
     const [draftImageToolIds, setDraftImageToolIds] = useState<ImageQuickToolId[]>(defaultImageQuickToolIds);
     const [draftShowImageToolLabels, setDraftShowImageToolLabels] = useState(true);
     const [imageToolSettingsOpen, setImageToolSettingsOpen] = useState(false);
+    const [textPreviewOpen, setTextPreviewOpen] = useState(false);
+    const [textPreviewWrap, setTextPreviewWrap] = useState(true);
     const { message } = App.useApp();
     const copyText = useCopyText();
     const isPanorama = isPanoramaNodeType(node?.type);
@@ -120,6 +125,7 @@ export function CanvasNodeHoverToolbar({
 
     useEffect(() => {
         setImageToolSettingsOpen(false);
+        setTextPreviewOpen(false);
     }, [node?.id]);
 
     if (!node) return null;
@@ -179,6 +185,7 @@ export function CanvasNodeHoverToolbar({
         }] : []),
         ...(hasImage || hasVideo || hasAudio ? [{ id: "download", title: hasAudio ? "下载音频" : hasVideo ? "下载视频" : "下载图片", label: "下载", icon: <Download className="size-4" />, onClick: () => onDownload(node) }] : []),
         ...(canOpenDialog ? [{ id: "edit", title: "编辑", label: "编辑", icon: <MessageSquare className="size-4" />, onClick: () => onToggleDialog(node) }] : []),
+        ...(isText ? [{ id: "previewText", title: "预览文本", label: "预览", icon: <Eye className="size-4" />, onClick: () => setTextPreviewOpen(true) }] : []),
         ...(isText ? [{ id: "generateImage", title: "用文本生图", label: "生图", icon: <ImageIcon className="size-4" />, onClick: () => onGenerateImage(node) }] : []),
         ...(isConfig ? [{ id: "config", title: "生成配置", label: "生成配置", icon: <Settings2 className="size-4" />, onClick: () => onToggleDialog(node) }] : []),
         ...(isText ? [{ id: "decreaseFont", title: "减小字号", label: "缩小", icon: <Minus className="size-4" />, onClick: () => onDecreaseFont(node) }] : []),
@@ -248,6 +255,38 @@ export function CanvasNodeHoverToolbar({
                     onCancel={closeImageToolSettings}
                     onSave={saveImageToolSettings}
                 />
+            ) : null}
+            {isText ? (
+                <Modal
+                    title={(
+                        <div className="flex items-center justify-between gap-4 pr-10">
+                            <span>文本预览</span>
+                            <Tooltip title={textPreviewWrap ? "关闭自动换行" : "开启自动换行"}>
+                                <Button
+                                    type={textPreviewWrap ? "primary" : "text"}
+                                    size="small"
+                                    icon={<TextWrap className="size-4" />}
+                                    aria-label={textPreviewWrap ? "关闭自动换行" : "开启自动换行"}
+                                    aria-pressed={textPreviewWrap}
+                                    onClick={() => setTextPreviewWrap((current) => !current)}
+                                />
+                            </Tooltip>
+                        </div>
+                    )}
+                    open={textPreviewOpen}
+                    centered
+                    width={960}
+                    footer={null}
+                    onCancel={() => setTextPreviewOpen(false)}
+                    destroyOnHidden
+                >
+                    <div
+                        className={`thin-scrollbar min-h-[40vh] max-h-[72vh] overflow-auto rounded-2xl border p-6 sm:p-8 ${textPreviewWrap ? "whitespace-normal break-words [overflow-wrap:anywhere] [&_pre]:whitespace-pre-wrap [&_pre_code]:whitespace-pre-wrap [&_table]:w-full [&_table]:table-fixed [&_th]:break-words [&_td]:break-words" : "whitespace-nowrap [&_pre]:whitespace-pre [&_table]:w-max [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap"} [&_p]:my-3 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_h1]:mb-3 [&_h1]:mt-5 [&_h1]:text-2xl [&_h1]:font-semibold [&_h1]:leading-tight [&_h1:first-child]:mt-0 [&_h2]:mb-2 [&_h2]:mt-5 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:leading-tight [&_h2:first-child]:mt-0 [&_h3]:my-4 [&_h3]:text-lg [&_h3]:font-semibold [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1.5 [&_blockquote]:my-4 [&_blockquote]:border-l-2 [&_blockquote]:border-[color:var(--markdown-border)] [&_blockquote]:pl-4 [&_blockquote]:opacity-80 [&_hr]:my-5 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-[color:var(--markdown-border)] [&_code]:rounded [&_code]:bg-[var(--markdown-surface)] [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.9em] [&_pre]:my-3 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-[var(--markdown-surface)] [&_pre]:p-4 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_table]:my-3 [&_table]:max-w-full [&_table]:border-collapse [&_th]:border-b [&_th]:border-[color:var(--markdown-border)] [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_td]:border-b [&_td]:border-[color:var(--markdown-border)] [&_td]:px-3 [&_td]:py-2 [&_a]:underline [&_a]:underline-offset-2 [&_img]:my-3 [&_img]:max-w-full [&_img]:rounded-lg`}
+                        style={{ background: theme.node.fill, borderColor: theme.toolbar.border, color: theme.node.text, "--markdown-surface": theme.toolbar.itemHover, "--markdown-border": theme.node.stroke } as React.CSSProperties}
+                    >
+                        {node.metadata?.content || node.metadata?.prompt ? <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>{node.metadata.content || node.metadata.prompt || ""}</ReactMarkdown> : <span style={{ color: theme.node.placeholder }}>暂无可预览内容</span>}
+                    </div>
+                </Modal>
             ) : null}
         </>
     );

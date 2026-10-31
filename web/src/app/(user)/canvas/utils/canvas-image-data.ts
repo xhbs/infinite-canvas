@@ -36,6 +36,96 @@ export type ImageSplitPiece = {
     dataUrl: string;
 };
 
+export type MergeImage = {
+    id: string;
+    title: string;
+    src: string;
+    storageKey?: string;
+    width?: number;
+    height?: number;
+};
+
+export type ImageGridLayout = { columns: number; rows: number };
+
+export const IMAGE_GRID_LAYOUTS: ImageGridLayout[] = [
+    { columns: 2, rows: 1 }, { columns: 1, rows: 2 },
+    { columns: 2, rows: 2 }, { columns: 3, rows: 2 }, { columns: 2, rows: 3 },
+    { columns: 4, rows: 2 }, { columns: 2, rows: 4 }, { columns: 3, rows: 3 },
+    { columns: 4, rows: 3 }, { columns: 3, rows: 4 }, { columns: 5, rows: 3 },
+    { columns: 3, rows: 5 }, { columns: 4, rows: 4 }, { columns: 5, rows: 4 },
+    { columns: 4, rows: 5 }, { columns: 5, rows: 5 },
+];
+
+export function defaultImageGridLayout(imageCount: number) {
+    return [...IMAGE_GRID_LAYOUTS]
+        .filter((layout) => layout.columns * layout.rows >= imageCount)
+        .sort((a, b) => a.columns * a.rows - b.columns * b.rows || Math.abs(a.columns - a.rows) - Math.abs(b.columns - b.rows) || b.columns - a.columns)[0] || IMAGE_GRID_LAYOUTS[IMAGE_GRID_LAYOUTS.length - 1];
+}
+
+export function orderMergeImages(images: MergeImage[], nodes: Array<{ id: string; position: { x: number; y: number }; height: number }>) {
+    const nodeById = new Map(nodes.map((node) => [node.id, node]));
+    const medianHeight = [...nodes].map((node) => node.height).sort((a, b) => a - b)[Math.floor(nodes.length / 2)] || 1;
+    const rows: Array<{ y: number; images: MergeImage[] }> = [];
+
+    images
+        .map((image) => ({ image, node: nodeById.get(image.id) }))
+        .filter((item): item is { image: MergeImage; node: { id: string; position: { x: number; y: number }; height: number } } => Boolean(item.node))
+        .sort((a, b) => a.node.position.y - b.node.position.y)
+        .forEach(({ image, node }) => {
+            let row = rows.find((item) => Math.abs(item.y - node.position.y) <= medianHeight * 0.6);
+            if (!row) rows.push((row = { y: node.position.y, images: [] }));
+            row.images.push(image);
+        });
+
+    return rows.flatMap((row) => row.images.sort((a, b) => (nodeById.get(a.id)?.position.x || 0) - (nodeById.get(b.id)?.position.x || 0)));
+}
+
+export function mergeImageCellAspect(images: MergeImage[]) {
+    const ratios = images.filter((image) => image.width && image.height).map((image) => image.width! / image.height!).sort((a, b) => a - b);
+    return ratios.length ? ratios[Math.floor(ratios.length / 2)] : 1;
+}
+
+export async function composeImageGrid(images: MergeImage[], layout: ImageGridLayout) {
+    const { columns, rows } = layout;
+    if (images.length < 2 || images.length > columns * rows) throw new Error("图片数量与合并比例不匹配");
+    const loaded = await Promise.all(images.map((item) => loadImage(item.src)));
+    const cellAspect = mergeImageCellAspect(images);
+    const gap = 4;
+    const frame = 4;
+    const cellWidth = Math.floor(Math.min(
+        (4096 - frame * 2 - gap * (columns - 1)) / columns,
+        (4096 - frame * 2 - gap * (rows - 1)) * cellAspect / rows,
+    ));
+    const cellHeight = Math.max(1, Math.floor(cellWidth / cellAspect));
+    const canvas = document.createElement("canvas");
+    canvas.width = cellWidth * columns + gap * (columns - 1) + frame * 2;
+    canvas.height = cellHeight * rows + gap * (rows - 1) + frame * 2;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("浏览器无法创建图片画布");
+    context.fillStyle = "#34383a";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+
+    loaded.forEach((image, index) => {
+        const column = index % columns;
+        const row = Math.floor(index / columns);
+        const x = frame + column * (cellWidth + gap);
+        const y = frame + row * (cellHeight + gap);
+        context.fillStyle = "#f3f3f0";
+        context.fillRect(x, y, cellWidth, cellHeight);
+        const inset = 4;
+        const scale = Math.min((cellWidth - inset * 2) / image.width, (cellHeight - inset * 2) / image.height);
+        const width = image.width * scale;
+        const height = image.height * scale;
+        context.drawImage(image, x + (cellWidth - width) / 2, y + (cellHeight - height) / 2, width, height);
+    });
+
+    return new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("合并图片导出失败")), "image/png");
+    });
+}
+
 export async function cropDataUrl(dataUrl: string, crop?: ImageCropRect) {
     const image = await loadImage(dataUrl);
     if (crop) {

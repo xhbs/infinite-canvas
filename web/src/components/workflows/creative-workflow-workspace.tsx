@@ -939,7 +939,7 @@ export function CreativeWorkflowWorkspace({
         <main className={`${embedded ? "h-full" : "h-full overflow-y-auto bg-stone-50 p-4 dark:bg-stone-950"} text-stone-950 dark:text-stone-50`}>
             <div className={`${embedded ? "h-full overflow-y-auto p-4" : "mx-auto max-w-7xl"} flex flex-col gap-4`}>
                 <section
-                    className={`${embedded ? "border-b border-stone-200 pb-4 dark:border-stone-800" : "rounded-lg border border-stone-200 bg-white/80 p-4 shadow-sm backdrop-blur dark:border-stone-800 dark:bg-stone-900/70"} flex flex-wrap items-center justify-between gap-3`}
+                    className={`${embedded ? "border-b border-stone-200 pb-4 dark:border-stone-800" : "rounded-lg border border-stone-200 bg-card/80 p-4 shadow-sm backdrop-blur dark:border-stone-800 dark:bg-stone-900/70"} flex flex-wrap items-center justify-between gap-3`}
                 >
                     <div className="min-w-0">
                         <div className="flex items-center gap-2 text-lg font-semibold">
@@ -973,7 +973,7 @@ export function CreativeWorkflowWorkspace({
                         <WorkflowCard key={workflow.id} workflow={workflow} onRun={() => openRunner(workflow)} onEdit={() => setEditingWorkflow(workflow)} onCopy={() => void duplicateWorkflow(workflow)} onDelete={() => deleteWorkflow(workflow)} />
                     ))}
                     {!filteredWorkflows.length ? (
-                        <div className="col-span-full rounded-lg border border-dashed border-stone-300 bg-white/70 py-14 dark:border-stone-800 dark:bg-stone-900/60">
+                        <div className="col-span-full rounded-lg border border-dashed border-stone-300 bg-card/70 py-14 dark:border-stone-800 dark:bg-stone-900/60">
                             <Empty description="暂无工作流" />
                         </div>
                     ) : null}
@@ -1013,7 +1013,7 @@ export function CreativeWorkflowWorkspace({
                         </div>
                         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
                             {runResults.map((result, index) => (
-                                <div key={result.id} className="overflow-hidden rounded-lg border border-stone-200 bg-white dark:border-stone-800 dark:bg-stone-900">
+                                <div key={result.id} className="overflow-hidden rounded-lg border border-stone-200 bg-card dark:border-stone-800 dark:bg-stone-900">
                                     <Image src={result.imageUrl} alt={result.workflowName} className="aspect-[4/3] object-cover" />
                                     <div className="space-y-1 p-2 text-xs">
                                         <div className="line-clamp-1 font-medium">{result.workflowName}</div>
@@ -1315,7 +1315,7 @@ export function CreativeWorkflowWorkspace({
 function WorkflowCard({ workflow, onRun, onEdit, onCopy, onDelete }: { workflow: CreativeWorkflow; onRun: () => void; onEdit: () => void; onCopy: () => void; onDelete: () => void }) {
     const editable = workflow.editable !== false;
     return (
-        <article className="group flex min-h-[220px] flex-col overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-xl dark:border-stone-800 dark:bg-stone-900 dark:hover:border-stone-700">
+        <article className="group flex min-h-[220px] flex-col overflow-hidden rounded-lg border border-stone-200 bg-card shadow-sm transition hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-xl dark:border-stone-800 dark:bg-stone-900 dark:hover:border-stone-700">
             <div className="h-1 bg-gradient-to-r from-stone-900 via-stone-500 to-stone-300 opacity-80 dark:from-stone-100 dark:via-stone-500 dark:to-stone-800" />
             <div className="flex flex-1 flex-col p-3.5">
             <div className="flex items-start justify-between gap-3">
@@ -1362,7 +1362,7 @@ function WorkflowTaskCard({ task, now, onCopyPrompt, onDownload }: { task: Workf
     }[task.status];
 
     return (
-        <article className="overflow-hidden rounded-lg border border-stone-200 bg-white dark:border-stone-800 dark:bg-stone-900">
+        <article className="overflow-hidden rounded-lg border border-stone-200 bg-card dark:border-stone-800 dark:bg-stone-900">
             <div className="flex items-start justify-between gap-3 border-b border-stone-200 p-3 dark:border-stone-800">
                 <div className="min-w-0">
                     <div className="flex items-center gap-2">

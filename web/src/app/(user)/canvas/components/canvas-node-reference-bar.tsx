@@ -12,13 +12,15 @@ export function CanvasNodeReferenceBar({ nodeId, connectedNodes, onDisconnect, o
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const references = buildAllCanvasResourceReferences(connectedNodes);
     return (
-        <div className="mb-2">
-            <div className="mb-1.5 text-[11px] font-medium" style={{ color: theme.node.muted }}>参考内容</div>
-            <div className="thin-scrollbar flex min-h-12 gap-2 overflow-x-auto pb-1">
-                {references.map((reference) => <ReferenceItem key={reference.id} reference={reference} onRemove={() => onDisconnect?.(reference.nodeId, nodeId)} />)}
-                <button type="button" className="grid size-12 shrink-0 place-items-center rounded-xl border bg-transparent transition hover:opacity-70" style={{ borderColor: theme.toolbar.border, color: theme.node.muted }} title="从画布选择参考节点" onClick={() => onStartSelection?.(nodeId)}>
+        <div className="@container mb-2">
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+                <div className="text-[11px] font-medium" style={{ color: theme.node.muted }}>参考内容</div>
+                <button type="button" className="grid size-7 shrink-0 place-items-center rounded-lg border bg-transparent transition hover:opacity-70" style={{ borderColor: theme.toolbar.border, color: theme.node.muted }} title="从画布选择参考节点" onClick={() => onStartSelection?.(nodeId)}>
                     <Plus className="size-4" />
                 </button>
+            </div>
+            <div className="grid grid-cols-4 gap-2 @sm:grid-cols-6 @md:grid-cols-8 @lg:grid-cols-10">
+                {references.map((reference) => <ReferenceItem key={reference.id} reference={reference} onRemove={() => onDisconnect?.(reference.nodeId, nodeId)} />)}
             </div>
         </div>
     );
@@ -30,7 +32,7 @@ function ReferenceItem({ reference, onRemove }: { reference: CanvasResourceRefer
     const isMedia = reference.kind === "image" || reference.kind === "video";
     return (
         <Popover placement="topLeft" mouseEnterDelay={0.15} content={<ReferencePreview reference={reference} />} arrow={!isMedia} destroyOnHidden={reference.kind === "video"} styles={isMedia ? { container: { padding: 0, background: "transparent", boxShadow: "none" } } : undefined}>
-            <div className="group relative grid size-12 shrink-0 place-items-center rounded-xl border" style={{ background: theme.toolbar.activeBg, borderColor: theme.toolbar.border }}>
+            <div className="group relative grid aspect-square w-full min-w-0 place-items-center rounded-xl border" style={{ background: theme.toolbar.activeBg, borderColor: theme.toolbar.border }}>
                 <span className="grid size-full place-items-center overflow-hidden rounded-[inherit]">
                     {reference.kind === "image" && reference.previewUrl ? <img src={reference.previewUrl} alt="" className="size-full object-cover" /> : reference.kind === "video" && reference.previewUrl ? <video src={reference.previewUrl} className="size-full object-cover" muted /> : <Icon className="size-4 opacity-65" />}
                 </span>

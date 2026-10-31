@@ -105,6 +105,9 @@ func CreateVideoTask(input VideoTaskCreateInput) (model.VideoTask, error) {
 		CreatedAt:                    current,
 		UpdatedAt:                    current,
 	}
+	if VideoTaskEmailNotificationsEnabled() {
+		task.EmailNotificationStatus = "pending"
+	}
 	if IsCompletedVideoTaskStatus(task.Status) || task.VideoURL != "" {
 		task.Status = "completed"
 		task.Progress = 100
@@ -121,7 +124,7 @@ func CreateVideoTask(input VideoTaskCreateInput) (model.VideoTask, error) {
 	} else {
 		saved, err = repository.SaveVideoTask(task)
 	}
-	if err == nil && input.WorkflowRef == "" && !IsCompletedVideoTaskStatus(saved.Status) && !IsFailedVideoTaskStatus(saved.Status) {
+	if err == nil && (task.EmailNotificationStatus == "pending" || input.WorkflowRef == "" && !IsCompletedVideoTaskStatus(saved.Status) && !IsFailedVideoTaskStatus(saved.Status)) {
 		WakeVideoTaskPoller()
 	}
 	return saved, err
@@ -258,6 +261,7 @@ func runVideoTaskPoller() {
 			if audioErr != nil {
 				log.Printf("check active canvas audio tasks failed err=%v", audioErr)
 			}
+			sendPendingVideoTaskEmailNotifications()
 			if len(tasks) == 0 && len(workflowTasks) == 0 && !hasImageTasks && !hasAudioTasks {
 				if workflowErr != nil || imageErr != nil || audioErr != nil {
 					waitForNextVideoTaskPoll()

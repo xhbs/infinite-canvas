@@ -23,6 +23,12 @@ type Config struct {
 	LinuxDoTokenURL     string `env:"LINUX_DO_TOKEN_URL" envDefault:"https://connect.linux.do/oauth2/token"`
 	LinuxDoUserInfoURL  string `env:"LINUX_DO_USERINFO_URL" envDefault:"https://connect.linux.do/api/user"`
 	AILogDir            string `env:"AI_LOG_DIR" envDefault:"data/logs/ai-calls"`
+	SMTPHost            string `env:"SMTP_HOST"`
+	SMTPPort            string `env:"SMTP_PORT" envDefault:"465"`
+	SMTPUsername        string `env:"SMTP_USERNAME"`
+	SMTPPassword        string `env:"SMTP_PASSWORD"`
+	SMTPFrom            string `env:"SMTP_FROM"`
+	SMTPTLSMode         string `env:"SMTP_TLS_MODE" envDefault:"ssl"`
 }
 
 var Cfg Config
