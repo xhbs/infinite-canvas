@@ -6,6 +6,7 @@ import { Button, Modal, Tooltip } from "antd";
 
 import { ModelPicker } from "@/components/model-picker";
 import { StyleSelector } from "@/components/styles/style-selector";
+import { CanvasVoicePresetSelector } from "./canvas-voice-preset-selector";
 import { useAutoDLWorkflow } from "@/hooks/use-autodl-workflow";
 import { getAutoDLCapabilities, isAutoDLConfig } from "@/lib/autodl";
 import { defaultConfig, resolveModelForCapability, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
@@ -106,19 +107,36 @@ export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfi
                 style={{ background: "transparent", color: theme.node.text }}
                 placeholder={isPanorama ? "描述想生成的全景，或上传/连接图片作为参考" : promptPlaceholder(mode, hasImageContent, hasTextContent)}
             />
-            {mode === "image" || mode === "video" ? (
-                <div className="mt-2 flex items-center gap-2">
-                    <span className="text-xs opacity-60">生成风格</span>
-                    <StyleSelector type={mode} value={node.metadata?.styleId} buttonClassName="!h-7 !rounded-full !px-3 !text-xs" onChange={(style) => onConfigChange(node.id, { styleId: style?.id, styleName: style?.name, stylePrompt: style?.prompt })} />
+            <div className="mt-2 flex min-w-0 flex-col gap-2">
+                <div className="flex min-w-0 items-center justify-between gap-2">
+                    <div className="flex min-w-0 shrink-0 items-center gap-1">
+                        <Tooltip title="放大编辑">
+                            <Button type="text" className="!h-8 !w-8 !min-w-8 shrink-0 !rounded-full !bg-transparent !p-0" style={{ color: theme.node.text }} icon={<Maximize2 className="size-3.5" />} onClick={() => setExpanded(true)} aria-label="放大编辑" />
+                        </Tooltip>
+                        <CanvasPromptLibrary onSelect={updatePrompt} />
+                        {mode === "image" || mode === "video" ? <StyleSelector type={mode} value={node.metadata?.styleId} valueName={node.metadata?.styleName} compact buttonClassName="!h-8 !w-8 !min-w-8 !px-0" onChange={(style) => onConfigChange(node.id, { styleId: style?.id, styleName: style?.name, stylePrompt: style?.prompt })} /> : null}
+                        {mode === "video" ? <CanvasVoicePresetSelector value={node.metadata?.voicePresetId} valueName={node.metadata?.voicePresetName} onChange={(preset) => onConfigChange(node.id, { voicePresetId: preset?.id, voicePresetName: preset?.name, voicePresetRoles: preset?.roles.map(({ alias, voiceDesign }) => ({ alias, voiceDesign })) })} /> : null}
+                    </div>
+                    <Button
+                        type="primary"
+                        danger={showStop}
+                        className="!h-9 !min-w-16 shrink-0 !rounded-full !px-3"
+                        disabled={(isStopping && !stopFailed) || (!canStop && (generating || !canSubmit))}
+                        onClick={canStop ? () => onStop(node.id) : submit}
+                        aria-label={canStop ? stopFailed ? "重试停止" : "停止" : isStopping ? "停止中" : "生成"}
+                    >
+                        <span className="relative inline-flex">
+                            <span className={`flex items-center gap-1.5${showStop ? " invisible" : ""}`}>
+                                <span className="inline-flex items-center gap-1 text-xs font-medium tabular-nums"><CreditSymbol />{credits.toLocaleString()}</span>
+                                {generating ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowUp className="size-4" />}
+                            </span>
+                            {showStop ? <span className="absolute inset-0 flex items-center justify-center">
+                                {isStopping && !stopFailed ? <LoaderCircle className="size-4 animate-spin" /> : <Square className="size-3.5" fill="currentColor" />}
+                            </span> : null}
+                        </span>
+                    </Button>
                 </div>
-            ) : null}
-
-            <div className="mt-2 flex min-w-0 items-center justify-between gap-2">
-                <div className="flex min-w-0 items-center gap-2">
-                    <Tooltip title="放大编辑">
-                        <Button type="text" className="!h-8 !w-8 !min-w-8 shrink-0 !rounded-full !bg-transparent !p-0" style={{ color: theme.node.text }} icon={<Maximize2 className="size-3.5" />} onClick={() => setExpanded(true)} aria-label="放大编辑" />
-                    </Tooltip>
-                    <CanvasPromptLibrary onSelect={updatePrompt} />
+                <div className="thin-scrollbar flex min-w-0 items-center gap-2 overflow-x-auto pb-1">
                     {mode === "image" ? (
                         <>
                             <ModelPicker className="!w-[180px] !min-w-0 !shrink-0" config={config} value={config.model} channelId={config.imageChannelId} workflowRef={node.metadata?.workflowRef} onWorkflowChange={(workflowRef) => onConfigChange(node.id, { workflowRef })} onChange={(model, channelId) => onConfigChange(node.id, { model, channelId })} capability="image" onMissingConfig={() => openConfigDialog(true)} />
@@ -149,24 +167,7 @@ export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfi
                         <CanvasCameraControl value={node.metadata?.cameraControl} onChange={(cameraControl) => onConfigChange(node.id, { cameraControl })} buttonClassName="!h-10 !min-w-[92px] !justify-start !rounded-full !px-3" />
                     ) : null}
                 </div>
-                <Button
-                    type="primary"
-                    danger={showStop}
-                    className="!h-10 !min-w-16 shrink-0 !rounded-full !px-3"
-                    disabled={(isStopping && !stopFailed) || (!canStop && (generating || !canSubmit))}
-                    onClick={canStop ? () => onStop(node.id) : submit}
-                    aria-label={canStop ? stopFailed ? "重试停止" : "停止" : isStopping ? "停止中" : "生成"}
-                >
-                    <span className="relative inline-flex">
-                        <span className={`flex items-center gap-1.5${showStop ? " invisible" : ""}`}>
-                            <span className="inline-flex items-center gap-1 text-xs font-medium tabular-nums"><CreditSymbol />{credits.toLocaleString()}</span>
-                            {generating ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowUp className="size-4" />}
-                        </span>
-                        {showStop ? <span className="absolute inset-0 flex items-center justify-center">
-                            {isStopping && !stopFailed ? <LoaderCircle className="size-4 animate-spin" /> : <Square className="size-3.5" fill="currentColor" />}
-                        </span> : null}
-                    </span>
-                </Button>
+                </div>
             </div>
             <Modal title="编辑提示词" open={expanded} centered width={760} footer={null} onCancel={() => setExpanded(false)} destroyOnHidden>
                 <div data-canvas-no-zoom className="pt-2" onWheelCapture={(event) => event.stopPropagation()}>

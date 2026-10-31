@@ -196,7 +196,7 @@ export default function VideoPage() {
     const isKlingWorkbench = Boolean(klingWorkbench);
     const klingOmni = videoConfig.videoWorkflowRef ? "" : kieKlingOmniVariant(videoConfig, model);
     const klingAcceptsVideoReferences = klingOmni === "reference-to-video" || klingOmni === "transformation";
-    const referenceImageLimit = klingOmni === "text-to-video" ? 0 : klingOmni === "image-to-video" ? 2 : klingOmni === "transformation" ? 4 : isKlingWorkbench && klingOmni !== "reference-to-video" ? 2 : referenceLimits.images;
+    const referenceImageLimit = klingOmni === "text-to-video" ? 0 : klingOmni === "image-to-video" ? 2 : klingOmni === "transformation" ? 4 : isKlingWorkbench && klingOmni !== "reference-to-video" ? 2 : Number.MAX_SAFE_INTEGER;
     const videoReferenceLimit = klingAcceptsVideoReferences ? 1 : referenceLimits.videos;
     const hasPendingLogs = logs.some((log) => (log.status === "生成中" || (log.status === "停止中" && !log.error)) && log.task && !log.video);
     const hasPendingTasks = hasPendingLogs || pendingCount > 0 || results.some((item) => item.status === "stopping" && !item.error);
@@ -1585,6 +1585,8 @@ function WorkbenchPanel({
     const klingBottomVariant = klingBottomConfig?.variant || "";
     const klingBottomProvider = klingBottomConfig?.provider || "apimart";
     const klingBottom = Boolean(klingBottomConfig);
+    const klingBottomOmni = config.videoWorkflowRef ? "" : kieKlingOmniVariant(config, model);
+    const klingBottomImageLimit = klingBottomOmni === "text-to-video" ? 0 : klingBottomOmni === "image-to-video" ? 2 : klingBottomOmni === "transformation" ? 4 : klingBottom && klingBottomOmni !== "reference-to-video" ? 2 : undefined;
     const showAudioSwitch = klingBottom || audioGenerationEnabled;
     const motionControl = !config.videoWorkflowRef && (isAPIMartKlingMotionControlConfig(config, model) || isKIEKlingMotionControlConfig(config, model) || (videoChannelProtocol(config, model) === "tokendance" && modelKey(model) === "kling-3-0"));
     const bottomSettingsGridClass = motionControl
@@ -1701,7 +1703,7 @@ function WorkbenchPanel({
                             <Button size="small" icon={<Upload className="size-3.5" />} onClick={onUploadReferences}>上传</Button>
                             <Button size="small" icon={<FolderPlus className="size-3.5" />} onClick={() => onOpenAssetPicker("image")}>从素材库选择</Button>
                         </div>
-                        <ReferenceImageStrip references={references} maxCount={referenceLimits.images} onRemoveReference={onRemoveReference} onMoveReference={onMoveReference} />
+                        <ReferenceImageStrip references={references} maxCount={klingBottomImageLimit} onRemoveReference={onRemoveReference} onMoveReference={onMoveReference} />
                     </div>
                 </WorkbenchSection>
                 <WorkbenchSection title="参考视频" count={videoReferences.length}>
@@ -1818,7 +1820,7 @@ function FrameReferenceSlot({ label, reference, compact, onUpload, onRemove }: {
     );
 }
 
-function ReferenceImageStrip({ references, compact = false, maxCount = SEEDANCE_REFERENCE_LIMITS.images, onRemoveReference, onMoveReference }: { references: ReferenceImage[]; compact?: boolean; maxCount?: number; onRemoveReference: (id: string) => void; onMoveReference: (index: number, offset: number) => void }) {
+function ReferenceImageStrip({ references, compact = false, maxCount, onRemoveReference, onMoveReference }: { references: ReferenceImage[]; compact?: boolean; maxCount?: number; onRemoveReference: (id: string) => void; onMoveReference: (index: number, offset: number) => void }) {
     return (
         <div className={`hover-scrollbar hover-scrollbar-hint flex w-full min-w-0 max-w-full gap-2 overflow-x-scroll overflow-y-hidden rounded-lg border border-dashed border-stone-300 p-2 overscroll-x-contain dark:border-stone-700 ${compact ? "min-h-14" : "min-h-24 pb-3"}`}>
             {references.map((item, index) => (
@@ -1831,7 +1833,7 @@ function ReferenceImageStrip({ references, compact = false, maxCount = SEEDANCE_
                     </button>
                 </div>
             ))}
-            {!references.length ? <div className="flex min-w-full items-center justify-center text-sm text-stone-500">暂无参考图，最多 {maxCount} 张</div> : null}
+            {!references.length ? <div className="flex min-w-full items-center justify-center text-sm text-stone-500">{maxCount ? `暂无参考图，最多 ${maxCount} 张` : "暂无参考图"}</div> : null}
         </div>
     );
 }

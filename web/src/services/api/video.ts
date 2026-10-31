@@ -499,7 +499,7 @@ async function createVideoRequestBody(config: AiConfig, model: string, prompt: s
     if (isAgnesVideoV25Model(model)) return createAgnesVideoV25RequestBody(config, model, prompt, input);
     if (isAgnesVideoModel(model)) {
         const references = input.references;
-        const inputReferences = await Promise.all(references.slice(0, 7).map(imageToAgnesReference));
+        const inputReferences = await Promise.all(references.map(imageToAgnesReference));
         const dimensions = size ? parseVideoDimensions(size) : null;
         const frameRate = agnesFrameRate(config.videoSeconds);
         const body: Record<string, unknown> = {
@@ -570,7 +570,7 @@ async function createVideoRequestBody(config: AiConfig, model: string, prompt: s
     if (tokenDance || motionControl) body.append("character_orientation", normalizeCharacterOrientation(config.videoCharacterOrientation));
     if (tokenDance || apimartWan3 || supportsVideoAudioGeneration(model)) body.append("video_generate_audio", String(boolConfig(config.videoGenerateAudio, false)));
     if (tokenDance) body.append("video_watermark", String(boolConfig(config.videoWatermark, false)));
-    const imageReferenceLimit = kieKlingOmni === "text-to-video" ? 0 : kieKlingOmni === "reference-to-video" ? input.references.length : kieKlingOmni === "transformation" ? 4 : kling ? 2 : 10;
+    const imageReferenceLimit = kieKlingOmni === "text-to-video" ? 0 : kieKlingOmni === "reference-to-video" ? input.references.length : kieKlingOmni === "transformation" ? 4 : kling ? 2 : input.references.length;
     const files = await Promise.all(input.references.slice(0, imageReferenceLimit).map((image) => imageReferenceToFormValue(image, signal, upyunReferenceKeys)));
     files.forEach((file) => body.append("input_reference[]", file));
     if (!kling && input.firstFrame) body.append("first_frame_url", await imageReferenceToFormValue(input.firstFrame, signal, upyunReferenceKeys));

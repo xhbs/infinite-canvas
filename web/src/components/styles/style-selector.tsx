@@ -14,11 +14,13 @@ type StyleSelectorProps = {
     onChange: (style?: GenerationStyle) => void;
     className?: string;
     buttonClassName?: string;
+    compact?: boolean;
+    valueName?: string;
 };
 
 const scopeLabel = (scope: GenerationStyle["appliesTo"]) => scope === "both" ? "图片 · 视频" : scope === "image" ? "图片" : "视频";
 
-export function StyleSelector({ type, value, onChange, className, buttonClassName }: StyleSelectorProps) {
+export function StyleSelector({ type, value, onChange, className, buttonClassName, compact = false, valueName }: StyleSelectorProps) {
     const { message } = App.useApp();
     const token = useUserStore((state) => state.token);
     const { styles, isLoading, load, save, remove } = useStyleStore();
@@ -33,8 +35,8 @@ export function StyleSelector({ type, value, onChange, className, buttonClassNam
     const selected = styles.find((style) => style.id === value);
 
     useEffect(() => {
-        if (open && token) void load().catch((error) => message.error(error instanceof Error ? error.message : "获取风格失败"));
-    }, [load, message, open, token]);
+        if (token) void load().catch((error) => message.error(error instanceof Error ? error.message : "获取风格失败"));
+    }, [load, message, token]);
 
     const beginEdit = (style?: GenerationStyle) => {
         setEditing(style || {});
@@ -69,8 +71,8 @@ export function StyleSelector({ type, value, onChange, className, buttonClassNam
     };
 
     return <>
-        <Button className={buttonClassName} onClick={() => token ? setOpen(true) : message.info("请先登录后使用风格库")}>
-            {selected ? <span className="inline-flex max-w-44 items-center gap-1.5"><Sparkles className="size-3.5 shrink-0" /><span className="truncate">{selected.name}</span></span> : "选择风格"}
+        <Button className={buttonClassName} aria-label={compact ? selected || valueName ? `风格：${selected?.name || valueName}` : "选择风格" : undefined} title={compact ? selected || valueName ? `风格：${selected?.name || valueName}` : "选择风格" : undefined} onClick={() => token ? setOpen(true) : message.info("请先登录后使用风格库")}>
+            {compact ? <Sparkles className={`size-4 ${selected || valueName ? "text-amber-500" : ""}`} /> : selected ? <span className="inline-flex max-w-44 items-center gap-1.5"><Sparkles className="size-3.5 shrink-0" /><span className="truncate">{selected.name}</span></span> : "选择风格"}
         </Button>
         <Modal
             title={null}
