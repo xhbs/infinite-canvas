@@ -184,6 +184,10 @@ func VideoTaskResponse(task model.VideoTask) map[string]any {
 	}
 	if task.ParameterTranslationSnapshot != "" {
 		result["parameter_translation"] = true
+		var snapshot parameterTranslationSnapshot
+		if json.Unmarshal([]byte(task.ParameterTranslationSnapshot), &snapshot) == nil && snapshot.Variables["mode"] == "draft" {
+			result["draft_task_id"] = firstVideoTaskValue(snapshot.TaskIDs...)
+		}
 	}
 	if IsFailedVideoTaskStatus(task.Status) && (task.Error != "" || task.ErrorDetail != "") {
 		result["error"] = map[string]any{"message": firstVideoTaskValue(task.Error, task.ErrorDetail)}
@@ -401,11 +405,7 @@ func UpdateVideoTaskFromPoll(task model.VideoTask, update VideoTaskPollUpdate) e
 		extra, _ := json.Marshal(map[string]string{"model": task.Model, "path": "/videos"})
 		return repository.SaveFailedTranslatedVideoTask(task, model.CreditLog{ID: newID("credit"), UserID: task.UserID, Type: model.CreditLogTypeAIRefund, Amount: task.Credits, Remark: "模型调用失败返还 " + task.Model, Extra: string(extra), CreatedAt: current})
 	}
-	if task.Source == "canvas" || task.Source == "video-workbench" {
-		return repository.UpdateVideoTask(task)
-	}
-	_, err := repository.SaveVideoTask(task)
-	return err
+	return repository.UpdateVideoTask(task)
 }
 
 func NormalizeVideoTaskStatus(status string) string {

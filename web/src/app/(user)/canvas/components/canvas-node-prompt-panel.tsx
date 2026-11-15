@@ -69,7 +69,7 @@ export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfi
     const billingModel = workflowRef
         ? `workflow:${workflowRef.scope}:${workflowRef.channelId}:${workflowRef.kind}:${workflowRef.workflowId}`
         : config.model;
-    const credits = requestCreditCost({ channelMode: config.channelMode, modelCosts, model: billingModel, count: mode === "image" ? config.count : 1, seconds: mode === "video" ? config.videoSeconds : undefined });
+    const credits = requestCreditCost({ channelMode: config.channelMode, modelCosts, model: billingModel, resolution: mode === "video" ? config.vquality : undefined, count: mode === "image" ? config.count : 1, seconds: mode === "video" ? config.videoSeconds : undefined });
 
     useEffect(() => {
         setPrompt(sourcePrompt);
@@ -103,7 +103,7 @@ export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfi
                 references={mentionReferences}
                 onChange={updatePrompt}
                 onSubmit={submit}
-                className="thin-scrollbar h-40 w-full resize-none rounded-xl px-3 py-2 text-sm leading-5 outline-none"
+                className="thin-scrollbar h-32 w-full resize-none rounded-xl px-3 py-2 text-sm leading-5 outline-none"
                 style={{ background: "transparent", color: theme.node.text }}
                 placeholder={isPanorama ? "描述想生成的全景，或上传/连接图片作为参考" : promptPlaceholder(mode, hasImageContent, hasTextContent)}
             />
@@ -226,6 +226,9 @@ function buildNodeConfig(globalConfig: AiConfig, node: CanvasNodeData, mode: Can
         mimoTtsFormat: node.metadata?.mimoTtsFormat || globalConfig.mimoTtsFormat || defaultConfig.mimoTtsFormat,
         mimoVoiceDesignPrompt: node.metadata?.mimoVoiceDesignPrompt || globalConfig.mimoVoiceDesignPrompt || defaultConfig.mimoVoiceDesignPrompt,
         geminiTtsVoice: node.metadata?.geminiTtsVoice || globalConfig.geminiTtsVoice || defaultConfig.geminiTtsVoice,
+        miniMaxTtsVoice: node.metadata?.miniMaxTtsVoice || globalConfig.miniMaxTtsVoice || defaultConfig.miniMaxTtsVoice,
+        miniMaxTtsFormat: node.metadata?.miniMaxTtsFormat || globalConfig.miniMaxTtsFormat || defaultConfig.miniMaxTtsFormat,
+        miniMaxTtsSpeed: node.metadata?.miniMaxTtsSpeed || globalConfig.miniMaxTtsSpeed || defaultConfig.miniMaxTtsSpeed,
         count: String(node.metadata?.count || (mode === "image" ? globalConfig.canvasImageCount || globalConfig.count : globalConfig.count) || defaultConfig.count),
     };
 }

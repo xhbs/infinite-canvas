@@ -478,6 +478,7 @@ export function CanvasAssistantPanel({
             );
             const run = mode === "codex" ? (input: Parameters<typeof runCanvasAgent>[0]) => codex.run({
                 ...input, threadId: session.codexThreadId, serviceId: session.codexServiceId, model: codexModel?.model, effort: codexEffort,
+                skillsSelected: input.skillsSelected || skillOverride !== undefined,
                 onThread: (codexThreadId, codexServiceId) => updateSession(session.id, (current) => ({ ...current, codexThreadId, codexServiceId })),
                 onText: (text) => updateMessage(session.id, assistantId, { text }),
             }) : runCanvasAgent;
@@ -488,12 +489,14 @@ export function CanvasAssistantPanel({
                 userText: text,
                 references: modelReferences,
                 activeSkillContents,
+                skillsSelected: userMessage.skillsSelected,
                 contextCheckpoint: session.contextCheckpoint,
                 preferredJsonMode: session.jsonToolFallbackKey === jsonToolFallbackKey ? session.jsonToolFallbackMode || "structured-json" : undefined,
                 getContext: getAgentContext,
                 executeAction: (action, signal = controller.signal) => executeCanvasTool(action, messageReferenceNodeIds, activeSkills, signal),
                 signal: controller.signal,
                 onEvent: (event) => updateMessage(session.id, assistantId, { status: event.status, activity: event.label }),
+                onContextUsage: (usage) => updateSession(session.id, (current) => ({ ...current, contextUsage: usage })),
                 onCheckpoint: (checkpoint) =>
                     updateSession(session.id, (current) => ({
                         ...current,
@@ -539,14 +542,20 @@ export function CanvasAssistantPanel({
 
     const sendMessageRef = useRef(sendMessage);
     sendMessageRef.current = sendMessage;
+    const submit = async (nextPrompt = prompt, referenceIds = composerReferenceIds) => {
+        const text = nextPrompt.trim();
+        if ((!text && !selectedSkills.length) || isRunning) return;
+        await sendMessage(text, resolveReferences(referenceIds));
+    };
+
     const retryMessage = useCallback((message: CanvasAssistantMessage) => {
         const index = messages.findIndex((item) => item.id === message.id);
         const user = messages.slice(0, index).findLast((item) => item.role === "user");
-        if (user) void sendMessageRef.current(user.text, user.references, user.skills || []);
+        if (user) void sendMessageRef.current(user.text, user.references, user.skills || [], user.skillsSelected);
     }, [messages]);
 
     const startResize = () => {
-        const move = (event: MouseEvent) => onWidthChange(Math.min(760, Math.max(464, window.innerWidth - event.clientX)));
+        const move = (event: MouseEvent) => onWidthChange(Math.min(760, Math.max(320, window.innerWidth - event.clientX)));
         const stop = () => {
             setResizing(false);
             document.body.style.cursor = "";
@@ -672,6 +681,7 @@ export function CanvasAssistantPanel({
                         initialPrompt={drafts.current[mode]?.prompt || ""}
                         isRunning={isRunning}
                         codexControls={codexControls}
+                        contextUsage={mode !== "codex" || activeSession?.contextUsage?.threadId === activeSession?.codexThreadId ? activeSession?.contextUsage : undefined}
                         references={composerReferences}
                         availableReferences={resourceReferences}
                         pendingReferences={pendingReferences}
@@ -689,10 +699,7 @@ export function CanvasAssistantPanel({
                             if (removedSelectedIds.length) setRemovedReferenceIds((previous) => new Set([...previous, ...removedSelectedIds]));
                             setComposerReferenceIds((current) => current.length === ids.length && current.every((id, index) => id === ids[index]) ? current : ids);
                         }}
-                        onSubmit={(value, ids) => {
-                            const text = (value || "").trim();
-                            if (text && !isRunning) return sendMessage(text, resolveReferences(ids || composerReferenceIds));
-                        }}
+                        onSubmit={(value, ids) => void submit(value, ids)}
                         onStop={() => abortRef.current?.abort()}
                         onOpenUpload={onOpenUpload}
                         onOpenAssets={onOpenAssets}
@@ -860,7 +867,7 @@ const AssistantMessages = memo(function AssistantMessages({ messages, nodeById, 
                 if (message.role === "user") previousUserSkills = message.skills || [];
                 return (
                     <div key={message.id} className={cn("flex flex-col gap-2", message.role === "user" ? "items-end" : "items-start")}>
-                        {message.text ? (
+                        {message.text || (message.role === "user" && showSkills && message.skills?.length) ? (
                             <div
                                 className="max-w-[88%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-6"
                                 style={

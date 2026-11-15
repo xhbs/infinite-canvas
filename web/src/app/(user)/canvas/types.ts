@@ -77,6 +77,9 @@ export type CanvasNodeMetadata = {
     mimoTtsFormat?: string;
     mimoVoiceDesignPrompt?: string;
     geminiTtsVoice?: string;
+    miniMaxTtsVoice?: string;
+    miniMaxTtsFormat?: string;
+    miniMaxTtsSpeed?: string;
     mimoVoiceCloneAudioNodeId?: string;
     referenceAudioNodeId?: string;
     references?: string[];
@@ -102,6 +105,8 @@ export type CanvasNodeMetadata = {
     audioTaskId?: string;
     audioTaskResultId?: string;
     videoTaskId?: string;
+    videoDraft?: boolean;
+    videoDraftTaskId?: string;
     videoTaskVideoId?: string;
     videoPollingError?: boolean;
     videoTaskTerminal?: boolean;
@@ -257,7 +262,7 @@ export type CanvasAgentToolCall = {
 };
 
 export type CanvasAgentProtocolMessage =
-    | { role: "user" | "system"; content: CanvasAgentContent }
+    | { role: "user" | "system"; content: CanvasAgentContent; contextCompaction?: string }
     | { role: "assistant"; content?: string; reasoningContent?: string; responseItems?: unknown[]; toolCalls?: CanvasAgentToolCall[] }
     | { role: "tool"; content: string; toolCallId: string; name: string };
 
@@ -278,6 +283,8 @@ export type CanvasAssistantMessage = {
 export type CanvasAgentJsonFallbackMode = "structured-json" | "prompt-json";
 export type CanvasAgentToolMode = "native" | CanvasAgentJsonFallbackMode;
 
+export type CanvasAgentContextUsage = { tokens: number; contextWindow?: number | null; threadId?: string };
+
 export type CanvasAssistantSession = {
     provider?: "api" | "codex";
     codexThreadId?: string;
@@ -291,6 +298,7 @@ export type CanvasAssistantSession = {
     jsonToolFallbackMode?: CanvasAgentJsonFallbackMode;
     activeSkills?: CanvasAgentSkillSelection[];
     contextCheckpoint?: string;
+    contextUsage?: CanvasAgentContextUsage;
     createdAt: string;
     updatedAt: string;
 };

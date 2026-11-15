@@ -12,7 +12,7 @@ import { boolConfig, isSeedanceVideoConfig, normalizeSeedanceDuration, normalize
 import { isKIEGrokVideoModel, isKIEKlingV3Config, kieKlingOmniVariant } from "./protocols/kling-models";
 import { autoDLBaseUrl, getAutoDLCapabilities } from "@/lib/autodl";
 import { fetchAutoDLWorkflow } from "./autodl";
-import { isAgnesVideoV25Model, isCogVideoX3Model, isWan3VideoModel, modelKey, normalizeCogVideoX3Duration, supportsVideoAudioGeneration } from "@/lib/video-model-capabilities";
+import { isAgnesVideoV25Model, isCogVideoX3Model, isWan3VideoModel, modelKey, normalizeCogVideoX3Duration, supportsVideoAudioGeneration, videoDurationOptionsForModel } from "@/lib/video-model-capabilities";
 import { cacheMediaFileLocally, resolveMediaUrl, uploadMediaFile, uploadRemoteMediaToServer } from "@/services/file-storage";
 import { autoSyncToCloud, imageToDataUrl, resolveImageUrl } from "@/services/image-storage";
 import { buildApiUrl, channelIdForActiveModel, channelProtocolForConfig, directAIProviderForConfig, localChannelForActiveModel, type AiConfig, type VideoElementReference } from "@/stores/use-config-store";
@@ -21,14 +21,14 @@ import { deleteUpyunReferenceImage, isUpyunReferenceStorageReady, loadUpyunRefer
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
 
-export type VideoResponse = { parameter_translation?: boolean; translationSnapshot?: LocalVideoTranslationSnapshot; upyunReferenceKeys?: string[]; id: string; task_id?: string; video_id?: string; source_id?: string; sourceId?: string; channelId?: string; userChannelId?: string; channelName?: string; workflowRef?: string; channel_id?: string; user_channel_id?: string; channel_name?: string; status?: string; video_url?: string; url?: string; storageKey?: string; progress?: number; error?: { message?: string }; size?: string; seconds?: string; model?: string; created_at?: string | number; createdAt?: string | number; started_at?: string | number; startedAt?: string | number; request_body?: string };
+export type VideoResponse = { parameter_translation?: boolean; translationSnapshot?: LocalVideoTranslationSnapshot; upyunReferenceKeys?: string[]; id: string; task_id?: string; draft?: boolean; draft_task_id?: string; video_id?: string; source_id?: string; sourceId?: string; channelId?: string; userChannelId?: string; channelName?: string; workflowRef?: string; channel_id?: string; user_channel_id?: string; channel_name?: string; status?: string; video_url?: string; url?: string; storageKey?: string; progress?: number; error?: { message?: string }; size?: string; seconds?: string; model?: string; created_at?: string | number; createdAt?: string | number; started_at?: string | number; startedAt?: string | number; request_body?: string };
 type ApiVideoEnvelope = { code: number; data?: VideoResponse | VideoResponse[] | null; msg?: string; message?: string };
 type ApiVideoResponse = VideoResponse | ApiVideoEnvelope;
 export type VideoGenerationResult = { id: string; url: string; durationMs: number; width: number; height: number; bytes: number; mimeType: string; task: VideoResponse };
 type LocalVideoTranslationSnapshot = { match:MatchedTranslation; input:TranslationInput; baseUrl:string; protocol:AiConfig["localChannels"][number]["protocol"]; taskIds:string[]; completed:Record<string,TranslationResult> };
 export type CreatedVideoGenerationTask = { task: VideoResponse; pollId: string; startedAt: number; requestBody: unknown };
 export type VideoProgressHandler = (progress: number, task: VideoResponse) => void;
-export type VideoTaskCreateOptions = { signal?: AbortSignal; onServerTask?: () => void; clientTaskId?: string; source?: "video-workbench" | "canvas"; sourceId?: string; upyunReferenceKeys?: string[] };
+export type VideoTaskCreateOptions = { signal?: AbortSignal; onServerTask?: () => void; onRequest?: (body: string) => Promise<void>; clientTaskId?: string; source?: "video-workbench" | "canvas"; sourceId?: string; upyunReferenceKeys?: string[]; draftTaskId?: string };
 export const VIDEO_POLL_INTERVAL_MS = 5000;
 
 export class VideoRequestError extends Error {
@@ -119,14 +119,18 @@ export async function requestVideoGeneration(config: AiConfig, prompt: string, r
 export async function createVideoGenerationTask(config: AiConfig, prompt: string, references: ReferenceImage[] | VideoReferenceInput = [], onProgress?: VideoProgressHandler, options?: string | VideoTaskCreateOptions): Promise<CreatedVideoGenerationTask> {
     const model = config.model || config.videoModel;
     const systemPrompt = (config.systemPrompts.video || config.systemPrompt).trim();
-    const translation = await findParameterTranslation({...config,model});
     const createOptions = normalizeVideoTaskCreateOptions(options);
     createOptions.upyunReferenceKeys ||= [];
+    const draft = !createOptions.draftTaskId && config.videoMode === "draft" && (modelKey(model).includes("seedance-2-5") || modelKey(model).includes("seedance2-5") || modelKey(model).includes("sd2-5"));
+    if (config.videoMode === "draft" && !draft) config = { ...config, videoMode: "std" };
+    const draftBody = createOptions.draftTaskId
+        ? { model, draft_task_id: createOptions.draftTaskId, resolution_name: "1080p", seconds: config.videoSeconds, video_watermark: boolConfig(config.videoWatermark, false) }
+        : undefined;
+    const translation = await findParameterTranslation({...config,model});
     if (translation) {
         try {
             const created = await createTranslatedVideoTask({...config,model},translation,systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt,normalizeVideoReferenceInput(references),createOptions,onProgress);
-            created.task.upyunReferenceKeys = createOptions.upyunReferenceKeys;
-            return created;
+            return { ...created, task: { ...created.task, draft, draft_task_id: draft ? created.task.draft_task_id || created.task.translationSnapshot?.taskIds[0] : undefined, upyunReferenceKeys: createOptions.upyunReferenceKeys } };
         } catch (error) {
             await cleanupUpyunReferences(createOptions.upyunReferenceKeys);
             throw error;
@@ -134,7 +138,16 @@ export async function createVideoGenerationTask(config: AiConfig, prompt: string
     }
     let body: Awaited<ReturnType<typeof createVideoRequestBody>>;
     try {
-        body = await createVideoRequestBody(config, model, systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt, normalizeVideoReferenceInput(references), createOptions.upyunReferenceKeys, createOptions.signal);
+        body = draftBody || await createVideoRequestBody(config, model, systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt, normalizeVideoReferenceInput(references), createOptions.upyunReferenceKeys, createOptions.signal);
+        if (draft) {
+            if (body instanceof FormData) {
+                body.set("draft", "true");
+                body.set("resolution_name", "480p");
+            } else {
+                Object.assign(body, { draft: true, resolution_name: "480p" });
+            }
+        }
+        await createOptions.onRequest?.(stringifyVideoRequestBody(body));
     } catch (error) {
         await cleanupUpyunReferences(createOptions.upyunReferenceKeys);
         throw error;
@@ -161,8 +174,7 @@ export async function createVideoGenerationTask(config: AiConfig, prompt: string
             : unwrapVideoResponseForConfig(config, model, (await axios.post<ApiVideoResponse>(createUrl, requestBody, { headers, signal: accountProxy ? undefined : createOptions.signal })).data);
         if (!created.id && !created.video_id) throw new Error("视频接口没有返回任务 ID");
         refreshRemoteUser(config);
-        const task = await syncGeneratedVideo(created, config);
-        task.upyunReferenceKeys = createOptions.upyunReferenceKeys;
+        const task = { ...await syncGeneratedVideo(created, config), draft, draft_task_id: draft ? created.task_id || created.id : undefined, upyunReferenceKeys: createOptions.upyunReferenceKeys };
         if (typeof task.progress === "number") onProgress?.(task.progress, task);
         return { task, pollId: videoPollId(model, task), startedAt, requestBody: body };
     } catch (error) {
@@ -199,6 +211,7 @@ async function createTranslatedVideoTask(config: AiConfig, match: MatchedTransla
             resolution: config.vquality,
             seconds: Number(config.videoSeconds),
             mode: config.videoMode,
+            draftTaskId: options.draftTaskId || "",
             negativePrompt: config.videoNegativePrompt,
             generateAudio: boolConfig(config.videoGenerateAudio, true),
             watermark: boolConfig(config.videoWatermark, false),
@@ -209,6 +222,7 @@ async function createTranslatedVideoTask(config: AiConfig, match: MatchedTransla
             lastFrame: references.lastFrame ? await imageURL(references.lastFrame) : "",
         },
     };
+    await options.onRequest?.(stringifyVideoRequestBody(translationBody(config, input)));
     const startedAt = Date.now();
     let task: VideoResponse;
     try {
@@ -438,7 +452,7 @@ async function createGrok2APIVideoRequestBody(config: AiConfig, model: string, p
     const aspectRatio = normalizeSeedanceRatio(config.size);
     if (aspectRatio !== "adaptive") body.aspect_ratio = aspectRatio;
 
-    const urls = await Promise.all(input.references.map((reference) => imageToDataUrl(reference)));
+    const urls = await Promise.all(input.references.map(imageToAgnesReference));
     if (urls.length === 1) body.image = { url: urls[0] };
     else if (urls.length > 1) body.reference_images = urls.map((url) => ({ url }));
 
@@ -554,11 +568,9 @@ async function createVideoRequestBody(config: AiConfig, model: string, prompt: s
         body.append("mode", normalizeAPIMartKlingMotionControlMode(config.vquality));
     } else {
         if (!kieMotionControl && !isGeminiOmniFlashVideoModel(model)) {
-            const seconds = apimartWan3 && config.videoSeconds.trim() === "-1"
-                ? "-1"
-                : isSeedanceVideoConfig(config)
-                    ? String(normalizeSeedanceDuration(config.videoSeconds, (modelKey(model).includes("seedance-2-5") || modelKey(model).includes("seedance2-5") || modelKey(model).includes("sd2-5")) ? 30 : 15))
-                    : normalizeVideoSecondsForModel(model, config.videoSeconds);
+            const seconds = isSeedanceVideoConfig(config)
+                ? String(normalizeSeedanceDuration(config.videoSeconds, (modelKey(model).includes("seedance-2-5") || modelKey(model).includes("seedance2-5") || modelKey(model).includes("sd2-5")) ? 30 : 15))
+                : normalizeVideoSecondsForModel(model, config.videoSeconds);
             body.append("seconds", seconds);
         }
         if (tokenDance || isSeedanceVideoConfig(config)) body.append("size", normalizeSeedanceRatio(config.size));
@@ -906,16 +918,10 @@ function isGeminiOmniFlashVideoModel(model: string) {
 }
 
 function normalizeVideoSecondsForModel(model: string, value: string) {
+    const options = videoDurationOptionsForModel(model);
+    if (options?.includes(-1) && value.trim() === "-1") return "-1";
     const seconds = Number(normalizeVideoSeconds(value));
-    const key = modelKey(model);
-    if (key.includes("sora-2")) return closestAllowedSeconds(seconds, [4, 8, 12, 16, 20]);
-    if (key.includes("veo3-1") || key.includes("veo-3-1")) return closestAllowedSeconds(seconds, [4, 6, 8]);
-    if (key.includes("minimax-hailuo-02")) return closestAllowedSeconds(seconds, [5, 10]);
-    if (key.includes("minimax-hailuo-2-3")) return closestAllowedSeconds(seconds, [6, 10]);
-    if (key.includes("omni-flash-ext")) return closestAllowedSeconds(seconds, [4, 6, 8, 10]);
-    if (key.includes("wan2-5") || key.includes("wan2.5")) return closestAllowedSeconds(seconds, [5, 10]);
-    if (key === "wan2-6") return closestAllowedSeconds(seconds, [5, 10, 15]);
-    return String(seconds);
+    return options ? closestAllowedSeconds(seconds, options) : String(seconds);
 }
 
 function closestAllowedSeconds(seconds: number, allowed: number[]) {
@@ -1115,7 +1121,7 @@ function stringifyVideoRequestBody(value: unknown) {
         if (item instanceof File) files.push({ field: key, name: item.name, size: item.size, type: item.type });
         else fields[key] = [...(fields[key] || []), item];
     });
-    return JSON.stringify({ fields, files }, null, 2);
+    return stringifyLogPayload({ fields, files });
 }
 
 function stringifyLogPayload(value: unknown) {

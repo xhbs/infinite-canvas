@@ -3,6 +3,7 @@ import { persist, type PersistStorage, type StorageValue } from "zustand/middlew
 
 import { nanoid } from "nanoid";
 import { localForageStorage } from "@/lib/localforage-storage";
+import { deleteImagePreviews } from "@/services/image-storage";
 import { listCanvasProjects, saveCanvasProject, syncCanvasProjects } from "@/services/api/canvas-tasks";
 import { fetchUserConfig } from "@/services/api/user-config";
 import { useUserStore } from "@/stores/use-user-store";
@@ -16,7 +17,7 @@ export type CanvasSidePanelState = {
 };
 
 export const DEFAULT_CANVAS_SIDE_PANEL: CanvasSidePanelState = { open: true, width: 280 };
-export const DEFAULT_CANVAS_AGENT_PANEL: CanvasSidePanelState = { open: false, width: 464 };
+export const DEFAULT_CANVAS_AGENT_PANEL: CanvasSidePanelState = { open: false, width: 390 };
 
 export type CanvasProject = {
     id: string;
@@ -350,6 +351,11 @@ export const useCanvasStore = create<CanvasStore>()(
             deleteProjects: (ids) => {
                 cancelProjectSaves(ids);
                 void Promise.all(ids.map(deleteAgentSessions));
+                void deleteImagePreviews(
+                    get().projects
+                        .filter((project) => ids.includes(project.id))
+                        .flatMap((project) => project.nodes.map((node) => `canvas-node:${project.id}:${node.id}`)),
+                );
                 set((state) => ({
                     projects: state.projects.filter(
                         (project) => !ids.includes(project.id),

@@ -1406,7 +1406,7 @@ async function createGeminiImageBody(config: AiConfig, prompt: string, reference
         model: config.model,
         ...(systemPrompt ? { systemInstruction: { parts: [{ text: systemPrompt }] } } : {}),
         contents: [{ role: "user", parts }],
-        generationConfig: { responseModalities: ["TEXT", "IMAGE"], responseFormat: { image } },
+        generationConfig: { responseModalities: ["TEXT", "IMAGE"], imageConfig: image },
     };
 }
 
@@ -1443,6 +1443,7 @@ function parseGeminiImages(payload: Record<string, unknown>) {
         const content = candidate.content && typeof candidate.content === "object" ? candidate.content as Record<string, unknown> : {};
         const parts = Array.isArray(content.parts) ? content.parts as Array<Record<string, unknown>> : [];
         return parts.flatMap((part) => {
+            if (part.thought === true) return [];
             const inlineData = part.inlineData && typeof part.inlineData === "object" ? part.inlineData as Record<string, unknown> : {};
             const data = typeof inlineData.data === "string" ? inlineData.data : "";
             if (!data) return [];
@@ -1533,7 +1534,8 @@ function isAgnesImageModel(model: string) {
 }
 
 function isAgnesImage21Model(model: string) {
-    return model.toLowerCase().replace(/[\s_]+/g, "-") === "agnes-image-2.1-flash";
+    const m = model.toLowerCase().replace(/[\s_]+/g, "-");
+    return m.startsWith("agnes-image-2.1") || m.startsWith("agnes-image-2.5");
 }
 
 function normalizeAgnesImage21Ratio(value: string) {
