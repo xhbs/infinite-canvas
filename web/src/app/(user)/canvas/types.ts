@@ -17,6 +17,7 @@ export enum CanvasNodeType {
     Video = "video",
     Audio = "audio",
     Director = "director",
+    Draft = "draft",
     Group = "group",
 }
 
@@ -30,6 +31,49 @@ export type CameraControlOptions = {
     lens: string;
     focalLength: number;
     aperture: number;
+};
+
+export type CanvasDraftPoint = { x: number; y: number };
+
+export type CanvasDraftElement = {
+    id: string;
+    type: "pencil" | "marker" | "eraser" | "line" | "arrow" | "rectangle" | "ellipse" | "text";
+    x: number;
+    y: number;
+    endX?: number;
+    endY?: number;
+    points?: CanvasDraftPoint[];
+    text?: string;
+    color: string;
+    size: number;
+    opacity: number;
+};
+
+export type CanvasDraftImageLayer = {
+    storageKey: string;
+    name: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    opacity: number;
+};
+
+export type CanvasDraftLayer = {
+    id: string;
+    name: string;
+    visible: boolean;
+    locked: boolean;
+    elements: CanvasDraftElement[];
+    image?: CanvasDraftImageLayer;
+};
+
+export type CanvasDraftDocument = {
+    width: number;
+    height: number;
+    background: "white" | "transparent";
+    completed: boolean;
+    layers: CanvasDraftLayer[];
 };
 
 export type CanvasNodeMetadata = {
@@ -108,6 +152,10 @@ export type CanvasNodeMetadata = {
     videoDraft?: boolean;
     videoDraftTaskId?: string;
     videoTaskVideoId?: string;
+    videoPreparationStage?: import("@/services/api/video").VideoPreparationStage;
+    videoTaskStatus?: string;
+    videoTaskUpyunReferenceKeys?: string[];
+    upstreamVideoUrl?: string;
     videoPollingError?: boolean;
     videoTaskTerminal?: boolean;
     videoTaskTranslation?: import("@/services/api/video").VideoResponse["translationSnapshot"];
@@ -123,7 +171,20 @@ export type CanvasNodeMetadata = {
     panoramaFinalPrompt?: string;
     panoramaProjection?: "equirectangular";
     directorProject?: unknown;
+    draft?: CanvasDraftDocument;
 };
+
+export function canvasVideoTaskStageLabel(metadata?: CanvasNodeMetadata): string {
+    if (metadata?.status === "stopping") return metadata.errorDetails ? "停止失败，请重试停止" : "正在停止";
+    if (metadata?.status === "stopped") return "已停止";
+    if (metadata?.status === "error") return "生成失败";
+    if (metadata?.status === "success") return "已完成";
+    if (metadata?.videoPreparationStage) return { preparing: "正在准备参考素材", uploading: "正在上传参考素材", submitting: "正在提交请求" }[metadata.videoPreparationStage];
+    const status = (metadata?.videoTaskStatus || "").trim().toLowerCase();
+    if (["queued", "queue", "pending"].includes(status)) return "排队中";
+    if (["processing", "running", "in_progress", "in-progress"].includes(status)) return "正在创作";
+    return metadata?.status === "loading" ? "正在查询任务状态" : "待生成";
+}
 
 export type CanvasDirectorPanorama = {
     edgeId: string;
@@ -150,6 +211,7 @@ export type CanvasNodeData = {
     id: string;
     type: CanvasNodeType;
     title: string;
+    titleCustomized?: boolean;
     position: Position;
     width: number;
     height: number;

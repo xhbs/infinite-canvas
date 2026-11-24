@@ -23,6 +23,13 @@ description: 业务接口统一响应结构与前端处理约定
 
 接口连接失败、服务不可达、返回体不是约定 JSON 时，前端按网络或接口异常处理。
 
+## 节点请求日志
+
+- 登录账号使用 `POST /api/v1/ai-logs` 上报浏览器直连请求，`GET /api/v1/ai-logs?nodeId=...&page=1&pageSize=20` 查询当前用户对应节点的日志。后端代理请求和后台轮询直接在服务器记录。
+- 未登录直连复用匿名存储会话：先 `POST /api/anonymous/files/session` 建立 HttpOnly 会话，再通过 `/api/anonymous/files/ai-logs` 的 POST / GET 上报和查询，参数与登录接口一致。归属来自服务器验证的账号或匿名会话，不接受客户端伪造用户 ID。
+- 查询返回 `{ code: 0, data: { items: [...], total: 0 }, msg: "ok" }`。每条记录包含 `nodeId`、`taskId`、`stage`、`endpoint`、`method`、`model`、`channelName`、`status`、`failed`、`startedAt`、`completedAt`、`failedAt`、`durationMs`、`requestBody`、`responseBody`、`error` 等字段，按记录时间倒序排列。
+- 上报请求体上限为 2 MiB；解析或服务器写入失败返回非零业务 `code`。日志上报失败不改变生成结果。图片、视频生成和轮询日志不受“其他直连日志上报”开关控制。
+
 ## AutoDL 渠道
 
 - `POST /api/ai/autodl/workflows` 使用上述业务响应结构。请求为 `{ baseUrl, workflowId? }`，不传上游 API Key；不带工作流 ID 返回列表，带 ID 返回详情。元数据包含 `uuid`、`name`、`kind` 和详情的 `input_rules`，不返回上游内部节点映射。

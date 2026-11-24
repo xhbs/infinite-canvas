@@ -672,7 +672,7 @@ export default function AdminSettingsPage() {
                                 <Card size="small" title="AI 调用日志">
                                     <Row gutter={16}>
                                         <Col xs={24} md={6}>
-                                            <Form.Item name={["private", "aiLog", "localDirectReportEnabled"]} label="本地直连日志上报" valuePropName="checked" extra="关闭后本地直连不上报；云端渠道仍默认记录。">
+                                            <Form.Item name={["private", "aiLog", "localDirectReportEnabled"]} label="其他直连日志上报" valuePropName="checked" extra="图片、视频生成及轮询始终记录到服务器；此开关只控制其他本地直连调用。">
                                                 <Switch />
                                             </Form.Item>
                                         </Col>

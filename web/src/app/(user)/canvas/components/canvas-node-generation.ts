@@ -5,8 +5,7 @@ import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
 import type { VideoElementItem, VideoElementReference, VideoMultiPromptItem } from "@/stores/use-config-store";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../types";
-import { isCanvasImageNodeType } from "../utils/canvas-panorama";
-import { getGenerationResourceNodes } from "../utils/canvas-resource-references";
+import { getGenerationResourceNodes, isCanvasImageReferenceNode } from "../utils/canvas-resource-references";
 
 export type NodeGenerationContext = {
     prompt: string;
@@ -244,7 +243,7 @@ function generationLabel(type: NodeGenerationInput["type"], index: number) {
 }
 
 function readReferenceImage(node: CanvasNodeData): ReferenceImage | null {
-    if (!isCanvasImageNodeType(node.type) || !node.metadata?.content) return null;
+    if (!isCanvasImageReferenceNode(node) || !node.metadata?.content) return null;
     return {
         id: node.id,
         name: `image-${node.id}.png`,

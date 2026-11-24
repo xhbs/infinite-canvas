@@ -3,10 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"net/url"
-	"strings"
 	"time"
 
 	"github.com/tigerowo/infinite-canvas/model"
@@ -15,29 +12,11 @@ import (
 
 type parameterTranslationProgressKey struct{}
 
-func parameterTranslationLog(context aiLogContext, translation *service.ParameterTranslation) aiLogContext {
-	context.OutcomeKnown = true
-	request := translation.Submission
-	if request == nil {
-		return context
-	}
-	context.Method, context.Endpoint = request.Method, request.URL.String()
-	if request.GetBody != nil {
-		reader, err := request.GetBody()
-		if err == nil {
-			body, _ := io.ReadAll(reader)
-			_ = reader.Close()
-			context.RequestBody = summarizeAIRequest(body, request.Header.Get("Content-Type"))
-		}
-	}
-	if key := context.Channel.APIKey; key != "" {
-		encoded, _ := json.Marshal(key)
-		for _, value := range []string{key, string(encoded[1 : len(encoded)-1]), url.QueryEscape(key), url.PathEscape(key)} {
-			context.Endpoint = strings.ReplaceAll(context.Endpoint, value, "[密钥]")
-			context.RequestBody = strings.ReplaceAll(context.RequestBody, value, "[密钥]")
-		}
-	}
-	return context
+func parameterTranslationLogInput(r *http.Request, channel model.ModelChannel, user model.AuthUser, modelName string, credits float64) service.AICallLogInput {
+	input := aiRequestLogAssociation(r)
+	input.UserID, input.UserDisplayName = user.ID, firstNonEmpty(user.DisplayName, user.Username)
+	input.Model, input.ChannelID, input.ChannelName, input.Credits = modelName, channel.ID, channel.Name, credits
+	return input
 }
 
 func serveParameterTranslation(w http.ResponseWriter, r *http.Request, body []byte, path string, channel model.ModelChannel, user model.AuthUser, credits float64, startedAt time.Time) bool {
@@ -74,19 +53,16 @@ func serveParameterTranslation(w http.ResponseWriter, r *http.Request, body []by
 			return true
 		}
 	}
-	logContext := aiLogContext{StartedAt: startedAt, Endpoint: path, Method: http.MethodPost, Model: request.Model, Channel: channel, UserID: user.ID, UserDisplayName: firstNonEmpty(user.DisplayName, user.Username), Credits: credits, RequestBody: summarizeAIRequest(body, "application/json")}
+	logContext := parameterTranslationLogInput(r, channel, user, request.Model, credits)
 	onProgress, _ := r.Context().Value(parameterTranslationProgressKey{}).(func(int))
-	result, err := translation.Execute(r.Context(), input.Kind, onProgress)
-	logContext = parameterTranslationLog(logContext, translation)
+	result, err := translation.Execute(service.WithAICallLog(r.Context(), logContext), input.Kind, onProgress)
 	if err != nil {
 		if credits > 0 && (r.Header.Get("X-Canvas-Node-Request") != "true" || r.Context().Err() == nil) {
 			_ = service.RefundUserCredits(user.ID, request.Model, credits, path)
 		}
-		saveAIProxyLog(logContext, result.StatusCode, result.ResponseBody, err.Error())
 		Fail(w, err.Error())
 		return true
 	}
-	saveAIProxyLog(logContext, result.StatusCode, result.ResponseBody, "")
 	if len(result.Body) > 0 {
 		w.Header().Set("Content-Type", result.ContentType)
 		_, _ = w.Write(result.Body)
@@ -136,9 +112,8 @@ func serveParameterTranslationVideo(w http.ResponseWriter, r *http.Request, body
 			return true
 		}
 	}
-	logContext := aiLogContext{StartedAt: startedAt, Endpoint: "/videos", Method: http.MethodPost, Model: request.Model, Channel: channel, UserID: user.ID, UserDisplayName: firstNonEmpty(user.DisplayName, user.Username), Credits: credits, RequestBody: summarizeAIRequest(body, "application/json")}
-	result, err := translation.Send(r.Context(), "video", false, "")
-	logContext = parameterTranslationLog(logContext, translation)
+	logContext := parameterTranslationLogInput(r, channel, user, request.Model, credits)
+	result, err := translation.Send(service.WithAICallLog(r.Context(), logContext), "video", false, "")
 	if err != nil {
 		if id := readClientVideoTaskID(r); id != "" {
 			if task, found, _ := service.GetUserVideoTask(user.ID, id); found && task.Status == "cancelled" {
@@ -149,7 +124,6 @@ func serveParameterTranslationVideo(w http.ResponseWriter, r *http.Request, body
 		if credits > 0 {
 			refundVideoCredits(user.ID, request.Model, credits, "/videos")
 		}
-		saveAIProxyLog(logContext, result.StatusCode, result.ResponseBody, err.Error())
 		Fail(w, err.Error())
 		return true
 	}
@@ -178,7 +152,6 @@ func serveParameterTranslationVideo(w http.ResponseWriter, r *http.Request, body
 		Fail(w, "视频任务保存失败")
 		return true
 	}
-	saveAIProxyLog(logContext, result.StatusCode, result.ResponseBody, "")
 	if len(result.Body) > 0 {
 		w.Header().Set("Content-Type", result.ContentType)
 		_, _ = w.Write(result.Body)

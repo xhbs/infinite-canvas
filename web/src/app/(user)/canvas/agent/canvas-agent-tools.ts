@@ -97,7 +97,7 @@ function defineTool(name: CanvasAgentActionName, description: string, properties
     };
 }
 
-export const CANVAS_AGENT_SKILL_FILE_TOOL = defineTool("read_skill_file", "按相对路径读取当前激活系统 Skill 的附属 Markdown 或文本文件。仅当 SKILL.md 明确引用附属文件时使用。", { skillId: STRING, path: STRING }, ["skillId", "path"]);
+export const CANVAS_AGENT_SKILL_FILE_TOOL = defineTool("read_skill_file", "按相对路径读取当前激活系统 Skill 的附属 Markdown 或文本文件。仅当 SKILL.md 明确引用附属文件时使用。skillId 必须照抄提示词【完整 Skill N】括号里标注的系统 Skill ID，不要按名称推断。", { skillId: STRING, path: STRING }, ["skillId", "path"]);
 
 export const CANVAS_AGENT_TOOLS: CanvasAgentToolDefinition[] = [
     defineTool("get_canvas_summary", "读取当前画布摘要、节点、连线、模型配置和任务状态。"),

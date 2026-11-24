@@ -46,14 +46,15 @@ export function isUpyunReferenceStorageReady(config: UpyunReferenceStorage) {
     }
 }
 
-export async function uploadUpyunReferenceImage(blob: Blob, fileName: string, signal?: AbortSignal): Promise<UpyunReferenceObject> {
+export async function uploadUpyunReferenceFile(blob: Blob, fileName: string, signal?: AbortSignal): Promise<UpyunReferenceObject> {
     const config = loadUpyunReferenceStorage();
     if (!isUpyunReferenceStorageReady(config)) throw new Error("请先在配置中填写并启用又拍云参考图存储");
     const { token, user } = useUserStore.getState();
     if (!token || !user?.id) throw new Error("使用又拍云上传前请先登录画布");
-    if (blob.size <= 0 || blob.size > 50 * 1024 * 1024) throw new Error("参考图片必须大于 0 且不超过 50 MB");
+    const maxMB = blob.type.startsWith("video/") ? 200 : 50;
+    if (blob.size <= 0 || blob.size > maxMB * 1024 * 1024) throw new Error(`参考素材必须大于 0 且不超过 ${maxMB} MB`);
 
-    const extension = (fileName.match(/\.([a-zA-Z0-9]{1,8})$/)?.[1] || "png").toLowerCase();
+    const extension = (fileName.match(/\.([a-zA-Z0-9]{1,8})$/)?.[1] || (blob.type.startsWith("video/") ? "mp4" : "png")).toLowerCase();
     const date = new Date();
     const objectKey = `canvas-reference/${user.id}/${date.getUTCFullYear()}/${String(date.getUTCMonth() + 1).padStart(2, "0")}/${nanoid()}.${extension}`;
     const form = new FormData();
@@ -62,7 +63,7 @@ export async function uploadUpyunReferenceImage(blob: Blob, fileName: string, si
     form.append("bucket", config.bucket.trim());
     form.append("publicBaseUrl", config.publicBaseUrl.trim());
     form.append("objectKey", objectKey);
-    form.append("file", blob, fileName || "reference.png");
+    form.append("file", blob, fileName || `reference.${extension}`);
 
     let response: Response;
     try {
@@ -83,15 +84,15 @@ export async function uploadUpyunReferenceImage(blob: Blob, fileName: string, si
     return payload.data;
 }
 
-export async function deleteUpyunReferenceImage(objectKey: string) {
+export async function deleteUpyunReferenceFile(objectKey: string) {
     const config = loadUpyunReferenceStorage();
     const { token } = useUserStore.getState();
-    if (!token || !config.operator.trim() || !config.password.trim() || !config.bucket.trim()) throw new Error("又拍云配置或登录状态不可用，暂时无法清理参考图");
+    if (!token || !config.operator.trim() || !config.password.trim() || !config.bucket.trim()) throw new Error("又拍云配置或登录状态不可用，暂时无法清理参考素材");
     const response = await fetch("/api/v1/storage/upyun-reference-upload", {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ operator: config.operator.trim(), password: config.password, bucket: config.bucket.trim(), objectKey }),
     });
     const payload = await response.json().catch(() => null) as ApiEnvelope<boolean> | null;
-    if (!response.ok || payload?.code !== 0) throw new Error(payload?.msg || `又拍云参考图清理失败（HTTP ${response.status}）`);
+    if (!response.ok || payload?.code !== 0) throw new Error(payload?.msg || `又拍云参考素材清理失败（HTTP ${response.status}）`);
 }

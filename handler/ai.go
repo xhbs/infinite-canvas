@@ -131,7 +131,8 @@ func proxyAIGetRequest(w http.ResponseWriter, r *http.Request, path string) {
 	if method == http.MethodPost {
 		request.Header.Set("Content-Type", "application/json")
 	}
-	copyAIResponse(w, request, channel, aiLogContext{StartedAt: startedAt, Endpoint: path, Method: method, Model: modelName, Channel: channel, UserID: user.ID, UserDisplayName: firstNonEmpty(user.DisplayName, user.Username), RequestBody: summarizeQueryParams(r.URL.Query())}, nil)
+	association := aiRequestLogAssociation(r)
+	copyAIResponse(w, request, channel, aiLogContext{StartedAt: startedAt, Endpoint: path, Method: method, Model: modelName, Channel: channel, UserID: user.ID, UserDisplayName: firstNonEmpty(user.DisplayName, user.Username), RequestBody: summarizeQueryParams(r.URL.Query()), NodeID: association.NodeID, TaskID: association.TaskID, Stage: "poll"}, nil)
 }
 
 func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
@@ -204,6 +205,7 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 			return
 		}
 	}
+	association := aiRequestLogAssociation(r)
 	copyAIResponse(w, request, channel, aiLogContext{
 		StartedAt:       startedAt,
 		Endpoint:        path,
@@ -214,6 +216,9 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 		UserDisplayName: firstNonEmpty(user.DisplayName, user.Username),
 		Credits:         credits,
 		RequestBody:     summarizeAIRequest(body, contentType),
+		NodeID:          association.NodeID,
+		TaskID:          association.TaskID,
+		Stage:           "create",
 	}, func() {
 		if credits > 0 && ctx.Err() == nil {
 			if err := service.RefundUserCredits(user.ID, modelName, credits, upstreamPath); err != nil {
@@ -241,9 +246,40 @@ type aiLogContext struct {
 	Credits         float64
 	RequestBody     string
 	OutcomeKnown    bool
+	NodeID          string
+	TaskID          string
+	Stage           string
+	URL             string
+	RawResponseBody *string
+	DurationMs      *int64
+	Recorded        bool
+}
+
+func aiRequestLogAssociation(r *http.Request) service.AICallLogInput {
+	input := service.AICallLogFromContext(r.Context())
+	input.NodeID = firstNonEmpty(input.NodeID, r.Header.Get("X-AI-Node-ID"), r.Header.Get("X-Canvas-Node-ID"))
+	input.TaskID = firstNonEmpty(input.TaskID, r.Header.Get("X-AI-Task-ID"), readClientVideoTaskID(r))
+	if input.NodeID == "" && readVideoTaskSource(r) == "canvas" {
+		input.NodeID = readVideoTaskSourceID(r)
+	}
+	return input
+}
+
+func aiPollLogContext(request *http.Request, channel model.ModelChannel, contexts []aiLogContext) aiLogContext {
+	context := aiLogContext{Channel: channel}
+	if len(contexts) > 0 {
+		context = contexts[0]
+	}
+	context.StartedAt, context.URL, context.Method = time.Now(), request.URL.String(), request.Method
+	context.Stage, context.Credits, context.OutcomeKnown = "poll", 0, true
+	context.RequestBody = summarizeQueryParams(request.URL.Query())
+	context.RawResponseBody, context.DurationMs, context.Recorded = nil, nil, false
+	return context
 }
 
 func copyAIResponse(w http.ResponseWriter, request *http.Request, channel model.ModelChannel, logContext aiLogContext, onFailure func()) {
+	logContext.StartedAt, logContext.URL = time.Now(), request.URL.String()
+	logContext.OutcomeKnown = true
 	response, err := service.HTTPClientForChannel(channel).Do(request)
 	if err != nil {
 		log.Printf("AI proxy request failed: url=%s err=%v", request.URL.String(), err)
@@ -255,6 +291,28 @@ func copyAIResponse(w http.ResponseWriter, request *http.Request, channel model.
 		return
 	}
 	defer response.Body.Close()
+	contentType := strings.ToLower(response.Header.Get("Content-Type"))
+	if !strings.Contains(contentType, "event-stream") && !strings.HasPrefix(contentType, "video/") && !strings.HasPrefix(contentType, "audio/") && !strings.HasPrefix(contentType, "image/") && !strings.Contains(contentType, "octet-stream") {
+		payload, readErr := io.ReadAll(response.Body)
+		raw := string(payload)
+		if contentType == "" {
+			contentType = strings.ToLower(http.DetectContentType(payload))
+			if strings.HasPrefix(contentType, "image/") || strings.HasPrefix(contentType, "audio/") || strings.HasPrefix(contentType, "video/") || strings.Contains(contentType, "octet-stream") {
+				raw = fmt.Sprintf("[binary media response: %s, %d bytes]", contentType, len(payload))
+			}
+		}
+		duration := time.Since(logContext.StartedAt).Milliseconds()
+		logContext.RawResponseBody, logContext.DurationMs = &raw, &duration
+		response.Body = io.NopCloser(bytes.NewReader(payload))
+		if readErr != nil {
+			if onFailure != nil {
+				onFailure()
+			}
+			saveAIProxyLog(logContext, response.StatusCode, raw, readErr.Error())
+			Fail(w, "AI 接口响应读取失败")
+			return
+		}
+	}
 
 	if response.StatusCode >= http.StatusBadRequest {
 		payload, _ := io.ReadAll(io.LimitReader(response.Body, 256*1024))
@@ -284,63 +342,89 @@ func copyAIResponse(w http.ResponseWriter, request *http.Request, channel model.
 		}
 	}
 	w.WriteHeader(response.StatusCode)
-	responseBody := copyAIResponseBody(w, response.Body, !strings.HasPrefix(strings.ToLower(response.Header.Get("Content-Type")), "video/"))
-	saveAIProxyLog(logContext, response.StatusCode, responseBody, "")
+	capture := !strings.HasPrefix(contentType, "video/") && !strings.HasPrefix(contentType, "audio/") && !strings.HasPrefix(contentType, "image/") && !strings.Contains(contentType, "octet-stream")
+	responseBody, copyErr := copyAIResponseBody(w, response.Body, capture)
+	if !capture {
+		responseBody = "[binary media response: " + contentType + "]"
+	}
+	message := ""
+	if copyErr != nil {
+		message = copyErr.Error()
+	} else if capture && !strings.Contains(contentType, "event-stream") {
+		message = readProviderPayloadError([]byte(responseBody))
+		if message == "" {
+			var payload map[string]any
+			if json.Unmarshal([]byte(responseBody), &payload) == nil {
+				message = readStringPath(payload, "error.message")
+				if text, ok := payload["error"].(string); ok {
+					message = text
+				}
+			}
+		}
+	}
+	saveAIProxyLog(logContext, response.StatusCode, responseBody, message)
 }
 
-func copyAIResponseBody(w http.ResponseWriter, body io.Reader, capture bool) string {
+func copyAIResponseBody(w http.ResponseWriter, body io.Reader, capture bool) (string, error) {
 	flusher, canFlush := w.(http.Flusher)
 	buffer := make([]byte, 32*1024)
 	var logBuffer strings.Builder
 	for {
 		n, err := body.Read(buffer)
 		if n > 0 {
-			if _, writeErr := w.Write(buffer[:n]); writeErr != nil {
-				return logBuffer.String()
+			if capture && logBuffer.Len() < 256*1024 {
+				_, _ = logBuffer.Write(buffer[:min(n, 256*1024-logBuffer.Len())])
 			}
-			if capture && logBuffer.Len() < 64*1024 {
-				_, _ = logBuffer.Write(buffer[:min(n, 64*1024-logBuffer.Len())])
+			if _, writeErr := w.Write(buffer[:n]); writeErr != nil {
+				return logBuffer.String(), writeErr
 			}
 			if canFlush {
 				flusher.Flush()
 			}
 		}
 		if err != nil {
-			return logBuffer.String()
+			if err == io.EOF {
+				err = nil
+			}
+			return logBuffer.String(), err
 		}
 	}
 }
 
 func saveAIProxyLog(context aiLogContext, status int, responseBody string, errorMessage string) {
-	if strings.HasPrefix(context.Endpoint, "/videos") {
+	if context.Recorded {
 		return
 	}
 	if context.StartedAt.IsZero() {
 		context.StartedAt = time.Now()
 	}
-	if service.IsGeminiChannel(context.Channel) {
-		if context.Endpoint == "/images/generations" || context.Endpoint == "/images/edits" || context.Endpoint == "/audio/speech" {
-			responseBody = "[redacted Gemini media response]"
-		} else if strings.TrimSpace(responseBody) != "" {
-			responseBody = summarizeAIRequest([]byte(responseBody), "application/json")
-		}
+	if context.RawResponseBody != nil {
+		responseBody = *context.RawResponseBody
 	}
-	service.SaveAICallLog(service.AICallLogInput{
+	duration := time.Since(context.StartedAt).Milliseconds()
+	if context.DurationMs != nil {
+		duration = *context.DurationMs
+	}
+	service.SaveUpstreamAICallLog(service.AICallLogInput{
 		UserID:          context.UserID,
 		UserDisplayName: context.UserDisplayName,
-		Endpoint:        context.Endpoint,
+		Endpoint:        firstNonEmpty(context.URL, context.Endpoint),
 		Method:          context.Method,
 		Model:           context.Model,
 		ChannelID:       context.Channel.ID,
 		ChannelName:     context.Channel.Name,
 		Status:          status,
-		DurationMs:      time.Since(context.StartedAt).Milliseconds(),
+		DurationMs:      duration,
+		StartedAt:       context.StartedAt.UTC().Format(time.RFC3339Nano),
+		NodeID:          context.NodeID,
+		TaskID:          context.TaskID,
+		Stage:           context.Stage,
 		Credits:         context.Credits,
 		RequestBody:     context.RequestBody,
 		ResponseBody:    responseBody,
 		Error:           errorMessage,
 		OutcomeKnown:    context.OutcomeKnown,
-	})
+	}, context.Channel.APIKey)
 }
 
 func firstNonEmpty(values ...string) string {

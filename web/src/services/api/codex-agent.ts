@@ -31,6 +31,24 @@ export async function readCodexAgentConfig(endpoint: string): Promise<{ url: str
     if (!response.ok) throw new Error(result.error || "无法读取本地 Agent 状态");
     return result;
 }
+
+export async function discoverCodexAgentConnection(): Promise<CodexConnection | null> {
+    const endpoints = Array.from({ length: 10 }, (_, index) => `http://127.0.0.1:${3211 + index}`);
+    const results = await Promise.all(endpoints.map(async (endpoint) => {
+        try {
+            const response = await fetch(endpoint + "/bootstrap", {
+                signal: AbortSignal.timeout(800),
+            });
+            if (!response.ok) return null;
+            const result = await response.json();
+            if (result.standalone !== true) return null;
+            if (typeof result.token !== "string" || result.token.length < 16) return null;
+            const discoveredEndpoint = normalizeCodexEndpoint(result.url);
+            return discoveredEndpoint === endpoint ? { endpoint, token: result.token } : null;
+        } catch { return null; }
+    }));
+    return results.find((connection) => connection !== null) || null;
+}
 export function createCodexAgentClient(
     connection: CodexConnection,
     canvasId: string,

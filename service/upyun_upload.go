@@ -37,7 +37,7 @@ type UpyunReferenceObject struct {
 
 var upyunBucketPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
 
-// UploadUpyunReference sends the image from the local canvas server to Upyun
+// UploadUpyunReference sends the file from the local canvas server to Upyun
 // using the operator REST API credentials supplied for this one request.
 func UploadUpyunReference(ctx context.Context, input UpyunReferenceUploadInput) (UpyunReferenceObject, error) {
 	user, ok := UserFromContext(ctx)
@@ -55,8 +55,12 @@ func UploadUpyunReference(ctx context.Context, input UpyunReferenceUploadInput) 
 	if err != nil || parsedPublicURL.Host == "" || parsedPublicURL.Scheme != "https" || parsedPublicURL.User != nil || parsedPublicURL.RawQuery != "" || parsedPublicURL.Fragment != "" {
 		return UpyunReferenceObject{}, errors.New("又拍云公开访问地址必须是有效的 HTTPS 地址")
 	}
-	if input.Size <= 0 || input.Size > 50*1024*1024 || input.Body == nil {
-		return UpyunReferenceObject{}, errors.New("参考图片必须大于 0 且不超过 50 MB")
+	maxMB := int64(50)
+	if strings.HasPrefix(input.MimeType, "video/") {
+		maxMB = 200
+	}
+	if input.Size <= 0 || input.Size > maxMB*1024*1024 || input.Body == nil {
+		return UpyunReferenceObject{}, fmt.Errorf("参考素材必须大于 0 且不超过 %d MB", maxMB)
 	}
 	if strings.TrimSpace(input.MimeType) == "" {
 		input.MimeType = "application/octet-stream"
@@ -97,7 +101,7 @@ func UploadUpyunReference(ctx context.Context, input UpyunReferenceUploadInput) 
 func DeleteUpyunReference(ctx context.Context, operator, password, bucket, objectKey string) error {
 	user, ok := UserFromContext(ctx)
 	if !ok || user.ID == "" || user.Role == model.UserRoleGuest {
-		return errors.New("请先登录后删除又拍云参考图")
+		return errors.New("请先登录后删除又拍云参考素材")
 	}
 	operator, bucket = strings.TrimSpace(operator), strings.TrimSpace(bucket)
 	key := strings.Trim(strings.TrimSpace(objectKey), "/")
@@ -122,14 +126,14 @@ func DeleteUpyunReference(ctx context.Context, operator, password, bucket, objec
 	request.Header.Set("Authorization", upyunAuthorization(operator, password, http.MethodDelete, uri, date))
 	response, err := (&http.Client{Timeout: 30 * time.Second}).Do(request)
 	if err != nil {
-		return errors.New("连接又拍云失败，参考图稍后可重试清理")
+		return errors.New("连接又拍云失败，参考素材稍后可重试清理")
 	}
 	defer response.Body.Close()
 	if response.StatusCode == http.StatusNotFound || response.StatusCode == http.StatusOK || response.StatusCode == http.StatusNoContent {
 		return nil
 	}
 	detail, _ := io.ReadAll(io.LimitReader(response.Body, 1024))
-	return fmt.Errorf("删除又拍云参考图失败（HTTP %d）%s", response.StatusCode, strings.TrimSpace(string(detail)))
+	return fmt.Errorf("删除又拍云参考素材失败（HTTP %d）%s", response.StatusCode, strings.TrimSpace(string(detail)))
 }
 
 func upyunAuthorization(operator, password, method, uri, date string) string {

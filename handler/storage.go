@@ -3,9 +3,12 @@ package handler
 import (
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/tigerowo/infinite-canvas/model"
 	"github.com/tigerowo/infinite-canvas/service"
@@ -55,12 +58,15 @@ func MeasureUserStorageProvider(w http.ResponseWriter, r *http.Request) {
 	OK(w, result)
 }
 
-// UploadUpyunReference uploads one reference image from the local server to Upyun.
+// UploadUpyunReference uploads one reference file from the local server to Upyun.
 func UploadUpyunReference(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, 51*1024*1024)
+	r.Body = http.MaxBytesReader(w, r.Body, 201*1024*1024)
 	file, header, err := r.FormFile("file")
+	if r.MultipartForm != nil {
+		defer r.MultipartForm.RemoveAll()
+	}
 	if err != nil {
-		Fail(w, "请选择要上传的参考图片（最大 50 MB）")
+		Fail(w, "请选择要上传的参考素材（图片最大 50 MB，视频最大 200 MB）")
 		return
 	}
 	defer file.Close()
@@ -81,7 +87,7 @@ func UploadUpyunReference(w http.ResponseWriter, r *http.Request) {
 	OK(w, object)
 }
 
-// DeleteUpyunReference removes one temporary reference image from Upyun.
+// DeleteUpyunReference removes one temporary reference file from Upyun.
 func DeleteUpyunReference(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		Operator string `json:"operator"`
@@ -247,9 +253,21 @@ func ProxyImage(w http.ResponseWriter, r *http.Request) {
 		Fail(w, "无效的 url")
 		return
 	}
-	client := service.SafeProxyHTTPClient()
+	startedAt := time.Now()
+	targetHost := "unknown"
+	if parsedURL, err := url.Parse(targetURL); err == nil {
+		targetHost = parsedURL.Hostname()
+	}
+	log.Printf("proxy image started: host=%s", targetHost)
+	client, err := service.ImageProxyHTTPClient()
+	if err != nil {
+		log.Printf("proxy image client setup failed")
+		FailWithStatus(w, http.StatusInternalServerError, "图片代理配置无效")
+		return
+	}
 	req, err := http.NewRequest(http.MethodGet, targetURL, nil)
 	if err != nil {
+		log.Printf("proxy image request build failed: host=%s elapsed=%s err=%v", targetHost, time.Since(startedAt), err)
 		FailError(w, err)
 		return
 	}
@@ -261,23 +279,30 @@ func ProxyImage(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := client.Do(req)
 	if err != nil {
+		log.Printf("proxy image upstream request failed: host=%s elapsed=%s err=%v", targetHost, time.Since(startedAt), err)
 		FailWithStatus(w, http.StatusBadGateway, "代理图片请求失败")
 		return
 	}
 	defer resp.Body.Close()
+	upstreamElapsed := time.Since(startedAt)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		log.Printf("proxy image upstream returned error: host=%s status=%d elapsed=%s", targetHost, resp.StatusCode, upstreamElapsed)
 		FailWithStatus(w, http.StatusBadGateway, "代理图片请求失败: "+resp.Status)
 		return
 	}
 	contentType := resp.Header.Get("Content-Type")
 	isImage := strings.HasPrefix(contentType, "image/")
 	var data []byte
+	var bodyElapsed time.Duration
 	if isImage {
+		bodyStartedAt := time.Now()
 		data, err = io.ReadAll(resp.Body)
 		if err != nil {
+			log.Printf("proxy image body read failed: host=%s status=%d upstream_elapsed=%s body_elapsed=%s err=%v", targetHost, resp.StatusCode, upstreamElapsed, time.Since(bodyStartedAt), err)
 			FailWithStatus(w, http.StatusBadGateway, "代理图片请求失败")
 			return
 		}
+		bodyElapsed = time.Since(bodyStartedAt)
 	}
 	if contentType != "" {
 		w.Header().Set("Content-Type", contentType)
@@ -287,7 +312,15 @@ func ProxyImage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	w.WriteHeader(resp.StatusCode)
 	if isImage {
-		_, _ = w.Write(data)
+		writeStartedAt := time.Now()
+		written, writeErr := w.Write(data)
+		log.Printf("proxy image completed: host=%s status=%d bytes=%d upstream_elapsed=%s body_elapsed=%s response_elapsed=%s total_elapsed=%s err=%v", targetHost, resp.StatusCode, len(data), upstreamElapsed, bodyElapsed, time.Since(writeStartedAt), time.Since(startedAt), writeErr)
+		if writeErr != nil {
+			return
+		}
+		if written != len(data) {
+			log.Printf("proxy image response incomplete: host=%s written=%d expected=%d", targetHost, written, len(data))
+		}
 		return
 	}
 	_, _ = io.Copy(w, resp.Body)

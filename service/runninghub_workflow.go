@@ -110,7 +110,7 @@ func runningHubBaseURL(value string) (string, error) {
 	return strings.TrimRight(parsed.String(), "/"), nil
 }
 
-func runningHubRequest(ctx context.Context, endpoint string, payload any, target *map[string]any, capture *AICallLogInput) error {
+func runningHubRequest(ctx context.Context, endpoint string, payload any, target *map[string]any, capture *AICallLogInput) (requestErr error) {
 	ctx, cancel := context.WithTimeout(ctx, 40*time.Second)
 	defer cancel()
 	if capture != nil {
@@ -126,13 +126,30 @@ func runningHubRequest(ctx context.Context, endpoint string, payload any, target
 		if body, ok := payload.(map[string]any); ok {
 			secret, _ = body["apiKey"].(string)
 		}
-		capture.RequestBody = string(workflowLogJSON(string(encoded), secret))
+		capture.RequestBody = string(encoded)
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(encoded))
 	if err != nil {
 		return err
 	}
 	request.Header.Set("Content-Type", "application/json")
+	startedAt := time.Now()
+	defer func() {
+		if capture == nil || capture.UserID == "" {
+			return
+		}
+		capture.StartedAt = startedAt.UTC().Format(time.RFC3339Nano)
+		capture.DurationMs = time.Since(startedAt).Milliseconds()
+		capture.OutcomeKnown, capture.Error = true, ""
+		if requestErr != nil {
+			capture.Error = requestErr.Error()
+		} else if code, valid := runningHubResponseCode(*target); valid && code != 0 {
+			if capture.Stage != "poll" || code == 805 || code == 806 {
+				capture.Error = runningHubResponseMessage(*target)
+			}
+		}
+		SaveUpstreamAICallLog(*capture, secret)
+	}()
 	response, err := SafeProxyHTTPClient().Do(request)
 	if err != nil {
 		return errors.New("上游接口无响应或不可达")
@@ -141,7 +158,7 @@ func runningHubRequest(ctx context.Context, endpoint string, payload any, target
 	data, err := io.ReadAll(io.LimitReader(response.Body, (8<<20)+1))
 	if capture != nil {
 		capture.Status = response.StatusCode
-		capture.ResponseBody = string(workflowLogJSON(string(data), secret))
+		capture.ResponseBody = string(data)
 	}
 	if err != nil || len(data) > 8<<20 {
 		return errors.New("上游参数响应过大或读取失败")

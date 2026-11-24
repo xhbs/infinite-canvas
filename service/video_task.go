@@ -382,9 +382,13 @@ func UpdateVideoTaskFromPoll(task model.VideoTask, update VideoTaskPollUpdate) e
 	}
 	if strings.TrimSpace(update.Error) != "" {
 		task.Error = strings.TrimSpace(update.Error)
+	} else if task.Status == "queued" || task.Status == "processing" {
+		task.Error = ""
 	}
 	if strings.TrimSpace(update.ErrorDetail) != "" {
 		task.ErrorDetail = strings.TrimSpace(update.ErrorDetail)
+	} else if task.Status == "queued" || task.Status == "processing" {
+		task.ErrorDetail = ""
 	}
 	if update.ResponseBody != "" {
 		task.LastResponse = update.ResponseBody
@@ -400,6 +404,8 @@ func UpdateVideoTaskFromPoll(task model.VideoTask, update VideoTaskPollUpdate) e
 	} else if task.Error != "" || IsFailedVideoTaskStatus(task.Status) {
 		task.Status = "failed"
 		task.CompletedAt = videoTaskTime(time.Now())
+	} else if task.Status == "queued" || task.Status == "processing" {
+		task.CompletedAt = ""
 	}
 	if task.Status == "failed" {
 		extra, _ := json.Marshal(map[string]string{"model": task.Model, "path": "/videos"})

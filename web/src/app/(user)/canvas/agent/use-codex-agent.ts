@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-    createCodexAgentClient, normalizeCodexEndpoint, readCodexAgentConfig, type CodexConnection, type CodexModel, type CodexRpcEvent, type CodexToolEvent,
+    createCodexAgentClient, discoverCodexAgentConnection, normalizeCodexEndpoint, readCodexAgentConfig, type CodexConnection, type CodexModel, type CodexRpcEvent, type CodexToolEvent,
 } from "@/services/api/codex-agent";
 import { canvasAgentSystemPrompt } from "@/services/api/canvas-agent";
 import type { CanvasAgentState } from "../types";
@@ -24,9 +24,17 @@ type ActiveRun = {
     finish: (error?: Error) => void;
 };
 const CONNECTION_KEY = "canvas-codex-connection";
-const defaultConnection = { endpoint: "http://127.0.0.1:3210", token: "" };
+const defaultConnection = { endpoint: "http://127.0.0.1:3211", token: "" };
 const agentTools = [...CANVAS_AGENT_TOOLS, CANVAS_AGENT_SKILL_FILE_TOOL].map(({ function: tool }) => ({ name: tool.name, description: tool.description, inputSchema: tool.parameters }));
 const stopped = () => new DOMException("Agent 已停止", "AbortError");
+
+export type UseCodexAgent = ReturnType<typeof useCodexAgent>;
+
+/**
+ * 让审批界面可以由外部（例如当前挂载的 Agent 面板）接管：
+ * 面板挂载时注册自己的交互式审批，收起后自动退回内置的默认拒绝策略。
+ */
+export type CodexApprovalHandler = (request: { method: string; params: Record<string, unknown> }, signal: AbortSignal) => Promise<unknown>;
 
 export function useCodexAgent(options: {
     canvasId: string;
@@ -39,13 +47,18 @@ export function useCodexAgent(options: {
     const [status, setStatus] = useState<"idle" | "connecting" | "ready" | "error">("idle");
     const [error, setError] = useState("");
     const [retry, setRetry] = useState(0);
-    const [enabled, setEnabled] = useState(true);
+    const [enabled, setEnabled] = useState(false);
     const connectionAttempt = useRef(0);
     const client = useRef<Client | null>(null);
     const active = useRef<ActiveRun | null>(null);
     const dispatch = useRef<((event: CodexRpcEvent) => void) | null>(null);
+    const approvalHandler = useRef<CodexApprovalHandler | null>(null);
     const latest = useRef(options);
     latest.current = options;
+    const handleApproval: CodexApprovalHandler = (request, signal) =>
+        approvalHandler.current
+            ? approvalHandler.current(request, signal)
+            : latest.current.onApproval(request as CodexRpcEvent, signal);
     const disconnect = () => {
         connectionAttempt.current += 1;
         active.current?.finish(stopped());
@@ -80,29 +93,42 @@ export function useCodexAgent(options: {
         }
     };
     useEffect(() => {
+        let mounted = true;
+        let stored: CodexConnection | null = null;
         try {
-            const stored = JSON.parse(localStorage.getItem(CONNECTION_KEY) || "null");
-            if (stored && typeof stored.endpoint === "string" && typeof stored.token === "string") setConnectionState(stored);
+            const value = JSON.parse(localStorage.getItem(CONNECTION_KEY) || "null");
+            if (value && typeof value.endpoint === "string" && typeof value.token === "string") {
+                stored = value;
+                setConnectionState(value);
+            }
         } catch { /* 本地配置不可用时使用默认值 */ }
         const bootstrap = () => {
             const hash = window.location.hash.slice(1);
             const params = new URLSearchParams(hash);
-            if (!params.has("agentUrl") && !params.has("agentToken")) return;
+            if (!params.has("agentUrl") && !params.has("agentToken")) return false;
             const remaining = hash.split("&").filter((part) => !["agentUrl", "agentToken"].includes(new URLSearchParams(part).keys().next().value || "")).join("&");
             window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search + (remaining ? "#" + remaining : ""));
             if (!params.get("agentUrl") || !params.get("agentToken")?.trim()) {
                 disconnect();
                 setError("自动连接链接缺少地址或 Token，请重新通过插件连接");
                 setStatus("error");
-                return;
+                return true;
             }
             void connect({ endpoint: params.get("agentUrl")!, token: params.get("agentToken")! }).then((connected) => {
                 if (connected) latest.current.onBootstrap();
             });
+            return true;
         };
-        bootstrap();
+        const hasHashConnection = bootstrap();
+        if (!hasHashConnection) {
+            void discoverCodexAgentConnection().then((discovered) => {
+                if (!mounted) return;
+                if (discovered) void connect(discovered);
+                else if (stored) void connect(stored);
+            });
+        }
         window.addEventListener("hashchange", bootstrap);
-        return () => { connectionAttempt.current += 1; window.removeEventListener("hashchange", bootstrap); };
+        return () => { mounted = false; connectionAttempt.current += 1; window.removeEventListener("hashchange", bootstrap); };
     }, []);
 
     useEffect(() => {
@@ -158,7 +184,7 @@ export function useCodexAgent(options: {
                     try {
                         if (controller.signal.aborted) return;
                         const result = belongs && !pending.finished
-                            ? await latest.current.onApproval(event, AbortSignal.any([pending.controller.signal, controller.signal])) : denied;
+                            ? await handleApproval({ method: event.method, params }, AbortSignal.any([pending.controller.signal, controller.signal])) : denied;
                         if (!controller.signal.aborted) await link.reply(event, pending?.finished ? denied : result);
                     } finally { if (approvals.get(String(event.id)) === controller) approvals.delete(String(event.id)); }
                 }).catch((reason) => failCodex(reason, pending));
@@ -305,6 +331,7 @@ export function useCodexAgent(options: {
     };
     return {
         connection, connect, disconnect, models, status, error, run,
+        setApprovalHandler: (handler: CodexApprovalHandler | null) => { approvalHandler.current = handler; },
         archive: (threadId: string, serviceId?: string) => {
             const link = getClient();
             return serviceId === link.serviceId ? link.rpc("thread/archive", { threadId }) : Promise.resolve();

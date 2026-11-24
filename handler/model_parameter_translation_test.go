@@ -126,6 +126,18 @@ func TestParameterTranslationChannelFlow(t *testing.T) {
 				if err := db.Model(&model.CreditLog{}).Where("type = ?", model.CreditLogTypeAIRefund).Count(&refunds).Error; err != nil || refunds != 1 {
 					t.Fatalf("refunds=%d err=%v", refunds, err)
 				}
+				task, found, err = repository.GetVideoTask(task.ID)
+				if err != nil || !found || task.Status != "failed" {
+					t.Fatalf("failed task was not persisted: task=%+v found=%t err=%v", task, found, err)
+				}
+				recovered := service.VideoTaskPollUpdate{Status: "processing", Progress: 35, ResponseBody: `{"status":"processing","progress":35}`}
+				if err := service.UpdateVideoTaskFromPoll(task, recovered); err != nil {
+					t.Fatal(err)
+				}
+				task, found, err = repository.GetVideoTask(task.ID)
+				if err != nil || !found || task.Status != "processing" || task.Progress != 35 || task.Error != "" || task.ErrorDetail != "" || task.CompletedAt != "" {
+					t.Fatalf("transient poll failure was not cleared on recovery: task=%+v found=%t err=%v", task, found, err)
+				}
 			} else if !strings.Contains(writer.Body.String(), "https://media.invalid/"+kind) {
 				t.Fatalf("media result=%s", writer.Body)
 			}

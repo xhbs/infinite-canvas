@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Canvas",
+    "description": "Embed Infinite Canvas in the sidebar and let the agent operate the canvas directly: open, inspect, generate, and edit nodes from the conversation."
+  }
+}

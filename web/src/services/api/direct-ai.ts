@@ -1,4 +1,5 @@
 import { readFileAsDataUrl } from "@/lib/image-utils";
+import { loggedAIFetch } from "./ai-logs";
 import { apiPost } from "@/services/api/request";
 import { resolveMediaUrl, uploadRemoteMediaToServer } from "@/services/file-storage";
 import { resolveImageUrl } from "@/services/image-storage";
@@ -60,7 +61,7 @@ function publicReferenceURL(value?: string) {
 export async function requestDirectImages(config: AiConfig, provider: DirectAIProvider, endpoint: "/images/generations" | "/images/edits", body: DirectRequestBody, timeoutSeconds: number, signal?: AbortSignal): Promise<DirectImageResponse> {
     const startedAt = Date.now();
     const { plan, requestBody, apiKey, protocol } = await prepareDirectRequest(config, provider, endpoint, body);
-    const created = await requestDirectJSON(protocol, plan.url, apiKey, plan.contentType, requestBody, remainingTimeoutMs(startedAt, timeoutSeconds), signal);
+    const created = await requestDirectJSON(config, protocol, plan.url, apiKey, plan.contentType, requestBody, remainingTimeoutMs(startedAt, timeoutSeconds), signal);
     const directUrls = protocol.readCreatedImageURLs?.(created) || [];
     if (directUrls.length) return directImageResponse(directUrls);
     const rawTaskId = protocol.readTaskId(created);
@@ -70,7 +71,7 @@ export async function requestDirectImages(config: AiConfig, provider: DirectAIPr
     for (;;) {
         const waitMs = Math.min(DIRECT_IMAGE_POLL_INTERVAL_MS, remainingTimeoutMs(startedAt, timeoutSeconds));
         await delay(waitMs, signal);
-        const payload = await requestDirectJSON(protocol, directPollURL(config, protocol, taskId), apiKey, "", undefined, remainingTimeoutMs(startedAt, timeoutSeconds), signal);
+        const payload = await requestDirectJSON({ ...config, aiLogContext: { ...config.aiLogContext, taskId: config.aiLogContext?.taskId || taskId } }, protocol, directPollURL(config, protocol, taskId), apiKey, "", undefined, remainingTimeoutMs(startedAt, timeoutSeconds), signal);
         const result = protocol.readImagePoll(payload);
         if (result.error) throw new Error(result.error);
         if (result.urls.length) return directImageResponse(result.urls);
@@ -83,7 +84,7 @@ export async function createDirectVideoTask(config: AiConfig, provider: DirectAI
     const requestProtocol = plan.protocol === "happyhorse:video-synthesis"
         ? { ...protocol, headers: { ...protocol.headers, "X-DashScope-Async": "enable" } }
         : protocol;
-    const payload = await requestDirectJSON(requestProtocol, plan.url, apiKey, plan.contentType, requestBody, undefined, signal);
+    const payload = await requestDirectJSON(config, requestProtocol, plan.url, apiKey, plan.contentType, requestBody, undefined, signal);
     const rawTaskId = protocol.readTaskId(payload);
     if (!rawTaskId) throw new Error(protocol.readError(payload) || "视频接口没有返回任务 ID");
     const taskId = provider === "tokendance" ? tokenDanceTaskID(plan.protocol, rawTaskId) : rawTaskId;
@@ -98,7 +99,7 @@ export async function createDirectVideoTask(config: AiConfig, provider: DirectAI
 export async function pollDirectVideoTask(config: AiConfig, provider: DirectAIProvider, pollId: string, signal?: AbortSignal): Promise<DirectVideoResponse> {
     const channel = requireDirectChannel(config);
     const protocol = directProtocolAdapters[provider];
-    const payload = await requestDirectJSON(protocol, directPollURL(config, protocol, pollId), channel.apiKey, "", undefined, undefined, signal);
+    const payload = await requestDirectJSON({ ...config, aiLogContext: { ...config.aiLogContext, taskId: config.aiLogContext?.taskId || pollId } }, protocol, directPollURL(config, protocol, pollId), channel.apiKey, "", undefined, undefined, signal);
     return protocol.readVideoPoll(payload, pollId, config.model || config.videoModel);
 }
 
@@ -107,12 +108,12 @@ export async function requestDirectAudioURL(config: AiConfig, provider: DirectAI
     const timeoutSeconds = Number(config.timeout) || 600;
     const { plan, requestBody, apiKey, protocol } = await prepareDirectRequest(config, provider, "/audio/speech", body);
     if (!protocol.readAudioPoll) throw new Error("当前协议不支持异步音频");
-    const created = await requestDirectJSON(protocol, plan.url, apiKey, plan.contentType, requestBody, remainingTimeoutMs(startedAt, timeoutSeconds), signal);
+    const created = await requestDirectJSON(config, protocol, plan.url, apiKey, plan.contentType, requestBody, remainingTimeoutMs(startedAt, timeoutSeconds), signal);
     const id = protocol.readTaskId(created);
     if (!id) throw new Error(protocol.readError(created) || "音频接口没有返回任务 ID");
     for (;;) {
         await delay(Math.min(DIRECT_IMAGE_POLL_INTERVAL_MS, remainingTimeoutMs(startedAt, timeoutSeconds)), signal);
-        const payload = await requestDirectJSON(protocol, directPollURL(config, protocol, id), apiKey, "", undefined, remainingTimeoutMs(startedAt, timeoutSeconds), signal);
+        const payload = await requestDirectJSON({ ...config, aiLogContext: { ...config.aiLogContext, taskId: config.aiLogContext?.taskId || id } }, protocol, directPollURL(config, protocol, id), apiKey, "", undefined, remainingTimeoutMs(startedAt, timeoutSeconds), signal);
         const result = protocol.readAudioPoll(payload);
         if (result.error) throw new Error(result.error);
         if (result.done && result.url) return { id, url: result.url };
@@ -131,7 +132,7 @@ async function prepareDirectRequest(config: AiConfig, provider: DirectAIProvider
     });
     if (plan.provider !== provider) throw new Error("前后端渠道识别结果不一致");
     const protocol = directProtocolAdapters[provider];
-    const replaced = await uploadAndReplaceReferences(protocol, plan, serialized.references, channel.apiKey);
+    const replaced = await uploadAndReplaceReferences(config, protocol, plan, serialized.references, channel.apiKey);
     const requestBody = plan.formData ? restoreDirectFormData(replaced) : replaced;
     return { plan, requestBody, apiKey: channel.apiKey, protocol };
 }
@@ -257,7 +258,7 @@ function assertSafeDirectBody(value: unknown) {
     if (isPlainRecord(value)) Object.values(value).forEach(assertSafeDirectBody);
 }
 
-async function uploadAndReplaceReferences(protocol: DirectProtocolAdapter, plan: DirectRequestPlan & TokenDanceDirectRequestPlan, references: DirectReference[], apiKey: string) {
+async function uploadAndReplaceReferences(config: AiConfig, protocol: DirectProtocolAdapter, plan: DirectRequestPlan & TokenDanceDirectRequestPlan, references: DirectReference[], apiKey: string) {
     const retained = references.filter((reference) => containsDirectMarker(plan.body, reference.marker));
     const uploaded = new Map<string, unknown>();
     await Promise.all(retained.map(async (reference) => {
@@ -271,19 +272,19 @@ async function uploadAndReplaceReferences(protocol: DirectProtocolAdapter, plan:
             return;
         }
         if (!spec) throw new Error(`${plan.provider} 不支持上传本地${directReferenceKindName(reference.kind)}`);
-        uploaded.set(reference.marker, await uploadDirectReference(protocol, spec, reference.file, apiKey));
+        uploaded.set(reference.marker, await uploadDirectReference(config, protocol, spec, reference.file, apiKey));
     }));
     const replaced = replaceDirectMarkers(plan.body, uploaded);
     if (containsAnyDirectMarker(replaced)) throw new Error("参考素材地址替换失败");
     return replaced;
 }
 
-async function uploadDirectReference(protocol: DirectProtocolAdapter, spec: DirectUploadSpec, file: File, apiKey: string) {
+async function uploadDirectReference(config: AiConfig, protocol: DirectProtocolAdapter, spec: DirectUploadSpec, file: File, apiKey: string) {
     const formData = new FormData();
     formData.append(spec.fileField, file, file.name);
     if (spec.fileNameField) formData.append(spec.fileNameField, file.name);
     Object.entries(spec.extraFields || {}).forEach(([key, value]) => formData.append(key, value));
-    const response = await fetch(spec.url, { method: "POST", headers: { Authorization: `Bearer ${apiKey}` }, body: formData });
+    const response = await loggedAIFetch(config, spec.url, { method: "POST", headers: { Authorization: `Bearer ${apiKey}` }, body: formData }, "upload");
     const payload = await readDirectResponse(response);
     if (!response.ok) throw new Error(protocol.readError(payload) || `参考素材上传失败：${response.status}`);
     const error = protocol.readError(payload);
@@ -335,12 +336,12 @@ function restoreDirectFormData(value: unknown) {
     return formData;
 }
 
-async function requestDirectJSON(protocol: DirectProtocolAdapter, url: string, apiKey: string, contentType: string, body?: unknown, timeoutMs?: number, signal?: AbortSignal) {
+async function requestDirectJSON(config: AiConfig, protocol: DirectProtocolAdapter, url: string, apiKey: string, contentType: string, body?: unknown, timeoutMs?: number, signal?: AbortSignal) {
     const controller = new AbortController();
     const timeout = timeoutMs ? window.setTimeout(() => controller.abort(), timeoutMs) : 0;
     try {
         const formData = body instanceof FormData;
-        const response = await fetch(url, {
+        const response = await loggedAIFetch(config, url, {
             method: body === undefined ? "GET" : "POST",
             headers: {
                 Authorization: protocol.rawAuthorization ? apiKey : `Bearer ${apiKey}`,
@@ -349,7 +350,7 @@ async function requestDirectJSON(protocol: DirectProtocolAdapter, url: string, a
             },
             ...(body === undefined ? {} : { body: formData ? body : JSON.stringify(body) }),
             signal: signal ? AbortSignal.any([controller.signal, signal]) : controller.signal,
-        });
+        }, body === undefined ? "poll" : "create");
         const payload = await readDirectResponse(response);
         const recoveryMessage = protocol.headers?.["X-App-URL"] ? tokenDanceRecoveryMessage(response.headers.get("TokenDance-Recovery-Action")) : "";
         if (!response.ok) throw new Error(recoveryMessage || protocol.readError(payload) || `上游请求失败：${response.status}`);

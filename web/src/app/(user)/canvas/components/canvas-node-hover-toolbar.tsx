@@ -2,18 +2,22 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { App, Button, Modal, Segmented, Tooltip } from "antd";
-import { Download, Ellipsis, Eye, FolderPlus, Image as ImageIcon, Info, MessageSquare, Minus, Music2, Plus, RefreshCw, Scissors, Settings2, TextWrap, Trash2, Upload, Video } from "lucide-react";
+import { Download, Ellipsis, Eye, FolderPlus, Image as ImageIcon, Info, MessageSquare, Minus, Music2, Pencil, Plus, RefreshCw, Scissors, Settings2, TextWrap, Trash2, Upload, Video } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import dynamic from "next/dynamic";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { formatBytes, getDataUrlByteSize } from "@/lib/image-utils";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { useThemeStore } from "@/stores/use-theme-store";
-import { CanvasNodeType, type CanvasNodeData, type ViewportTransform } from "../types";
+import { CanvasNodeType, canvasVideoTaskStageLabel, type CanvasNodeData, type ViewportTransform } from "../types";
 import { isCanvasImageNodeType, isPanoramaNodeType } from "../utils/canvas-panorama";
+import { isCanvasImageReferenceNode } from "../utils/canvas-resource-references";
 import { ImageToolSettingsModal, type ImageToolbarSettingsTool } from "./canvas-image-toolbar-settings-modal";
 import { IMAGE_QUICK_TOOLS_STORAGE_KEY, PANORAMA_QUICK_TOOLS_STORAGE_KEY, buildImageToolbarTools, defaultImageQuickToolIds, defaultPanoramaQuickToolIds, readImageQuickToolsConfig, type ImageQuickToolId } from "./canvas-image-toolbar-tools";
+
+const CanvasNodeLogs = dynamic(() => import("./canvas-node-logs").then((module) => module.CanvasNodeLogs), { ssr: false });
 
 type CanvasNodeHoverToolbarProps = {
     node: CanvasNodeData | null;
@@ -21,6 +25,7 @@ type CanvasNodeHoverToolbarProps = {
     onKeep: (nodeId: string) => void;
     onLeave: () => void;
     onInfo: (node: CanvasNodeData) => void;
+    onRename: (nodeId: string) => void;
     onDecreaseFont: (node: CanvasNodeData) => void;
     onIncreaseFont: (node: CanvasNodeData) => void;
     onToggleDialog: (node: CanvasNodeData) => void;
@@ -61,6 +66,7 @@ export function CanvasNodeHoverToolbar({
     onKeep,
     onLeave,
     onInfo,
+    onRename,
     onDecreaseFont,
     onIncreaseFont,
     onToggleDialog,
@@ -136,6 +142,8 @@ export function CanvasNodeHoverToolbar({
     const isVideo = node.type === CanvasNodeType.Video;
     const isAudio = node.type === CanvasNodeType.Audio;
     const hasImage = isImage && Boolean(node.metadata?.content);
+    const hasDraftImage = node.type === CanvasNodeType.Draft && isCanvasImageReferenceNode(node);
+    const hasImageResource = hasImage || hasDraftImage;
     const hasVideo = isVideo && Boolean(node.metadata?.content);
     const hasAudio = isAudio && Boolean(node.metadata?.content);
     const isText = node.type === CanvasNodeType.Text;
@@ -166,9 +174,9 @@ export function CanvasNodeHoverToolbar({
     ];
     const nodeToolbarTools: ToolbarTool[] = [
         ...(canRetry ? [{ id: "retry", title: "重新生成", label: "重试", icon: <RefreshCw className="size-4" />, onClick: () => onRetry(node) }] : []),
-        ...(hasImage || hasVideo || isText ? [{ id: "saveAsset", title: "加入我的素材", label: "存素材", icon: <FolderPlus className="size-4" />, onClick: () => onSaveAsset(node) }] : []),
+        ...(hasImageResource || hasVideo || isText ? [{ id: "saveAsset", title: "加入我的素材", label: "存素材", icon: <FolderPlus className="size-4" />, onClick: () => onSaveAsset(node) }] : []),
         ...((hasVideo || hasAudio) && !node.metadata?.storageKey?.startsWith("server:") ? [{ id: "uploadMediaToCloud", title: "上传至云存储", label: "上传至云存储", icon: <Upload className="size-4" />, onClick: () => onUploadMediaToCloud(node) }] : []),
-        ...(hasImage && !node.metadata?.storageKey?.startsWith("server:") ? [{ id: "uploadImageToCloud", title: "上传至云存储", label: "上传至云存储", icon: <Upload className="size-4" />, onClick: () => onUploadImageToCloud(node) }] : []),
+        ...(hasImageResource && !node.metadata?.storageKey?.startsWith("server:") ? [{ id: "uploadImageToCloud", title: "上传至云存储", label: "上传至云存储", icon: <Upload className="size-4" />, onClick: () => onUploadImageToCloud(node) }] : []),
         ...(hasVideo ? [{
             id: "extractAudio",
             title: "分离音频",
@@ -183,7 +191,7 @@ export function CanvasNodeHoverToolbar({
             icon: <Scissors className="size-4" />,
             onClick: () => onTrimAudio(node),
         }] : []),
-        ...(hasImage || hasVideo || hasAudio ? [{ id: "download", title: hasAudio ? "下载音频" : hasVideo ? "下载视频" : "下载图片", label: "下载", icon: <Download className="size-4" />, onClick: () => onDownload(node) }] : []),
+        ...(hasImageResource || hasVideo || hasAudio ? [{ id: "download", title: hasAudio ? "下载音频" : hasVideo ? "下载视频" : "下载图片", label: "下载", icon: <Download className="size-4" />, onClick: () => onDownload(node) }] : []),
         ...(canOpenDialog ? [{ id: "edit", title: "编辑", label: "编辑", icon: <MessageSquare className="size-4" />, onClick: () => onToggleDialog(node) }] : []),
         ...(isText ? [{ id: "previewText", title: "预览文本", label: "预览", icon: <Eye className="size-4" />, onClick: () => setTextPreviewOpen(true) }] : []),
         ...(isText ? [{ id: "generateImage", title: "用文本生图", label: "生图", icon: <ImageIcon className="size-4" />, onClick: () => onGenerateImage(node) }] : []),
@@ -239,6 +247,7 @@ export function CanvasNodeHoverToolbar({
                 onMouseDown={(event) => event.stopPropagation()}
                 onPointerDown={(event) => event.stopPropagation()}
             >
+                <ToolbarAction id="rename" title="重命名节点" label="重命名" icon={<Pencil className="size-4" />} onClick={() => onRename(node.id)} showLabel={showImageToolLabels} />
                 {toolbarTools.map((tool) => (
                     <ToolbarAction key={tool.id} {...tool} showLabel={showImageToolLabels} />
                 ))}
@@ -294,7 +303,7 @@ export function CanvasNodeHoverToolbar({
 
 export function CanvasNodeInfoModal({ node, open, onClose }: { node: CanvasNodeData | null; open: boolean; onClose: () => void }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
-    const [view, setView] = useState<"info" | "json">("info");
+    const [view, setView] = useState<"info" | "json" | "logs">("info");
     const imageBytes = isCanvasImageNodeType(node?.type) && node?.metadata?.content ? getDataUrlByteSize(node.metadata.content) : 0;
     const batchCount = isCanvasImageNodeType(node?.type) ? node?.metadata?.batchChildIds?.length || 0 : 0;
     const json = useMemo(() => {
@@ -322,10 +331,11 @@ export function CanvasNodeInfoModal({ node, open, onClose }: { node: CanvasNodeD
             <Segmented
                 size="small"
                 value={view}
-                onChange={(value) => setView(value as "info" | "json")}
+                onChange={(value) => setView(value as "info" | "json" | "logs")}
                 options={[
                     { label: "信息", value: "info" },
                     { label: "JSON", value: "json" },
+                    { label: "日志", value: "logs" },
                 ]}
             />
         </div>
@@ -339,10 +349,10 @@ export function CanvasNodeInfoModal({ node, open, onClose }: { node: CanvasNodeD
                         <div className="thin-scrollbar h-full space-y-3 overflow-auto pr-1">
                             <InfoRow label="ID" value={node.id} />
                             <InfoRow label="名称" value={node.title || "未命名节点"} />
-                            <InfoRow label="类型" value={node.type === CanvasNodeType.Text ? "文本" : node.type === CanvasNodeType.Image ? "图片" : node.type === CanvasNodeType.Panorama ? "全景图" : node.type === CanvasNodeType.Video ? "视频" : node.type === CanvasNodeType.Audio ? "音频" : node.type === CanvasNodeType.Director ? "导演台" : node.type === CanvasNodeType.Group ? "组" : "生成配置"} />
+                            <InfoRow label="类型" value={node.type === CanvasNodeType.Text ? "文本" : node.type === CanvasNodeType.Image ? "图片" : node.type === CanvasNodeType.Panorama ? "全景图" : node.type === CanvasNodeType.Video ? "视频" : node.type === CanvasNodeType.Audio ? "音频" : node.type === CanvasNodeType.Director ? "导演台" : node.type === CanvasNodeType.Draft ? "草稿" : node.type === CanvasNodeType.Group ? "组" : "生成配置"} />
                             <InfoRow label="尺寸" value={`${Math.round(node.width)} x ${Math.round(node.height)}`} />
                             <InfoRow label="位置" value={`${Math.round(node.position.x)}, ${Math.round(node.position.y)}`} />
-                            <InfoRow label="状态" value={node.metadata?.status || "idle"} />
+                            <InfoRow label="状态" value={node.type === CanvasNodeType.Video ? canvasVideoTaskStageLabel(node.metadata) : node.metadata?.status || "idle"} />
                             {batchCount > 1 ? <InfoRow label="图片组" value={`${batchCount} 张`} /> : null}
                             {(isPanoramaNodeType(node.type) ? node.metadata?.panoramaSourcePrompt : node.metadata?.prompt) ? <InfoRow label="提示词" value={isPanoramaNodeType(node.type) ? node.metadata?.panoramaSourcePrompt : node.metadata?.prompt} /> : null}
                             {imageBytes ? <InfoRow label="图片大小" value={formatBytes(imageBytes)} /> : null}
@@ -356,6 +366,8 @@ export function CanvasNodeInfoModal({ node, open, onClose }: { node: CanvasNodeD
                         <pre className="thin-scrollbar h-full overflow-auto rounded-lg border p-3 text-xs leading-5" style={{ background: theme.node.fill, borderColor: theme.node.stroke, color: theme.node.text }}>
                             {json}
                         </pre>
+                    ) : view === "logs" && open ? (
+                        <CanvasNodeLogs key={node.id} nodeId={node.id} running={node.metadata?.status === "loading"} />
                     ) : null}
                 </div>
             ) : null}

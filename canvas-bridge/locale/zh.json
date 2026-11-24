@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "画布",
+    "description": "在侧栏内嵌 Infinite Canvas，并让 Agent 直接操作画布：打开、查看、生成与编辑节点都由对话驱动。"
+  }
+}

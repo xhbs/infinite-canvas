@@ -4,6 +4,9 @@ type AICallLog struct {
 	ID              string `json:"id" gorm:"primaryKey"`
 	UserID          string `json:"userId" gorm:"index"`
 	UserDisplayName string `json:"userDisplayName" gorm:"->;-:migration"`
+	NodeID          string `json:"nodeId" gorm:"-"`
+	TaskID          string `json:"taskId" gorm:"-"`
+	Stage           string `json:"stage" gorm:"-"`
 	Endpoint        string `json:"endpoint" gorm:"index"`
 	Method          string `json:"method" gorm:"size:16"`
 	Model           string `json:"model" gorm:"index"`

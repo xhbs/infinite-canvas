@@ -1010,7 +1010,9 @@ func copyKIECreateImageResponse(w http.ResponseWriter, request *http.Request, pa
 		return false
 	}
 
-	imageURLs, errorMessage, responseBody := pollKIEImageTask(request, channel, result.Data.TaskID)
+	saveAIProxyLog(logContext, statusCode, string(payload), "")
+	logContext.Recorded = true
+	imageURLs, errorMessage, responseBody := pollKIEImageTask(request, channel, result.Data.TaskID, logContext)
 	if errorMessage != "" {
 		if onFailure != nil {
 			onFailure()
@@ -1044,7 +1046,7 @@ func copyKIECreateImageResponse(w http.ResponseWriter, request *http.Request, pa
 	return true
 }
 
-func pollKIEImageTask(request *http.Request, channel model.ModelChannel, taskID string) ([]string, string, string) {
+func pollKIEImageTask(request *http.Request, channel model.ModelChannel, taskID string, contexts ...aiLogContext) ([]string, string, string) {
 	pollURL := service.BuildModelChannelURL(channel, "/jobs/recordInfo?taskId="+url.QueryEscape(taskID))
 	for attempt := 0; attempt < 300; attempt++ {
 		if attempt > 0 {
@@ -1061,17 +1063,20 @@ func pollKIEImageTask(request *http.Request, channel model.ModelChannel, taskID 
 		}
 		pollRequest.Header.Set("Authorization", "Bearer "+channel.APIKey)
 
-		response, err := service.HTTPClientForChannel(channel).Do(pollRequest)
+		logContext := aiPollLogContext(pollRequest, channel, contexts)
+		body, status, err := doAIRequest(pollRequest, channel)
 		if err != nil {
+			saveAIProxyLog(logContext, status, string(body), err.Error())
 			return nil, err.Error(), ""
 		}
-		body, _ := io.ReadAll(io.LimitReader(response.Body, 512*1024))
-		_ = response.Body.Close()
-		if response.StatusCode >= http.StatusBadRequest {
-			return nil, readUpstreamAIErrorMessage(body, response.StatusCode), string(body)
+		if status >= http.StatusBadRequest {
+			message := readUpstreamAIErrorMessage(body, status)
+			saveAIProxyLog(logContext, status, string(body), message)
+			return nil, message, string(body)
 		}
 
 		imageURLs, done, errorMessage := readKIEImageTaskResult(body)
+		saveAIProxyLog(logContext, status, string(body), errorMessage)
 		if errorMessage != "" {
 			return nil, errorMessage, string(body)
 		}

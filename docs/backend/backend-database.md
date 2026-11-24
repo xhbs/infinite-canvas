@@ -83,26 +83,30 @@ description: 当前后端主要数据表与字段说明
 | `voice_design` | text | 角色声音设计 |
 | `created_at` / `updated_at` | string | 创建及更新时间 |
 
-### ai_call_logs
+### AI 调用日志存储
 
-AI 调用诊断日志表。视频生成请求统一写入此表，可在管理员 AI 日志中查看，不与画布节点绑定；视频请求记录开始时间、结束状态时间、耗时、请求体和响应体。
+AI 调用诊断日志实际写入后端服务器文件，默认目录为 `data/logs/ai-calls`，可通过 `AI_LOG_DIR` 配置。`ai_call_logs` 仍在现有自动建表列表中，但当前日志写入与查询不使用此表。
+
+总日志按天保存为 `ai-calls-YYYY-MM-DD.log`，每行一个 JSON。带节点关联的记录另存于 `nodes/<用户与节点标识的 SHA-256>/ai-calls-YYYY-MM-DD.log`，节点查询只读取对应目录并再次校验用户和节点归属；清理旧日志时一并清理这些文件。管理员在 `/admin/ai-logs` 查看总日志，用户在节点信息的“日志”页签查看自己的节点日志。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `id` | string | 主键 |
-| `user_id` | string | 所属用户 ID |
+| `userId` | string | 所属账号或匿名会话 ID |
+| `nodeId` / `taskId` | string | 节点及本次生成任务标识，同一节点多次生成分别关联 |
+| `stage` | string | 请求阶段，如 `create` 提交、`poll` 轮询 |
 | `endpoint` | string | 请求端点 |
 | `method` | string | HTTP 方法 |
 | `model` | string | 模型名称 |
-| `channel_id` / `channel_name` | string | 使用的模型渠道 |
+| `channelId` / `channelName` | string | 使用的模型渠道 |
 | `status` | number | HTTP 状态码；未收到响应时为 `0` |
-| `duration_ms` | number | 请求耗时 |
-| `started_at` / `completed_at` / `failed_at` | string | 请求开始时间及成功完成或失败时间 |
-| `request_body` / `response_body` | text | 请求内容摘要与响应内容 |
+| `durationMs` | number | 请求耗时 |
+| `startedAt` / `completedAt` / `failedAt` | string | 请求开始时间及成功完成或失败时间 |
+| `requestBody` / `responseBody` | text | 请求内容摘要与响应内容 |
 | `error` | text | 错误信息 |
-| `created_at` | string | 记录创建时间 |
+| `createdAt` | string | 记录创建时间 |
 
-视频请求日志不保存鉴权头或文件二进制；文件类请求体以字段和文件元信息记录，请求体、响应体和错误文本遵循 AI 调用日志长度限制。
+图片和视频的提交、每次实际轮询及请求错误分别记录，不只保留最后一次响应。请求体和响应体分别限制为 256 KiB，错误文本限制为 16 KiB，超出时摘要或截断；API Key、鉴权信息、签名及媒体 base64 脱敏，文件使用元信息摘要。日志不作为浏览器业务数据持久化；未登录直连也可通过匿名会话上报服务器，但与登录账号的日志分别隔离。没有记录过的历史请求无法补回。
 
 ### users
 

@@ -5,6 +5,7 @@ import {
     History,
     Archive,
     Bot,
+    Brush,
     Clapperboard,
     Copy,
     Cpu,
@@ -42,7 +43,7 @@ import { useAgentSkillStore } from "@/stores/use-agent-skill-store";
 import { useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { compactCanvasAgentSession, createCanvasAgentState, runCanvasAgent } from "../agent/canvas-agent-runtime";
-import { useCodexAgent } from "../agent/use-codex-agent";
+import { useCodexAgent, type UseCodexAgent } from "../agent/use-codex-agent";
 import type { CanvasAgentContext } from "../agent/canvas-agent-context";
 import type { CanvasAgentAction, CanvasAgentToolResult } from "../agent/canvas-agent-tools";
 import {
@@ -72,6 +73,7 @@ const ASSISTANT_NODE_TYPE_META = {
     [CanvasNodeType.Text]: { Icon: Type, label: "文本" },
     [CanvasNodeType.Config]: { Icon: Settings2, label: "生成配置" },
     [CanvasNodeType.Director]: { Icon: Clapperboard, label: "导演台" },
+    [CanvasNodeType.Draft]: { Icon: Brush, label: "草稿" },
     [CanvasNodeType.Group]: { Icon: Group, label: "组" },
 };
 const ASSISTANT_NODE_STATUS_COLOR: Record<string, string> = {
@@ -80,7 +82,7 @@ const ASSISTANT_NODE_STATUS_COLOR: Record<string, string> = {
     error: "#ef4444",
 };
 
-type CanvasAssistantPanelProps = {
+export type CanvasAssistantPanelProps = {
     canvasId: string;
     nodes: CanvasNodeData[];
     selectedNodeIds: Set<string>;
@@ -90,6 +92,8 @@ type CanvasAssistantPanelProps = {
     agentConfig: CanvasAgentConfig;
     width: number;
     fullPage?: boolean;
+    codex: UseCodexAgent;
+    onBootstrap: () => void;
     onWidthChange: (width: number) => void;
     onFocusNode: (nodeId: string) => void;
     onSessionsChange: (sessions: CanvasAssistantSession[], activeSessionId: string | null) => void;
@@ -118,6 +122,8 @@ export function CanvasAssistantPanel({
     agentConfig,
     width,
     fullPage = false,
+    codex,
+    onBootstrap,
     onWidthChange,
     onFocusNode,
     onSessionsChange,
@@ -313,7 +319,10 @@ export function CanvasAssistantPanel({
             const skillId = typeof action.arguments.skillId === "string" ? action.arguments.skillId : "";
             const filePath = typeof action.arguments.path === "string" ? action.arguments.path : "";
             const activeSkill = activeSkills.find((skill) => skill.id === skillId && skill.source === "system");
-            if (!activeSkill) return { ok: false, code: "skill_not_active", message: "只能读取当前激活的系统 Skill 文件" };
+            if (!activeSkill) {
+                const available = activeSkills.filter((skill) => skill.source === "system").map((skill) => `${skill.name} → skillId：${skill.id}`).join("；");
+                return { ok: false, code: "skill_not_active", message: available ? `skillId 不对，只能读取当前激活的系统 Skill 文件。请直接改用以下激活中的 skillId 重新调用：${available}` : "当前没有激活的系统 Skill，无法读取附属文件" };
+            }
             try {
                 const file = await fetchSystemAgentSkillFile(skillId, filePath);
                 return { ok: true, skillId, path: file.path, content: file.content };
@@ -333,14 +342,9 @@ export function CanvasAssistantPanel({
         signal.addEventListener("abort", cancel, { once: true });
         if (signal.aborted) cancel();
     });
-    const codex = useCodexAgent({
-        canvasId,
-        onBootstrap: () => { if (mode === "api") switchMode(); else setView("chat"); },
-        executeTool: async (action, signal) => {
-            if (action.name === "arrange_nodes" && !(await confirmCodex("允许 Codex 整理画布？", <pre className="whitespace-pre-wrap break-words text-xs">{JSON.stringify(action.arguments, null, 2)}</pre>, signal))) return { ok: false, code: "action_not_requested", message: "未允许整理画布" };
-            return executeCanvasTool(action, [], [], signal);
-        },
-        onApproval: async ({ method, params }, signal) => {
+    // 面板挂载期间接管审批界面；收起后自动退回画布页的默认拒绝策略。
+    useEffect(() => {
+        codex.setApprovalHandler(async ({ method, params }, signal) => {
             if (method === "mcpServer/elicitation/request") {
                 appMessage.info("Codex 工具请求了额外信息，本次请求已取消");
                 return { action: "decline", content: null };
@@ -359,8 +363,16 @@ export function CanvasAssistantPanel({
             return questions ? { answers: accepted ? answers : {} } : method === "item/permissions/requestApproval"
                 ? { permissions: accepted ? params.permissions || {} : {}, scope: "turn" }
                 : { decision: accepted ? "accept" : "decline" };
-        },
-    });
+        });
+        return () => codex.setApprovalHandler(null);
+    }, [codex]);
+    // 连上桥时把面板切到 Codex 视图（原来由 use-codex-agent 内部的 onBootstrap 完成）。
+    useEffect(() => {
+        if (codex.status === "ready") onBootstrap();
+    }, [codex.status, onBootstrap]);
+    const codexModel = codex.models.find((item) => item.model === agentConfig.codexModel) || codex.models.find((item) => item.isDefault) || codex.models[0];
+    const effortLabels: Record<string, string> = { none: "不推理", minimal: "最低", low: "低", medium: "中", high: "高", xhigh: "极高", max: "最大", ultra: "超高" };
+    const codexEffort = agentConfig.codexEffort || codexModel?.defaultReasoningEffort;
     const switchMode = () => {
         if (isRunning) return;
         const next = mode === "api" ? "codex" : "api";
@@ -376,18 +388,6 @@ export function CanvasAssistantPanel({
         setCheckedChatIds([]);
         setDeleteChatIds([]);
     };
-    const codexModel = codex.models.find((item) => item.model === agentConfig.codexModel) || codex.models.find((item) => item.isDefault) || codex.models[0];
-    const effortLabels: Record<string, string> = { none: "不推理", minimal: "最低", low: "低", medium: "中", high: "高", xhigh: "极高", max: "最大", ultra: "超高" };
-    const codexEffort = agentConfig.codexEffort || codexModel?.defaultReasoningEffort;
-    const showCodexConnection = mode === "codex" && (view === "connect" || (view === "chat" && codex.status !== "ready"));
-    useEffect(() => {
-        if (view !== "chat" || showCodexConnection) return;
-        const frame = window.requestAnimationFrame(() => {
-            const element = messageListRef.current;
-            if (element) element.scrollTop = element.scrollHeight;
-        });
-        return () => window.cancelAnimationFrame(frame);
-    }, [messages, view, showCodexConnection]);
     const codexControls = mode === "codex" ? (
         <>
             <Dropdown trigger={["click"]} placement="topLeft" disabled={isRunning || !codex.models.length} menu={{ selectable: true, selectedKeys: codexModel ? [codexModel.model] : [], items: codex.models.map((item) => ({ key: item.model, label: item.displayName })), onClick: ({ key }) => onAgentConfigChange({ codexModel: key, codexEffort: undefined }) }}>
@@ -398,6 +398,15 @@ export function CanvasAssistantPanel({
             </Dropdown>
         </>
     ) : undefined;
+    const showCodexConnection = mode === "codex" && (view === "connect" || (view === "chat" && codex.status !== "ready"));
+    useEffect(() => {
+        if (view !== "chat" || showCodexConnection) return;
+        const frame = window.requestAnimationFrame(() => {
+            const element = messageListRef.current;
+            if (element) element.scrollTop = element.scrollHeight;
+        });
+        return () => window.cancelAnimationFrame(frame);
+    }, [messages, view, showCodexConnection]);
 
     const sendMessage = async (text: string, savedReferences?: CanvasAssistantReference[], skillOverride?: CanvasAgentSkillSelection[] | null, showSelectedSkills = skillOverride === undefined && selectedSkills.length > 0) => {
         if (abortRef.current) return;

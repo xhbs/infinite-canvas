@@ -30,6 +30,7 @@ export type VideoElementReference = { id: string; kind: "image" | "video" | "aud
 export type VideoElementItem = { name: string; description: string; references: VideoElementReference[] };
 
 export type AiConfig = {
+    aiLogContext?: { nodeId?: string; taskId?: string };
     channelMode: "remote" | "local";
     baseUrl: string;
     apiKey: string;

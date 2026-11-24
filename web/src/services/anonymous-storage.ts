@@ -13,9 +13,9 @@ type ApiPayload<T> = {
 
 let anonymousSessionPromise: Promise<void> | null = null;
 
-function ensureAnonymousStorageSession() {
+export function ensureAnonymousStorageSession() {
     if (!anonymousSessionPromise) {
-        anonymousSessionPromise = fetch("/api/anonymous/files/session", { method: "POST", credentials: "same-origin" }).then((response) => {
+        anonymousSessionPromise = fetch("/api/anonymous/files/session", { method: "POST", credentials: "same-origin", signal: AbortSignal.timeout(10000) }).then((response) => {
             if (!response.ok) throw new Error("匿名存储会话创建失败");
         }).catch((error) => {
             anonymousSessionPromise = null;

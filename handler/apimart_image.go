@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/tigerowo/infinite-canvas/model"
-	"github.com/tigerowo/infinite-canvas/service"
 )
 
 func normalizeAPIMartImageBody(body []byte, contentType string, modelName string, channel model.ModelChannel) ([]byte, string, error) {
@@ -226,7 +225,9 @@ func copyAPIMartImageResponse(w http.ResponseWriter, response *http.Response, re
 		return true
 	}
 
-	imageURLs, errorMessage := pollAPIMartImageTask(request, channel, taskID)
+	saveAIProxyLog(logContext, response.StatusCode, string(payload), "")
+	logContext.Recorded = true
+	imageURLs, errorMessage := pollAPIMartImageTask(request, channel, taskID, logContext)
 	if errorMessage != "" {
 		if onFailure != nil {
 			onFailure()
@@ -238,7 +239,7 @@ func copyAPIMartImageResponse(w http.ResponseWriter, response *http.Response, re
 	return true
 }
 
-func pollAPIMartImageTask(request *http.Request, channel model.ModelChannel, taskID string) ([]string, string) {
+func pollAPIMartImageTask(request *http.Request, channel model.ModelChannel, taskID string, contexts ...aiLogContext) ([]string, string) {
 	pollURL := buildAPIMartTaskURL(channel, taskID)
 	for attempt := 0; attempt < 300; attempt++ {
 		if attempt > 0 {
@@ -254,16 +255,19 @@ func pollAPIMartImageTask(request *http.Request, channel model.ModelChannel, tas
 			return nil, err.Error()
 		}
 		pollRequest.Header.Set("Authorization", "Bearer "+channel.APIKey)
-		response, err := service.HTTPClientForChannel(channel).Do(pollRequest)
+		logContext := aiPollLogContext(pollRequest, channel, contexts)
+		body, status, err := doAIRequest(pollRequest, channel)
 		if err != nil {
+			saveAIProxyLog(logContext, status, string(body), err.Error())
 			return nil, err.Error()
 		}
-		body, _ := io.ReadAll(io.LimitReader(response.Body, 512*1024))
-		_ = response.Body.Close()
-		if response.StatusCode >= http.StatusBadRequest {
-			return nil, readUpstreamAIErrorMessage(body, response.StatusCode)
+		if status >= http.StatusBadRequest {
+			message := readUpstreamAIErrorMessage(body, status)
+			saveAIProxyLog(logContext, status, string(body), message)
+			return nil, message
 		}
 		imageURLs, done, errorMessage := readAPIMartImageTaskResult(body)
+		saveAIProxyLog(logContext, status, string(body), errorMessage)
 		if errorMessage != "" {
 			return nil, errorMessage
 		}

@@ -21,6 +21,10 @@ export type CanvasAgentContextNode = {
     taskId?: string;
     error?: string;
     groupId?: string;
+    // 版面信息：外部 Agent 需要它来做按剧情分组与排列（canvas-bridge 布局整理）
+    position?: { x: number; y: number };
+    width?: number;
+    height?: number;
 };
 
 export type CanvasAgentContext = {
@@ -181,6 +185,9 @@ function summarizeNode(node: CanvasNodeData): CanvasAgentContextNode {
         taskId: mediaTaskId(node) || undefined,
         error: node.metadata?.errorDetails,
         groupId: node.metadata?.groupId,
+        position: node.position ? { x: Math.round(node.position.x), y: Math.round(node.position.y) } : undefined,
+        width: typeof node.width === "number" ? Math.round(node.width) : undefined,
+        height: typeof node.height === "number" ? Math.round(node.height) : undefined,
     };
 }
 

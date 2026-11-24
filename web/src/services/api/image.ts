@@ -1,4 +1,5 @@
 import axios from "axios";
+import { finishAIStreamLog, loggedAIFetch } from "./ai-logs";
 import { executeParameterTranslation, findParameterTranslation, normalizeTranslationAspectRatio, translationBody, translationHeaders, type TranslationInput } from "./channel-parameter-translation";
 
 import { isMiniMaxChannel, miniMaxModels } from "@/lib/minimax-video";
@@ -7,8 +8,8 @@ import { isKIESeedreamLayerDecompositionModel } from "@/lib/kie-models";
 import { isMimoChannel, mimoModels } from "@/lib/mimo-tts";
 import { modelChannelAttributionHeaders } from "@/lib/model-channel";
 import { dataUrlToGeminiInlineData, geminiActionUrl, geminiDirectHeaders, geminiErrorMessage, isGeminiConfig, normalizeGeminiBaseUrl } from "@/lib/gemini";
-import { autoSyncImage, imageToDataUrl, resolveImageUrl, type UploadedImage } from "@/services/image-storage";
-import { deleteUpyunReferenceImage, isUpyunReferenceStorageReady, loadUpyunReferenceStorage, uploadUpyunReferenceImage } from "@/services/upyun-reference-storage";
+import { autoSyncImage, imageToDataUrl, resolveImageUrl, uploadImage, type UploadedImage } from "@/services/image-storage";
+import { deleteUpyunReferenceFile, isUpyunReferenceStorageReady, loadUpyunReferenceStorage, uploadUpyunReferenceFile } from "@/services/upyun-reference-storage";
 import { buildApiUrl, channelIdForActiveModel, channelProtocolForConfig, directAIProviderForConfig, localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 import { fetchAutoDLWorkflows } from "./autodl";
@@ -78,11 +79,6 @@ export type CanvasImageTask = {
 };
 export type CanvasImageTaskOptions = { nodeId?: string; source?: "canvas" | "image-workbench" | "workflow"; sourceId?: string; clientTaskId?: string; signal?: AbortSignal; onServerTask?: () => void };
 
-type ParsedImageResponse = {
-    images: GeneratedImage[];
-    responseBody: string;
-};
-
 export class ImageRequestError extends Error {
     detail?: string;
 
@@ -131,7 +127,7 @@ async function cleanupChengmengUpyunReferences(objectKeys: string[]) {
     const remaining: string[] = [];
     for (const objectKey of objectKeys) {
         try {
-            await deleteUpyunReferenceImage(objectKey);
+            await deleteUpyunReferenceFile(objectKey);
         } catch {
             remaining.push(objectKey);
         }
@@ -473,21 +469,27 @@ export async function readJsonServerSentEvents(response: Response, onEvent: (eve
         onEvent(event);
     };
 
-    while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        let separatorIndex = buffer.search(/\r?\n\r?\n/);
-        while (separatorIndex >= 0) {
-            const separator = buffer.match(/\r?\n\r?\n/)?.[0] || "\n\n";
-            processBlock(buffer.slice(0, separatorIndex));
-            buffer = buffer.slice(separatorIndex + separator.length);
-            separatorIndex = buffer.search(/\r?\n\r?\n/);
+    try {
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            let separatorIndex = buffer.search(/\r?\n\r?\n/);
+            while (separatorIndex >= 0) {
+                const separator = buffer.match(/\r?\n\r?\n/)?.[0] || "\n\n";
+                processBlock(buffer.slice(0, separatorIndex));
+                buffer = buffer.slice(separatorIndex + separator.length);
+                separatorIndex = buffer.search(/\r?\n\r?\n/);
+            }
         }
+        buffer += decoder.decode();
+        if (buffer.trim()) processBlock(buffer);
+        finishAIStreamLog(response, { source: "event-stream", eventCount: events.length, events: events.slice(-10) });
+        return events;
+    } catch (error) {
+        finishAIStreamLog(response, { source: "event-stream", eventCount: events.length, events: events.slice(-10), trailingText: buffer.slice(-4096) }, error);
+        throw error;
     }
-    buffer += decoder.decode();
-    if (buffer.trim()) processBlock(buffer);
-    return events;
 }
 
 export function isEventStreamResponse(response: Response) {
@@ -597,83 +599,6 @@ export function refreshRemoteUser(config: AiConfig) {
     if (usesAccountProxy(config)) void useUserStore.getState().hydrateUser();
 }
 
-async function writeLocalAICallLog(config: AiConfig, endpoint: string, startedAt: number, status: number, timeoutSeconds: number, requestBody: string, responseBody: string, error: string) {
-    if (config.channelMode !== "local" || usesAccountProxy(config)) return;
-    const token = useUserStore.getState().token;
-    if (!token) return;
-    const channel = localChannelForActiveModel(config);
-    await fetch("/api/v1/ai-logs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-            endpoint,
-            method: "POST",
-            model: config.model,
-            channelId: channel?.id || config.activeChannelId || "",
-            channelName: channel?.name || "本地直连",
-            status,
-            durationMs: Date.now() - startedAt,
-            credits: 0,
-            requestBody,
-            responseBody,
-            error,
-        }),
-    }).catch(() => { });
-}
-
-function stringifyLogPayload(value: unknown) {
-    if (typeof value === "string") return value;
-    try {
-        const cloned = JSON.parse(JSON.stringify(value)) as unknown;
-        redactLogImages(cloned);
-        return JSON.stringify(cloned, null, 2);
-    } catch {
-        return String(value || "");
-    }
-}
-
-function redactLogImages(value: unknown) {
-    if (!value || typeof value !== "object") return;
-    if (Array.isArray(value)) {
-        value.forEach(redactLogImages);
-        return;
-    }
-    const record = value as Record<string, unknown>;
-    for (const key of Object.keys(record)) {
-        const item = record[key];
-        if (typeof item === "string" && (item.startsWith("data:image/") || item.length > 2048 && looksLikeBase64(item))) {
-            record[key] = `[redacted image/string len=${item.length}]`;
-            continue;
-        }
-        redactLogImages(item);
-    }
-}
-
-function looksLikeBase64(value: string) {
-    return /^[A-Za-z0-9+/=]+$/.test(value.slice(0, 200));
-}
-
-function summarizeFormData(formData: FormData) {
-    const fields: Record<string, string[]> = {};
-    const files: Array<{ field: string; name: string; size: number; type: string }> = [];
-    formData.forEach((value, key) => {
-        if (value instanceof File) {
-            files.push({ field: key, name: value.name, size: value.size, type: value.type });
-            return;
-        }
-        fields[key] = [...(fields[key] || []), String(value)];
-    });
-    return { fields, files };
-}
-
-function summarizeGeneratedImages(images: GeneratedImage[], source: string) {
-    return stringifyLogPayload({
-        source,
-        imageCount: images.length,
-        images: images.map((image) => ({ id: image.id, dataUrl: image.dataUrl.startsWith("data:image/") ? `[redacted image len=${image.dataUrl.length}]` : image.dataUrl })),
-    });
-}
-
 function withSystemMessage(config: AiConfig, messages: ChatCompletionMessage[]) {
     const systemPrompt = (config.systemPrompts.text || config.systemPrompt).trim();
     return systemPrompt ? [{ role: "system" as const, content: systemPrompt }, ...messages] : messages;
@@ -693,14 +618,10 @@ async function requestImageGenerationSingle(config: AiConfig & { seedIndex?: num
         applyAgnesImageSize(body, config, params);
 
         return requestAndParseImages(
-            config,
-            "/images/generations",
-            body,
-            params.timeoutSeconds,
             () =>
                 requestWithTransientRetry(() =>
                     withTimeout(params.timeoutSeconds, params.signal, (signal) =>
-                        fetch(aiApiUrl(config, "/images/generations"), {
+                        loggedAIFetch(config, aiApiUrl(config, "/images/generations"), {
                             method: "POST",
                             headers: aiHeaders(config, "application/json"),
                             body: JSON.stringify(body),
@@ -711,11 +632,11 @@ async function requestImageGenerationSingle(config: AiConfig & { seedIndex?: num
             async (response) => {
                 if (config.streamImages && isEventStreamResponse(response)) {
                     const images = await parseImagesStreamResponse(response, mime);
-                    return { images, responseBody: summarizeGeneratedImages(images, "event-stream") };
+                    return images;
                 }
                 const payload = (await response.json()) as ImageApiResponse;
                 const images = parseImagePayload(payload, mime);
-                return { images, responseBody: stringifyLogPayload(payload) };
+                return images;
             },
         );
     }
@@ -734,14 +655,10 @@ async function requestImageGenerationSingle(config: AiConfig & { seedIndex?: num
     }
 
     return requestAndParseImages(
-        config,
-        "/images/generations",
-        body,
-        params.timeoutSeconds,
         () =>
             requestWithTransientRetry(() =>
                 withTimeout(params.timeoutSeconds, params.signal, (signal) =>
-                    fetch(aiApiUrl(config, "/images/generations"), {
+                    loggedAIFetch(config, aiApiUrl(config, "/images/generations"), {
                         method: "POST",
                         headers: aiHeaders(config, "application/json"),
                         body: JSON.stringify(body),
@@ -752,10 +669,10 @@ async function requestImageGenerationSingle(config: AiConfig & { seedIndex?: num
         async (response) => {
             if (config.streamImages && isEventStreamResponse(response)) {
                 const images = await parseImagesStreamResponse(response, mime);
-                return { images, responseBody: summarizeGeneratedImages(images, "event-stream") };
+                return images;
             }
             const payload = (await response.json()) as ImageApiResponse;
-            return { images: parseImagePayload(payload, mime), responseBody: stringifyLogPayload(payload) };
+            return parseImagePayload(payload, mime);
         },
     );
 }
@@ -780,14 +697,10 @@ async function requestGrokImageEditSingle(config: AiConfig, prompt: string, refe
     const mime = IMAGE_MIME;
     const body = await createGrokImageEditBody(config, prompt, references, params);
     return requestAndParseImages(
-        config,
-        "/images/edits",
-        body,
-        params.timeoutSeconds,
         () =>
             requestWithTransientRetry(() =>
                 withTimeout(params.timeoutSeconds, params.signal, (signal) =>
-                    fetch(aiApiUrl(config, "/images/edits"), {
+                    loggedAIFetch(config, aiApiUrl(config, "/images/edits"), {
                         method: "POST",
                         headers: aiHeaders(config, "application/json"),
                         body: JSON.stringify(body),
@@ -798,10 +711,10 @@ async function requestGrokImageEditSingle(config: AiConfig, prompt: string, refe
         async (response) => {
             if (config.streamImages && isEventStreamResponse(response)) {
                 const images = await parseImagesStreamResponse(response, mime);
-                return { images, responseBody: summarizeGeneratedImages(images, "event-stream") };
+                return images;
             }
             const payload = (await response.json()) as ImageApiResponse;
-            return { images: parseImagePayload(payload, mime), responseBody: stringifyLogPayload(payload) };
+            return parseImagePayload(payload, mime);
         },
     );
 }
@@ -832,14 +745,10 @@ async function requestImageEditSingle(config: AiConfig, prompt: string, referenc
     }
 
     return requestAndParseImages(
-        config,
-        "/images/edits",
-        summarizeFormData(formData),
-        params.timeoutSeconds,
         () =>
             requestWithTransientRetry(() =>
                 withTimeout(params.timeoutSeconds, params.signal, (signal) =>
-                    fetch(aiApiUrl(config, "/images/edits"), {
+                    loggedAIFetch(config, aiApiUrl(config, "/images/edits"), {
                         method: "POST",
                         headers: aiHeaders(config),
                         body: formData,
@@ -850,10 +759,10 @@ async function requestImageEditSingle(config: AiConfig, prompt: string, referenc
         async (response) => {
             if (config.streamImages && isEventStreamResponse(response)) {
                 const images = await parseImagesStreamResponse(response, mime);
-                return { images, responseBody: summarizeGeneratedImages(images, "event-stream") };
+                return images;
             }
             const payload = (await response.json()) as ImageApiResponse;
-            return { images: parseImagePayload(payload, mime), responseBody: stringifyLogPayload(payload) };
+            return parseImagePayload(payload, mime);
         },
     );
 }
@@ -918,14 +827,10 @@ async function requestResponsesSingle(config: AiConfig, prompt: string, inputIma
     if (config.streamImages) body.stream = true;
 
     return requestAndParseImages(
-        config,
-        "/responses",
-        body,
-        params.timeoutSeconds,
         () =>
             requestWithTransientRetry(() =>
                 withTimeout(params.timeoutSeconds, params.signal, (signal) =>
-                    fetch(aiApiUrl(config, "/responses"), {
+                    loggedAIFetch(config, aiApiUrl(config, "/responses"), {
                         method: "POST",
                         headers: aiHeaders(config, "application/json"),
                         body: JSON.stringify(body),
@@ -936,10 +841,10 @@ async function requestResponsesSingle(config: AiConfig, prompt: string, inputIma
         async (response) => {
             if (config.streamImages && isEventStreamResponse(response)) {
                 const images = await parseResponsesStreamResponse(response, mime);
-                return { images, responseBody: summarizeGeneratedImages(images, "event-stream") };
+                return images;
             }
             const payload = (await response.json()) as ResponsesApiResponse;
-            return { images: parseResponsesPayload(payload, mime), responseBody: stringifyLogPayload(payload) };
+            return parseResponsesPayload(payload, mime);
         },
     );
 }
@@ -947,11 +852,7 @@ async function requestResponsesSingle(config: AiConfig, prompt: string, inputIma
 async function requestChatImagesSingle(config: AiConfig, prompt: string, inputImageDataUrls: string[], params: ImageRequestParams): Promise<GeneratedImage[]> {
     const body = createChatImageBody(config, prompt, inputImageDataUrls, params);
     return requestAndParseImages(
-        config,
-        "/chat/completions",
-        body,
-        params.timeoutSeconds,
-        () => requestWithTransientRetry(() => withTimeout(params.timeoutSeconds, params.signal, (signal) => fetch(aiApiUrl(config, "/chat/completions"), {
+        () => requestWithTransientRetry(() => withTimeout(params.timeoutSeconds, params.signal, (signal) => loggedAIFetch(config, aiApiUrl(config, "/chat/completions"), {
             method: "POST",
             headers: aiHeaders(config, "application/json"),
             body: JSON.stringify(body),
@@ -959,32 +860,18 @@ async function requestChatImagesSingle(config: AiConfig, prompt: string, inputIm
         }))),
         async (response) => {
             const payload = await response.json() as ChatImagesApiResponse;
-            return { images: parseChatImagesPayload(payload), responseBody: stringifyLogPayload(payload) };
+            return parseChatImagesPayload(payload);
         },
     );
 }
 
-async function requestAndParseImages(config: AiConfig, endpoint: string, requestBody: unknown, timeoutSeconds: number, fetchResponse: () => Promise<Response>, parseResponse: (response: Response) => Promise<ParsedImageResponse>) {
-    const startedAt = Date.now();
-    let logged = false;
-    try {
-        const response = await fetchResponse();
-        if (!response.ok) {
-            const error = await fetchErrorDetail(response, "请求失败");
-            logged = true;
-            void writeLocalAICallLog(config, endpoint, startedAt, response.status, timeoutSeconds, stringifyLogPayload(requestBody), stringifyLogPayload(error.detail || error.message), error.message);
-            throw new ImageRequestError(error.message, error.detail);
-        }
-        const parsed = await parseResponse(response);
-        logged = true;
-        void writeLocalAICallLog(config, endpoint, startedAt, response.status, timeoutSeconds, stringifyLogPayload(requestBody), parsed.responseBody, "");
-        return parsed.images;
-    } catch (error) {
-        if (!logged) {
-            void writeLocalAICallLog(config, endpoint, startedAt, 0, timeoutSeconds, stringifyLogPayload(requestBody), "", error instanceof ImageRequestError ? error.detail || error.message : error instanceof Error ? error.message : "请求失败");
-        }
-        throw error;
+async function requestAndParseImages(fetchResponse: () => Promise<Response>, parseResponse: (response: Response) => Promise<GeneratedImage[]>) {
+    const response = await fetchResponse();
+    if (!response.ok) {
+        const error = await fetchErrorDetail(response, "请求失败");
+        throw new ImageRequestError(error.message, error.detail);
     }
+    return parseResponse(response);
 }
 
 async function requestImages(config: AiConfig & { seedIndex?: number; seedCount?: number }, prompt: string, references: ReferenceImage[], signal?: AbortSignal): Promise<GeneratedImage[]> {
@@ -1038,7 +925,12 @@ async function syncGeneratedImages(images: GeneratedImage[]) {
 async function syncCanvasImageTask(task: CanvasImageTask, resultId = task.started_at): Promise<CanvasImageTask> {
     if (!["completed", "complete", "done", "succeeded", "success"].includes((task.status || "").toLowerCase())) return task;
     const urls = [...new Set([...(task.image_urls || []), task.image_url || task.url || ""].map((url) => url.trim()).filter(Boolean))];
-    const imageStorage = await Promise.all(urls.map((url, index) => autoSyncImage(url, `${task.id}:${resultId}:${index}`, index === 0 ? task.storageKey : undefined)));
+    const imageStorage = await Promise.all(urls.map((url, index) => {
+        if (task.source !== "image-workbench" && /^https?:\/\//i.test(url)) {
+            return uploadImage(url, { localOnly: true }).catch(() => null);
+        }
+        return autoSyncImage(url, `${task.id}:${resultId}:${index}`, index === 0 ? task.storageKey : undefined);
+    }));
     if (!imageStorage.some(Boolean)) return task;
     const syncedUrls = urls.map((url, index) => imageStorage[index]?.url || url);
     const stored = imageStorage[0];
@@ -1068,6 +960,8 @@ export async function requestEdit(config: AiConfig & { seedIndex?: number; seedC
 }
 
 export async function createCanvasImageTask(config: AiConfig & { seedIndex?: number; seedCount?: number }, prompt: string, references: ReferenceImage[], options: CanvasImageTaskOptions = {}): Promise<CanvasImageTask> {
+    const taskId = options.clientTaskId || config.aiLogContext?.taskId || nanoid();
+    config = { ...config, aiLogContext: { nodeId: options.nodeId || config.aiLogContext?.nodeId, taskId } };
 	const translation = await findParameterTranslation(config);
     if (!usesAccountProxy(config)) {
         const images = await requestImages({ ...config, count: "1" }, prompt, references, options.signal);
@@ -1075,7 +969,7 @@ export async function createCanvasImageTask(config: AiConfig & { seedIndex?: num
         const [image] = images;
         if (!image) throw new Error("接口没有返回图片");
         return syncCanvasImageTask({
-            id: options.clientTaskId || nanoid(),
+            id: taskId,
             source: options.source || "canvas",
             source_id: options.sourceId || "",
             node_id: options.nodeId || "",
@@ -1186,7 +1080,7 @@ async function createCanvasImageTaskRequest(config: AiConfig & { seedIndex?: num
             if (!source) throw new ImageRequestError("参考图片不可用，无法上传至又拍云");
             const response = await fetch(source, { signal: options.signal });
             if (!response.ok) throw new ImageRequestError(`读取参考图片失败：HTTP ${response.status}`);
-            const uploaded = await uploadUpyunReferenceImage(await response.blob(), reference.name || "reference.png", options.signal);
+            const uploaded = await uploadUpyunReferenceFile(await response.blob(), reference.name || "reference.png", options.signal);
             upyunReferenceKeys.push(uploaded.objectKey);
             imageUrl = uploaded.url;
         }
@@ -1380,18 +1274,14 @@ async function requestGeminiImageSingle(config: AiConfig, prompt: string, refere
     const channel = localChannelForActiveModel(config);
     const nativeBody = proxy ? body : withoutModel(body);
     return requestAndParseImages(
-        config,
-        references.length ? "/images/edits" : "/images/generations",
-        body,
-        params.timeoutSeconds,
-        () => requestWithTransientRetry(() => withTimeout(params.timeoutSeconds, params.signal, (signal) => fetch(
+        () => requestWithTransientRetry(() => withTimeout(params.timeoutSeconds, params.signal, (signal) => loggedAIFetch(config,
             proxy ? `/api/v1${references.length ? "/images/edits" : "/images/generations"}` : geminiActionUrl(channel?.baseUrl || config.baseUrl, config.model, "generateContent"),
             { method: "POST", headers: proxy ? aiHeaders(config, "application/json") : geminiDirectHeaders(config), body: JSON.stringify(nativeBody), signal },
         ))),
         async (response) => {
             const payload = await response.json() as Record<string, unknown>;
             const images = parseGeminiImages(payload);
-            return { images, responseBody: stringifyLogPayload(payload) };
+            return images;
         },
     );
 }
@@ -1605,14 +1495,10 @@ async function requestAgnesImageEdit(config: AiConfig & { seedIndex?: number; se
     applyAgnesImageSize(body, config, params);
 
     return requestAndParseImages(
-        config,
-        "/images/generations", // 核心对齐：官方图生图同样使用 /images/generations 接口
-        body,
-        params.timeoutSeconds,
         () =>
             requestWithTransientRetry(() =>
                 withTimeout(params.timeoutSeconds, params.signal, (signal) =>
-                    fetch(aiApiUrl(config, "/images/generations"), {
+                    loggedAIFetch(config, aiApiUrl(config, "/images/generations"), {
                         method: "POST",
                         headers: aiHeaders(config, "application/json"),
                         body: JSON.stringify(body),
@@ -1623,11 +1509,11 @@ async function requestAgnesImageEdit(config: AiConfig & { seedIndex?: number; se
         async (response) => {
             if (config.streamImages && isEventStreamResponse(response)) {
                 const images = await parseImagesStreamResponse(response, mime);
-                return { images, responseBody: summarizeGeneratedImages(images, "event-stream") };
+                return images;
             }
             const payload = (await response.json()) as ImageApiResponse;
             const images = parseImagePayload(payload, mime);
-            return { images, responseBody: stringifyLogPayload(payload) };
+            return images;
         },
     );
 }

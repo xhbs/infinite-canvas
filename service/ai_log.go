@@ -2,7 +2,10 @@ package service
 
 import (
 	"bufio"
+	"context"
+	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"log"
@@ -35,15 +38,21 @@ var (
 	whitespacePattern     = regexp.MustCompile(`\s+`)
 	longDataURLPattern    = regexp.MustCompile(`data:image/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=\r\n]{512,}`)
 	longBase64TextPattern = regexp.MustCompile(`"[A-Za-z0-9+/=]{512,}"`)
+	aiLogSecretPattern    = regexp.MustCompile(`(?i)([?&](?:api[_-]?key|key|token|access[_-]?token|signature|x-amz-signature|x-oss-signature)=)[^&\s"<>]+`)
+	aiLogBearerPattern    = regexp.MustCompile(`(?i)Bearer\s+[A-Za-z0-9._~+/=-]+`)
 
 	aiLogCleanupCron *cron.Cron
 	aiLogCleanupOnce sync.Once
 	aiLogCleanupMu   sync.Mutex
+	aiLogWriteMu     sync.RWMutex
 )
 
 type AICallLogInput struct {
 	UserID          string `json:"userId"`
 	UserDisplayName string `json:"userDisplayName"`
+	NodeID          string `json:"nodeId"`
+	TaskID          string `json:"taskId"`
+	Stage           string `json:"stage"`
 	Endpoint        string `json:"endpoint"`
 	Method          string `json:"method"`
 	Model           string `json:"model"`
@@ -61,19 +70,33 @@ type AICallLogInput struct {
 	OutcomeKnown    bool   `json:"-"`
 }
 
-func SaveAICallLog(input AICallLogInput) {
-	responseBody := normalizeAICallResponseLog(input.ResponseBody, input.Error)
-	failed := strings.TrimSpace(input.Error) != ""
+func SaveAICallLog(input AICallLogInput) error {
+	failed := strings.TrimSpace(input.Error) != "" || input.Status >= 400
 	failure := &failed
 	if input.OutcomeKnown {
 		failure = nil
 	}
 	errorText := normalizeAICallErrorLog(input.Error, input.ResponseBody, failure)
+	if !failed {
+		errorText = ""
+	}
+	completedAt := time.Now().UTC()
+	if input.StartedAt == "" {
+		input.StartedAt = completedAt.Add(-time.Duration(input.DurationMs) * time.Millisecond).Format(time.RFC3339Nano)
+	}
+	if failed && input.FailedAt == "" {
+		input.FailedAt = completedAt.Format(time.RFC3339Nano)
+	} else if !failed && input.CompletedAt == "" {
+		input.CompletedAt = completedAt.Format(time.RFC3339Nano)
+	}
 	item := model.AICallLog{
 		ID:              uuid.NewString(),
 		UserID:          strings.TrimSpace(input.UserID),
 		UserDisplayName: strings.TrimSpace(input.UserDisplayName),
-		Endpoint:        strings.TrimSpace(input.Endpoint),
+		NodeID:          strings.TrimSpace(input.NodeID),
+		TaskID:          strings.TrimSpace(input.TaskID),
+		Stage:           strings.TrimSpace(input.Stage),
+		Endpoint:        redactLargePlainLogText(input.Endpoint),
 		Method:          strings.TrimSpace(input.Method),
 		Model:           strings.TrimSpace(input.Model),
 		ChannelID:       strings.TrimSpace(input.ChannelID),
@@ -85,14 +108,60 @@ func SaveAICallLog(input AICallLogInput) {
 		CompletedAt:     input.CompletedAt,
 		FailedAt:        input.FailedAt,
 		Credits:         normalizeCredits(input.Credits),
-		RequestBody:     truncateLogText(input.RequestBody, aiLogRequestTextLimit),
-		ResponseBody:    responseBody,
-		Error:           truncateLogText(errorText, aiLogErrorTextLimit),
-		CreatedAt:       now(),
+		RequestBody:     truncateLogText(formatAICallLogPayload(input.RequestBody), aiLogRequestTextLimit),
+		ResponseBody:    truncateLogText(formatAICallLogPayload(input.ResponseBody), aiLogRequestTextLimit),
+		Error:           truncateLogText(redactLargePlainLogText(errorText), aiLogErrorTextLimit),
+		CreatedAt:       completedAt.Format(time.RFC3339Nano),
 	}
 	if err := appendAICallLog(item); err != nil {
 		log.Printf("write ai call log failed err=%v", err)
+		return err
 	}
+	return nil
+}
+
+func SaveClientAICallLog(ctx context.Context, input AICallLogInput) error {
+	user, ok := UserFromContext(ctx)
+	if !ok || user.ID == "" {
+		return errors.New("无法识别日志所属用户")
+	}
+	if strings.TrimSpace(input.Endpoint) == "" || len(input.NodeID) > 256 || len(input.TaskID) > 256 {
+		return errors.New("日志请求参数无效")
+	}
+	if input.NodeID == "" && input.Stage == "" && !strings.Contains(input.Endpoint, "/videos") && !strings.Contains(input.Endpoint, "/images/") && !LocalDirectAILogEnabled() {
+		return nil
+	}
+	input.UserID = user.ID
+	input.UserDisplayName = firstNonEmpty(user.DisplayName, user.Username)
+	return SaveAICallLog(input)
+}
+
+func ListNodeAICallLogs(ctx context.Context, nodeID string, q model.Query) (model.AICallLogList, error) {
+	user, ok := UserFromContext(ctx)
+	if !ok || user.ID == "" {
+		return model.AICallLogList{}, errors.New("无法识别日志所属用户")
+	}
+	nodeID = strings.TrimSpace(nodeID)
+	if nodeID == "" || len(nodeID) > 256 {
+		return model.AICallLogList{}, errors.New("请提供有效的节点 ID")
+	}
+	files, err := filepath.Glob(filepath.Join(nodeAILogDir(user.ID, nodeID), "ai-calls-*.log"))
+	if err != nil {
+		return model.AICallLogList{}, err
+	}
+	items := []model.AICallLog{}
+	for _, file := range files {
+		logs, err := readAICallLogFile(file)
+		if err != nil {
+			return model.AICallLogList{}, err
+		}
+		for _, item := range logs {
+			if item.UserID == user.ID && item.NodeID == nodeID {
+				items = append(items, item)
+			}
+		}
+	}
+	return paginateAICallLogs(items, q), nil
 }
 
 func ListAICallLogs(q model.Query) (model.AICallLogList, error) {
@@ -110,19 +179,26 @@ func ListAICallLogs(q model.Query) (model.AICallLogList, error) {
 		}
 		items = filtered
 	}
+	return paginateAICallLogs(items, q), nil
+}
+
+func paginateAICallLogs(items []model.AICallLog, q model.Query) model.AICallLogList {
+	q.Normalize()
 	sort.SliceStable(items, func(i, j int) bool {
-		return items[i].CreatedAt > items[j].CreatedAt
+		left, _ := time.Parse(time.RFC3339Nano, items[i].CreatedAt)
+		right, _ := time.Parse(time.RFC3339Nano, items[j].CreatedAt)
+		return left.After(right)
 	})
 	total := len(items)
 	start := q.Offset()
 	if start >= total {
-		return model.AICallLogList{Items: []model.AICallLog{}, Total: total}, nil
+		return model.AICallLogList{Items: []model.AICallLog{}, Total: total}
 	}
 	end := start + q.PageSize
 	if end > total {
 		end = total
 	}
-	return model.AICallLogList{Items: items[start:end], Total: total}, nil
+	return model.AICallLogList{Items: items[start:end], Total: total}
 }
 
 func DeleteAICallLogsOlderThan(days int) (int, error) {
@@ -134,6 +210,13 @@ func DeleteAICallLogsOlderThan(days int) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	nodeFiles, err := filepath.Glob(filepath.Join(aiLogDir(), "nodes", "*", "ai-calls-*.log"))
+	if err != nil {
+		return 0, err
+	}
+	files = append(files, nodeFiles...)
+	aiLogWriteMu.Lock()
+	defer aiLogWriteMu.Unlock()
 	removed := 0
 	for _, file := range files {
 		fileDate, ok := aiLogFileDate(file)
@@ -220,10 +303,34 @@ func LocalDirectAILogEnabled() bool {
 }
 
 func appendAICallLog(item model.AICallLog) error {
-	dir := strings.TrimSpace(config.Cfg.AILogDir)
-	if dir == "" {
-		dir = filepath.Join("data", "logs", "ai-calls")
+	encoded, err := json.Marshal(item)
+	if err != nil {
+		return err
 	}
+	aiLogWriteMu.Lock()
+	defer aiLogWriteMu.Unlock()
+	if err := appendAICallLogFile(aiLogDir(), encoded); err != nil {
+		return err
+	}
+	if item.NodeID != "" && item.UserID != "" {
+		return appendAICallLogFile(nodeAILogDir(item.UserID, item.NodeID), encoded)
+	}
+	return nil
+}
+
+func aiLogDir() string {
+	if dir := strings.TrimSpace(config.Cfg.AILogDir); dir != "" {
+		return dir
+	}
+	return filepath.Join("data", "logs", "ai-calls")
+}
+
+func nodeAILogDir(userID, nodeID string) string {
+	key := sha256.Sum256([]byte(userID + "\x00" + nodeID))
+	return filepath.Join(aiLogDir(), "nodes", fmt.Sprintf("%x", key))
+}
+
+func appendAICallLogFile(dir string, encoded []byte) error {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
@@ -233,12 +340,8 @@ func appendAICallLog(item model.AICallLog) error {
 		return err
 	}
 	defer file.Close()
-	encoded, err := json.Marshal(item)
-	if err != nil {
-		return err
-	}
-	log.New(file, "", 0).Println(string(encoded))
-	return nil
+	_, err = file.Write(append(encoded, '\n'))
+	return err
 }
 
 func readAICallLogs() ([]model.AICallLog, error) {
@@ -259,6 +362,8 @@ func readAICallLogs() ([]model.AICallLog, error) {
 }
 
 func readAICallLogFile(filePath string) ([]model.AICallLog, error) {
+	aiLogWriteMu.RLock()
+	defer aiLogWriteMu.RUnlock()
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, err
@@ -276,19 +381,13 @@ func readAICallLogFile(filePath string) ([]model.AICallLog, error) {
 		if err := json.Unmarshal([]byte(line), &item); err != nil {
 			continue
 		}
-		item.ResponseBody = normalizeAICallResponseLog(item.ResponseBody, item.Error)
-		item.Error = normalizeAICallErrorLog(item.Error, item.ResponseBody, nil)
 		items = append(items, item)
 	}
 	return items, scanner.Err()
 }
 
 func aiLogFiles() ([]string, error) {
-	dir := strings.TrimSpace(config.Cfg.AILogDir)
-	if dir == "" {
-		dir = filepath.Join("data", "logs", "ai-calls")
-	}
-	files, err := filepath.Glob(filepath.Join(dir, "ai-calls-*.log"))
+	files, err := filepath.Glob(filepath.Join(aiLogDir(), "ai-calls-*.log"))
 	if err != nil {
 		return nil, err
 	}
@@ -309,7 +408,7 @@ func startOfDay(value time.Time) time.Time {
 }
 
 func aiLogMatchesKeyword(item model.AICallLog, keyword string) bool {
-	fields := []string{item.UserID, item.UserDisplayName, item.Endpoint, item.Method, item.Model, item.ChannelID, item.ChannelName, item.RequestBody, item.ResponseBody, item.Error, strconv.Itoa(item.Status)}
+	fields := []string{item.UserID, item.UserDisplayName, item.NodeID, item.TaskID, item.Stage, item.Endpoint, item.Method, item.Model, item.ChannelID, item.ChannelName, item.RequestBody, item.ResponseBody, item.Error, strconv.Itoa(item.Status)}
 	for _, field := range fields {
 		if strings.Contains(strings.ToLower(field), keyword) {
 			return true
@@ -515,6 +614,8 @@ func cleanPlainLogText(value string) string {
 }
 
 func redactLargePlainLogText(value string) string {
+	value = aiLogSecretPattern.ReplaceAllString(value, "${1}[密钥]")
+	value = aiLogBearerPattern.ReplaceAllString(value, "Bearer [密钥]")
 	value = longDataURLPattern.ReplaceAllString(value, "[redacted image data]")
 	value = longBase64TextPattern.ReplaceAllString(value, `"[redacted large base64/string]"`)
 	return strings.TrimSpace(value)
@@ -524,6 +625,11 @@ func redactLargeLogStrings(value *any) {
 	switch typed := (*value).(type) {
 	case map[string]any:
 		for key, item := range typed {
+			switch strings.NewReplacer("_", "", "-", "").Replace(strings.ToLower(key)) {
+			case "authorization", "apikey", "key", "token", "accesstoken", "password", "secret", "signature", "cookie", "setcookie":
+				typed[key] = "[密钥]"
+				continue
+			}
 			if text, ok := item.(string); ok && isLargeLogString(text) {
 				typed[key] = fmt.Sprintf("[redacted large string len=%d]", len(text))
 				continue
@@ -536,11 +642,13 @@ func redactLargeLogStrings(value *any) {
 			redactLargeLogStrings(&item)
 			typed[index] = item
 		}
+	case string:
+		*value = redactLargePlainLogText(typed)
 	}
 }
 
 func isLargeLogString(value string) bool {
-	if strings.HasPrefix(value, "data:image/") {
+	if strings.HasPrefix(value, "data:") && strings.Contains(value, ";base64,") {
 		return true
 	}
 	return len(value) > 4096 && looksLikeLogBase64(value)

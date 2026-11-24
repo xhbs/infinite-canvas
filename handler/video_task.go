@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -141,6 +142,11 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		UserDisplayName: firstNonEmpty(user.DisplayName, user.Username),
 		Credits:         credits,
 		RequestBody:     summarizeAIRequest(body, contentType),
+		NodeID:          aiRequestLogAssociation(r).NodeID,
+		TaskID:          aiRequestLogAssociation(r).TaskID,
+		Stage:           "create",
+		URL:             request.URL.String(),
+		OutcomeKnown:    true,
 	}
 	if credits > 0 {
 		if err := service.ConsumeUserCredits(user.ID, modelName, credits, upstreamPath); err != nil {
@@ -148,8 +154,17 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	payload, status, err := doAIRequest(request, channel)
+	logContext.StartedAt = time.Now()
+	payload, status, err := doAIRequest(request, channel, &logContext)
+	duration := time.Since(logContext.StartedAt).Milliseconds()
+	logContext.DurationMs = &duration
+	logError := ""
+	if err != nil {
+		logError = err.Error()
+	}
+	defer func() { saveAIProxyLog(logContext, status, string(payload), logError) }()
 	if taskContext.Err() != nil {
+		logError = taskContext.Err().Error()
 		Fail(w, "任务已停止")
 		return
 	}
@@ -157,7 +172,6 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		if credits > 0 {
 			refundVideoCredits(user.ID, modelName, credits, upstreamPath)
 		}
-		saveAIProxyLog(logContext, 0, "", err.Error())
 		Fail(w, "AI 接口请求失败")
 		return
 	}
@@ -166,7 +180,7 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		if credits > 0 {
 			refundVideoCredits(user.ID, modelName, credits, upstreamPath)
 		}
-		saveAIProxyLog(logContext, status, string(payload), strings.TrimSpace(string(payload)))
+		logError = message
 		Fail(w, message)
 		return
 	}
@@ -175,16 +189,17 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		if credits > 0 {
 			refundVideoCredits(user.ID, modelName, credits, upstreamPath)
 		}
-		saveAIProxyLog(logContext, status, string(payload), message)
+		logError = message
 		Fail(w, message)
 		return
 	}
 	parsed := parseVideoTaskPayload(transformed, modelName)
+	parsed.VideoURL = normalizeVideoResultURL(parsed.VideoURL, service.BuildModelChannelURL(channel, "/"))
 	if parsed.UpstreamTaskID == "" && parsed.UpstreamVideoID == "" {
 		if credits > 0 {
 			refundVideoCredits(user.ID, modelName, credits, upstreamPath)
 		}
-		saveAIProxyLog(logContext, status, string(transformed), "视频接口没有返回任务 ID")
+		logError = "视频接口没有返回任务 ID"
 		Fail(w, "视频接口没有返回任务 ID")
 		return
 	}
@@ -216,7 +231,7 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		Fail(w, "AI 接口请求失败")
 		return
 	}
-	saveAIProxyLog(logContext, status, string(transformed), "")
+	logContext.TaskID = task.ID
 	OK(w, service.VideoTaskResponse(task))
 }
 
@@ -253,6 +268,26 @@ func serveAIVideoTask(w http.ResponseWriter, r *http.Request, id string) bool {
 	}
 	if !found {
 		return false
+	}
+	if r.URL.Query().Get("refresh") == "true" || r.URL.Query().Get("refresh") == "1" {
+		update, err := pollVideoTaskFromUpstream(r.Context(), task)
+		if err != nil {
+			log.Printf("refresh video task from upstream failed: id=%s user=%s err=%v", id, user.ID, err)
+			Fail(w, "查询上游视频任务失败")
+			return true
+		}
+		if err := service.UpdateVideoTaskFromPoll(task, update); err != nil {
+			log.Printf("save refreshed video task failed: id=%s user=%s err=%v", id, user.ID, err)
+			Fail(w, "更新视频任务失败")
+			return true
+		}
+		var refreshed bool
+		task, refreshed, err = service.GetUserVideoTask(user.ID, id)
+		if err != nil || !refreshed {
+			log.Printf("read refreshed video task failed: id=%s user=%s err=%v", id, user.ID, err)
+			Fail(w, "读取视频任务失败")
+			return true
+		}
 	}
 	OK(w, service.VideoTaskResponse(task))
 	return true
@@ -322,16 +357,7 @@ func pollVideoTaskFromUpstream(ctx context.Context, task model.VideoTask) (servi
 		return service.VideoTaskPollUpdate{}, err
 	}
 	if task.ParameterTranslationSnapshot != "" {
-		update, err := service.PollParameterTranslationVideo(ctx, task, channel)
-		if err != nil || service.IsCompletedVideoTaskStatus(update.Status) || service.IsFailedVideoTaskStatus(update.Status) {
-			startedAt, _ := time.Parse(time.RFC3339Nano, task.CreatedAt)
-			message := firstNonEmpty(update.Error, update.ErrorDetail)
-			if err != nil {
-				message = err.Error()
-			}
-			saveAIProxyLog(aiLogContext{StartedAt: startedAt, OutcomeKnown: true, Endpoint: "/videos/" + task.ID, Method: http.MethodGet, Model: task.Model, Channel: channel, UserID: task.UserID, UserDisplayName: task.UserDisplayName, RequestBody: fmt.Sprintf(`{"taskId":%q}`, task.ID)}, update.StatusCode, update.ResponseBody, message)
-		}
-		return update, err
+		return service.PollParameterTranslationVideo(ctx, task, channel)
 	}
 	pollID := firstNonEmpty(task.UpstreamTaskID, task.ID)
 	if isAIProtocolVideoID(task.Model, task.UpstreamVideoID) {
@@ -348,9 +374,6 @@ func pollVideoTaskFromUpstream(ctx context.Context, task model.VideoTask) (servi
 	}
 	service.SetModelChannelAuthHeader(request, channel)
 	startedAt := time.Now()
-	if createdAt, err := time.Parse(time.RFC3339Nano, task.CreatedAt); err == nil {
-		startedAt = createdAt
-	}
 	logContext := aiLogContext{
 		StartedAt:       startedAt,
 		Endpoint:        endpoint,
@@ -360,17 +383,29 @@ func pollVideoTaskFromUpstream(ctx context.Context, task model.VideoTask) (servi
 		UserID:          task.UserID,
 		UserDisplayName: task.UserDisplayName,
 		RequestBody:     fmt.Sprintf(`{"taskId":%q}`, pollID),
+		TaskID:          task.ID,
+		Stage:           "poll",
+		URL:             request.URL.String(),
+		OutcomeKnown:    true,
 	}
-	payload, status, err := doAIRequest(request, channel)
+	if task.Source == "canvas" {
+		logContext.NodeID = task.SourceID
+	}
+	payload, status, err := doAIRequest(request, channel, &logContext)
+	duration := time.Since(startedAt).Milliseconds()
+	logContext.DurationMs = &duration
+	logError := ""
+	defer func() { saveAIProxyLog(logContext, status, string(payload), logError) }()
 	if err != nil {
+		logError = err.Error()
 		return service.VideoTaskPollUpdate{}, err
 	}
 	if status >= http.StatusBadRequest {
 		message := readUpstreamAIErrorMessage(payload, status)
-		if status == http.StatusTooManyRequests {
+		logError = message
+		if status == http.StatusTooManyRequests || status >= http.StatusInternalServerError {
 			return service.VideoTaskPollUpdate{Status: task.Status, ErrorDetail: message, ResponseBody: string(payload)}, nil
 		}
-		saveAIProxyLog(logContext, status, string(payload), strings.TrimSpace(string(payload)))
 		return service.VideoTaskPollUpdate{Status: "failed", Error: message, ErrorDetail: message, ResponseBody: string(payload)}, nil
 	}
 	transformed := transformVideoStatusPayload(payload, request, channel, task.Model)
@@ -382,6 +417,7 @@ func pollVideoTaskFromUpstream(ctx context.Context, task model.VideoTask) (servi
 		// embedded task state so a still-running task is not finalized as failed.
 		parsed = embedded
 	}
+	parsed.VideoURL = normalizeVideoResultURL(parsed.VideoURL, service.BuildModelChannelURL(channel, "/"))
 	if service.IsArkChannel(channel) && parsed.Status == "expired" {
 		parsed.Status = "failed"
 	}
@@ -397,9 +433,7 @@ func pollVideoTaskFromUpstream(ctx context.Context, task model.VideoTask) (servi
 	if parsed.ErrorDetail == "" && len(payload) > 0 && parsed.Error != "" {
 		parsed.ErrorDetail = string(payload)
 	}
-	if service.IsCompletedVideoTaskStatus(parsed.Status) || service.IsFailedVideoTaskStatus(parsed.Status) {
-		saveAIProxyLog(logContext, status, string(transformed), firstNonEmpty(parsed.Error, ""))
-	}
+	logError = parsed.Error
 	return service.VideoTaskPollUpdate{
 		Status:       parsed.Status,
 		Progress:     parsed.Progress,
@@ -420,13 +454,20 @@ func normalizeVideoCreateBody(body []byte, contentType string, modelName string,
 	return prepared.body, prepared.contentType, err
 }
 
-func doAIRequest(request *http.Request, channel model.ModelChannel) ([]byte, int, error) {
+func doAIRequest(request *http.Request, channel model.ModelChannel, contexts ...*aiLogContext) ([]byte, int, error) {
 	response, err := service.HTTPClientForChannel(channel).Do(request)
 	if err != nil {
 		return nil, 0, err
 	}
 	defer response.Body.Close()
-	payload, _ := io.ReadAll(io.LimitReader(response.Body, 1024*1024))
+	payload, readErr := io.ReadAll(io.LimitReader(response.Body, 1024*1024))
+	if len(contexts) > 0 && contexts[0] != nil {
+		raw := string(payload)
+		contexts[0].RawResponseBody = &raw
+	}
+	if readErr != nil {
+		return payload, response.StatusCode, readErr
+	}
 	if response.StatusCode >= http.StatusBadRequest && service.IsTokenDanceChannel(channel) {
 		if message := service.TokenDanceRecoveryMessage(response.Header.Get("TokenDance-Recovery-Action")); message != "" {
 			payload, _ = json.Marshal(map[string]any{"error": map[string]any{"message": message}})
@@ -593,6 +634,28 @@ type parsedVideoTaskPayload struct {
 	ErrorDetail     string
 }
 
+func normalizeVideoResultURL(raw string, channelBaseURL string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	result, err := url.Parse(raw)
+	if err != nil || result.IsAbs() {
+		return raw
+	}
+	base, err := url.Parse(channelBaseURL)
+	if err != nil || base.Scheme == "" || base.Host == "" {
+		return raw
+	}
+	if strings.HasPrefix(raw, "/") {
+		base.Path, base.RawPath, base.RawQuery, base.Fragment = "", "", "", ""
+	} else {
+		base.Path = strings.TrimRight(base.Path, "/") + "/"
+		base.RawPath, base.RawQuery, base.Fragment = "", "", ""
+	}
+	return base.ResolveReference(result).String()
+}
+
 func parseVideoTaskPayload(payload []byte, modelName string) parsedVideoTaskPayload {
 	var root any
 	if len(payload) == 0 || json.Unmarshal(payload, &root) != nil {
@@ -606,7 +669,7 @@ func parseVideoTaskPayload(payload []byte, modelName string) parsedVideoTaskPayl
 		Progress:        readIntPath(data, "progress"),
 		Seconds:         firstNonEmpty(readStringPath(data, "seconds"), readStringPath(data, "duration")),
 		Size:            firstNonEmpty(readStringPath(data, "size"), readSizeFromDimensions(data)),
-		VideoURL:        firstNonEmpty(readStringPath(data, "video_url"), readStringPath(data, "url"), readStringPath(data, "video.url"), readStringPath(data, "remixed_from_video_id"), readStringPath(data, "output_url"), readStringPath(data, "download_url"), readStringPath(data, "content_url"), readStringPath(data, "contentUrl"), readStringPath(data, "content"), readStringPath(data, "content.video_url"), findFirstHTTPURL(data)),
+		VideoURL:        firstNonEmpty(readStringPath(data, "video_url"), readStringPath(data, "videoUrl"), readStringPath(data, "url"), readStringPath(data, "video.url"), readStringPath(data, "remixed_from_video_id"), readStringPath(data, "output_url"), readStringPath(data, "outputUrl"), readStringPath(data, "download_url"), readStringPath(data, "downloadUrl"), readStringPath(data, "result_url"), readStringPath(data, "resultUrl"), readStringPath(data, "localAssetUrl"), readStringPath(data, "sourceVideoUrl"), readStringPath(data, "content_url"), readStringPath(data, "contentUrl"), readStringPath(data, "content"), readStringPath(data, "content.video_url"), findFirstHTTPURL(data)),
 		Error:           firstNonEmpty(readStringPath(data, "error.message"), readStringPath(data, "error")),
 		ErrorDetail:     "",
 	}
@@ -638,11 +701,13 @@ func normalizeVideoPayloadMap(value any) map[string]any {
 		return map[string]any{}
 	}
 
-	// Some OpenAI-compatible providers wrap the task twice (data.data). Unwrap
-	// all envelope layers while retaining outer fields such as the provider code.
+	// Providers may wrap task results in either data or task envelopes.
 	normalized := typed
 	unwrapped := false
-	if nested, ok := typed["data"].(map[string]any); ok {
+	if nested, ok := typed["task"].(map[string]any); ok {
+		normalized = normalizeVideoPayloadMap(nested)
+		unwrapped = true
+	} else if nested, ok := typed["data"].(map[string]any); ok {
 		normalized = normalizeVideoPayloadMap(nested)
 		unwrapped = true
 	} else if items, ok := typed["data"].([]any); ok && len(items) > 0 {
@@ -653,7 +718,7 @@ func normalizeVideoPayloadMap(value any) map[string]any {
 	}
 	if unwrapped {
 		for key, item := range typed {
-			if key == "data" {
+			if key == "data" || key == "task" {
 				continue
 			}
 			if _, exists := normalized[key]; !exists {
@@ -755,7 +820,7 @@ func findFirstHTTPURL(value any) string {
 			}
 		}
 	case map[string]any:
-		for _, key := range []string{"uri", "url", "content", "content_url", "contentUrl", "video_url", "videoUrl", "download_url", "downloadUrl", "output_url", "outputUrl", "resultUrls", "result_urls", "videoUrls", "video_urls", "urls", "videos", "video_result", "video", "generatedSamples", "generateVideoResponse", "response", "data", "result", "metadata"} {
+		for _, key := range []string{"uri", "url", "content", "content_url", "contentUrl", "video_url", "videoUrl", "download_url", "downloadUrl", "output_url", "outputUrl", "result_url", "resultUrl", "localAssetUrl", "sourceVideoUrl", "resultUrls", "result_urls", "videoUrls", "video_urls", "urls", "videos", "video_result", "video", "task", "generatedSamples", "generateVideoResponse", "response", "data", "result", "metadata"} {
 			if url := findFirstHTTPURL(typed[key]); url != "" {
 				return url
 			}

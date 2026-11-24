@@ -24,7 +24,7 @@ export function assistantReferenceContentFromNode(node: CanvasNodeData): Partial
         return text ? { text } : null;
     }
     if (!content) return null;
-    if (isCanvasImageNodeType(node.type)) return { dataUrl: content, url: undefined, storageKey: node.metadata!.storageKey, mimeType: node.metadata!.mimeType };
+    if (isCanvasImageReferenceNode(node)) return { dataUrl: content, url: undefined, storageKey: node.metadata!.storageKey, mimeType: node.metadata!.mimeType };
     if (node.type === CanvasNodeType.Video || node.type === CanvasNodeType.Audio) return { dataUrl: undefined, url: content, storageKey: node.metadata!.storageKey, mimeType: node.metadata!.mimeType };
     return null;
 }
@@ -108,8 +108,12 @@ export function isCanvasReferenceNode(node: CanvasNodeData) {
     return Boolean(resourceKind(node));
 }
 
+export function isCanvasImageReferenceNode(node: CanvasNodeData) {
+    return Boolean(node.metadata?.content && (isCanvasImageNodeType(node.type) || node.type === CanvasNodeType.Draft && node.metadata?.draft?.completed));
+}
+
 function resourceKind(node: CanvasNodeData): CanvasResourceKind | null {
-    if (isCanvasImageNodeType(node.type) && node.metadata?.content) return "image";
+    if (isCanvasImageReferenceNode(node)) return "image";
     if (node.type === CanvasNodeType.Video && node.metadata?.content) return "video";
     if (node.type === CanvasNodeType.Audio && node.metadata?.content) return "audio";
     if (node.type === CanvasNodeType.Text && (node.metadata?.content || node.metadata?.prompt)) return "text";

@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/tigerowo/infinite-canvas/model"
 )
@@ -290,7 +291,7 @@ func workflowMediaSource(input WorkflowRunInput, id string) (string, error) {
 	return items[index], nil
 }
 
-func uploadRunningHubReference(ctx context.Context, root, apiKey, raw string, capture *AICallLogInput) (string, error) {
+func uploadRunningHubReference(ctx context.Context, root, apiKey, raw string, capture *AICallLogInput) (filename string, uploadErr error) {
 	if capture != nil {
 		capture.Endpoint, capture.Method = root+"/task/openapi/upload", http.MethodPost
 		capture.Status, capture.RequestBody, capture.ResponseBody = 0, "", ""
@@ -331,6 +332,21 @@ func uploadRunningHubReference(ctx context.Context, root, apiKey, raw string, ca
 		return "", err
 	}
 	request.Header.Set("Content-Type", writer.FormDataContentType())
+	startedAt := time.Now()
+	defer func() {
+		if capture == nil || capture.UserID == "" {
+			return
+		}
+		input := *capture
+		input.Stage, input.Credits, input.OutcomeKnown = "upload", 0, true
+		input.StartedAt = startedAt.UTC().Format(time.RFC3339Nano)
+		input.DurationMs = time.Since(startedAt).Milliseconds()
+		input.Error = ""
+		if uploadErr != nil {
+			input.Error = uploadErr.Error()
+		}
+		SaveUpstreamAICallLog(input, apiKey)
+	}()
 	response, err := SafeProxyHTTPClient().Do(request)
 	if err != nil {
 		return "", errors.New("RunningHub 素材上传接口不可达")
@@ -339,7 +355,7 @@ func uploadRunningHubReference(ctx context.Context, root, apiKey, raw string, ca
 	encoded, err := io.ReadAll(io.LimitReader(response.Body, (2<<20)+1))
 	if capture != nil {
 		capture.Status = response.StatusCode
-		capture.ResponseBody = string(workflowLogJSON(string(encoded), apiKey))
+		capture.ResponseBody = string(encoded)
 	}
 	if err != nil || len(encoded) > 2<<20 || response.StatusCode < 200 || response.StatusCode >= 300 {
 		return "", fmt.Errorf("RunningHub 素材上传失败 HTTP %d", response.StatusCode)

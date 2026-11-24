@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 
 import { deleteAnonymousStorageFile, uploadAnonymousStorageFile } from "@/services/anonymous-storage";
 import { apiGet } from "@/services/api/request";
+import { getBridgeMedia, putBridgeMedia } from "@/services/canvas-bridge-media";
 import { autoSyncToCloud, canUseGlobalStorage, clearAutoSyncCache, getProxyUrl, loadUserStorageProvider, toProviderPayload, type StorageConfig, type UserWebDAVStorageProvider } from "@/services/image-storage";
 import { useUserStore } from "@/stores/use-user-store";
 
@@ -157,6 +158,15 @@ export async function resolveMediaUrl(storageKey?: string, fallback = "") {
         const url = info.publicUrl || `/api/files/${encodeURIComponent(id)}/content`;
         return url;
     }
+    // canvas-bridge 媒体中继，可选：本地未命中时尝试从本机桥取回并存回本地
+    if (!storageKey.startsWith("server:")) {
+        try {
+            const bridged = await getBridgeMedia(storageKey);
+            if (bridged) return await setMediaBlob(storageKey, bridged);
+        } catch {
+            // 静默退回原有 fallback 行为
+        }
+    }
     return fallback;
 }
 
@@ -166,6 +176,7 @@ export async function getMediaBlob(storageKey: string) {
 
 export async function setMediaBlob(storageKey: string, blob: Blob) {
     await store.setItem(storageKey, blob);
+    void putBridgeMedia(storageKey, blob); // canvas-bridge 媒体中继，可选；失败静默
     const url = URL.createObjectURL(blob);
     objectUrls.set(storageKey, url);
     return url;

@@ -18,6 +18,11 @@ cp .env.example .env
 - 后端端口是 `18080`
 - 前端端口是 `3000`
 - SQLite 数据库是 `data/infinite-canvas.db`
+- AI 请求日志默认保存在后端 `data/logs/ai-calls`，可用 `AI_LOG_DIR` 修改；节点信息中的“日志”页签和管理员 `/admin/ai-logs` 从服务器读取这些文件。
+
+## 桌面一键启动（生产模式）
+
+双击仓库根目录的 `restart-local.cmd`，脚本会启动 Go 后端，并在每次重启时先构建前端，再通过 Next.js standalone 服务运行生产版本。构建日志和运行日志保存在 `%TEMP%\infinite-canvas-logs`。代码修改后需要重新运行脚本才能生效。
 
 ## 2. 启动后端
 
@@ -35,7 +40,7 @@ http://127.0.0.1:18080
 
 ## 3. 启动前端
 
-在 `web` 目录执行：
+需要边改代码边预览时，在 `web` 目录运行开发模式：
 
 ```bash
 bun run dev

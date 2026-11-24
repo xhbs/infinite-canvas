@@ -7,7 +7,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useParams } from "next/navigation";
 import { Tooltip } from "antd";
-import { ChevronRight, Image as ImageIcon, Maximize2, Music2, Pause, Play, RefreshCw, Star, Video } from "lucide-react";
+import { Brush, ChevronRight, Image as ImageIcon, Maximize2, Music2, Pause, Play, RefreshCw, Star, Video } from "lucide-react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { pickImageSource } from "@/lib/image-thumbnail";
@@ -15,7 +15,7 @@ import { formatBytes, formatDuration } from "@/lib/image-utils";
 import { getImagePreviewRevision, previewUrlFor, subscribeImagePreviews } from "@/services/image-storage";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { CanvasResourceMentionTextarea } from "./canvas-resource-mention-textarea";
-import { CanvasNodeType, type CanvasNodeData, type Position } from "../types";
+import { CanvasNodeType, canvasVideoTaskStageLabel, type CanvasNodeData, type Position } from "../types";
 import { isCanvasImageNodeType } from "../utils/canvas-panorama";
 import type { CanvasResourceReference } from "../utils/canvas-resource-references";
 
@@ -53,13 +53,17 @@ type CanvasNodeProps = {
     onResize: (nodeId: string, width: number, height: number, position?: Position, loadedNode?: CanvasNodeData) => void;
     onContentChange: (nodeId: string, content: string) => void;
     onTitleChange: (nodeId: string, title: string) => void;
+    isTitleEditing: boolean;
+    onTitleEditingChange: (nodeId: string, editing: boolean) => void;
     onToggleBatch?: (nodeId: string) => void;
     onSetBatchPrimary?: (node: CanvasNodeData) => void;
     onRetry?: (node: CanvasNodeData) => void;
     onContinuePolling?: (node: CanvasNodeData) => void;
     onConvertDraft?: (node: CanvasNodeData) => Promise<void>;
     isConvertingDraft?: boolean;
+    onReloadVideo?: (node: CanvasNodeData) => Promise<string | void> | string | void;
     onViewImage?: (node: CanvasNodeData) => void;
+    onEditDraft?: (node: CanvasNodeData) => void;
     onSelectReference?: (nodeId: string) => void;
     onContextMenu: (event: React.MouseEvent, nodeId: string) => void;
 };
@@ -86,7 +90,9 @@ type NodeContentRendererProps = {
     onContinuePolling?: (node: CanvasNodeData) => void;
     onConvertDraft?: (node: CanvasNodeData) => Promise<void>;
     isConvertingDraft?: boolean;
+    onReloadVideo?: (node: CanvasNodeData) => Promise<string | void> | string | void;
     onViewImage?: (node: CanvasNodeData) => void;
+    onEditDraft?: (node: CanvasNodeData) => void;
     onToggleBatch?: () => void;
     onSetBatchPrimary?: () => void;
     onMoveStart?: (event: React.MouseEvent<HTMLButtonElement>) => void;
@@ -122,23 +128,26 @@ export const CanvasNode = React.memo(function CanvasNode({
     onResize,
     onContentChange,
     onTitleChange,
+    isTitleEditing,
+    onTitleEditingChange,
     onToggleBatch,
     onSetBatchPrimary,
     onRetry,
     onContinuePolling,
     onConvertDraft,
     isConvertingDraft,
+    onReloadVideo,
     onViewImage,
+    onEditDraft,
     onSelectReference,
     onContextMenu,
 }: CanvasNodeProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const [hovered, setHovered] = useState(false);
     const [isEditingContent, setIsEditingContent] = useState(false);
-    const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [titleDraft, setTitleDraft] = useState(data.title || "");
     const isGroup = data.type === CanvasNodeType.Group;
-    const hasImageContent = isCanvasImageNodeType(data.type) && Boolean(data.metadata?.content);
+    const hasImageContent = (isCanvasImageNodeType(data.type) || data.type === CanvasNodeType.Draft && data.metadata?.draft?.completed) && Boolean(data.metadata?.content);
     const hasVideoContent = data.type === CanvasNodeType.Video && Boolean(data.metadata?.content);
     const hasAudioContent = data.type === CanvasNodeType.Audio && Boolean(data.metadata?.content);
     const isBatchRoot = isCanvasImageNodeType(data.type) && Boolean(data.metadata?.isBatchRoot) && batchCount > 1;
@@ -162,7 +171,7 @@ export const CanvasNode = React.memo(function CanvasNode({
 
     useLayoutEffect(() => {
         const { naturalWidth, naturalHeight, clientTaskId, isBatchRoot, batchRootId } = data.metadata || {};
-        if ((data.type === CanvasNodeType.Image || data.type === CanvasNodeType.Video) && clientTaskId && !isBatchRoot && !batchRootId && naturalWidth && naturalHeight) resizeRef.current.ratio = naturalWidth / naturalHeight;
+        if (((data.type === CanvasNodeType.Image || data.type === CanvasNodeType.Video) && clientTaskId && !isBatchRoot && !batchRootId || data.type === CanvasNodeType.Draft) && naturalWidth && naturalHeight) resizeRef.current.ratio = naturalWidth / naturalHeight;
     }, [data.type, data.metadata?.clientTaskId, data.metadata?.isBatchRoot, data.metadata?.batchRootId, data.metadata?.naturalWidth, data.metadata?.naturalHeight]);
 
     useEffect(() => {
@@ -170,20 +179,20 @@ export const CanvasNode = React.memo(function CanvasNode({
     }, [data.title]);
 
     useEffect(() => {
-        if (!isEditingTitle) return;
+        if (!isTitleEditing) return;
         titleInputRef.current?.focus();
         titleInputRef.current?.select();
-    }, [isEditingTitle]);
+    }, [isTitleEditing]);
 
     const finishTitleEditing = useCallback(() => {
         const title = titleDraft.trim() || data.title || "未命名节点";
         setTitleDraft(title);
-        setIsEditingTitle(false);
-        if (title !== data.title) onTitleChange(data.id, title);
-    }, [data.id, data.title, onTitleChange, titleDraft]);
+        onTitleEditingChange(data.id, false);
+        onTitleChange(data.id, title);
+    }, [data.id, data.title, onTitleChange, onTitleEditingChange, titleDraft]);
 
     useEffect(() => {
-        if (!isEditingTitle) return;
+        if (!isTitleEditing) return;
         const handleOutsidePointerDown = (event: PointerEvent) => {
             const target = event.target;
             if (target instanceof Node && titleInputRef.current?.contains(target)) return;
@@ -191,7 +200,7 @@ export const CanvasNode = React.memo(function CanvasNode({
         };
         window.addEventListener("pointerdown", handleOutsidePointerDown, true);
         return () => window.removeEventListener("pointerdown", handleOutsidePointerDown, true);
-    }, [finishTitleEditing, isEditingTitle]);
+    }, [finishTitleEditing, isTitleEditing]);
 
     useEffect(() => {
         const textarea = textareaRef.current;
@@ -282,7 +291,7 @@ export const CanvasNode = React.memo(function CanvasNode({
             startTop: data.position.y,
             startWidth: data.width,
             startHeight: data.height,
-            keepRatio: (isCanvasImageNodeType(data.type) && !data.metadata?.freeResize) || data.type === CanvasNodeType.Video,
+            keepRatio: ((isCanvasImageNodeType(data.type) || data.type === CanvasNodeType.Draft) && !data.metadata?.freeResize) || data.type === CanvasNodeType.Video,
             ratio: (data.metadata?.naturalWidth || data.width) / (data.metadata?.naturalHeight || data.height || 1),
         };
         window.addEventListener("mousemove", handleResizeMove);
@@ -331,7 +340,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                 onMouseDown={(event) => event.stopPropagation()}
                 onPointerDown={(event) => event.stopPropagation()}
             >
-                {isEditingTitle ? (
+                {isTitleEditing ? (
                     <input
                         ref={titleInputRef}
                         value={titleDraft}
@@ -341,10 +350,14 @@ export const CanvasNode = React.memo(function CanvasNode({
                         onChange={(event) => setTitleDraft(event.target.value)}
                         onBlur={finishTitleEditing}
                         onKeyDown={(event) => {
-                            if (event.key === "Enter") finishTitleEditing();
+                            if (event.key === "Enter") {
+                                event.stopPropagation();
+                                finishTitleEditing();
+                            }
                             if (event.key === "Escape") {
+                                event.stopPropagation();
                                 setTitleDraft(data.title || "");
-                                setIsEditingTitle(false);
+                                onTitleEditingChange(data.id, false);
                             }
                         }}
                     />
@@ -353,10 +366,10 @@ export const CanvasNode = React.memo(function CanvasNode({
                         type="button"
                         className="block max-w-full truncate border-b border-dashed border-transparent px-0 py-0.5 text-left text-xs font-medium opacity-75 transition hover:border-current hover:opacity-100"
                         style={{ color: theme.node.text }}
-                        title="双击修改节点名称"
+                        title="双击或使用工具栏重命名"
                         onDoubleClick={(event) => {
                             event.stopPropagation();
-                            setIsEditingTitle(true);
+                            onTitleEditingChange(data.id, true);
                         }}
                     >
                         {data.title || "未命名节点"}
@@ -381,6 +394,11 @@ export const CanvasNode = React.memo(function CanvasNode({
                     if (referenceSelectionState) {
                         event.preventDefault();
                         event.stopPropagation();
+                        return;
+                    }
+                    if (data.type === CanvasNodeType.Draft) {
+                        event.stopPropagation();
+                        onEditDraft?.(data);
                         return;
                     }
                     if (isBatchRoot) {
@@ -436,7 +454,9 @@ export const CanvasNode = React.memo(function CanvasNode({
                             onContinuePolling={onContinuePolling}
                             onConvertDraft={referenceSelectionState ? undefined : onConvertDraft}
                             isConvertingDraft={isConvertingDraft}
+                            onReloadVideo={onReloadVideo}
                             onViewImage={onViewImage}
+                            onEditDraft={onEditDraft}
                             onToggleBatch={() => onToggleBatch?.(data.id)}
                             onSetBatchPrimary={() => onSetBatchPrimary?.(data)}
                             onMoveStart={(event) => onMouseDown(event, data.id)}
@@ -497,7 +517,25 @@ const nodeContentRenderers = {
     [CanvasNodeType.Video]: VideoNodeContent,
     [CanvasNodeType.Audio]: AudioNodeContent,
     [CanvasNodeType.Director]: EmptyImageContent,
+    [CanvasNodeType.Draft]: DraftNodeContent,
 } satisfies Partial<Record<CanvasNodeType, (props: NodeContentRendererProps) => ReactNode>>;
+
+function DraftNodeContent({ node, theme }: NodeContentRendererProps) {
+    const completedImage = node.metadata?.draft?.completed ? node.metadata.content : undefined;
+    if (!completedImage) return (
+        <div className="flex h-full w-full flex-col items-center justify-center gap-2" style={{ color: theme.node.muted }}>
+            <Brush className="size-7 opacity-65" />
+            <span className="text-sm font-medium">空白草稿</span>
+            <span className="text-[10px] opacity-65">双击开始绘制</span>
+        </div>
+    );
+    return (
+        <div className="relative h-full w-full overflow-hidden rounded-[inherit] bg-[repeating-conic-gradient(#d2d5d8_0%_25%,#fff_0%_50%)] bg-[length:16px_16px]">
+            <img src={completedImage} alt={node.title || "画布草稿"} draggable={false} className="h-full w-full select-none object-contain" />
+            <span className="absolute bottom-2 right-2 rounded-md px-2 py-1 text-[10px] opacity-70" style={{ background: theme.toolbar.panel, color: theme.node.text }}>双击编辑</span>
+        </div>
+    );
+}
 
 function LoadingContent({ node, theme, now }: Pick<NodeContentRendererProps, "node" | "theme" | "now">) {
     const startTimeRef = useRef(Date.now());
@@ -514,27 +552,29 @@ function LoadingContent({ node, theme, now }: Pick<NodeContentRendererProps, "no
     const stopLabel = node.metadata?.status === "stopping" ? node.metadata.errorDetails ? "停止失败，请重试停止" : "正在停止" : "";
 
     if (node.type === CanvasNodeType.Video) {
+        const label = canvasVideoTaskStageLabel(node.metadata);
+        const generating = label === "正在创作";
         return (
             <div className="flex h-full w-full flex-col justify-between overflow-hidden p-4" style={{ color: theme.node.text }}>
                 <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
-                    <div className="size-10 animate-spin rounded-full border-2" style={{ borderColor: theme.node.stroke, borderTopColor: selectionBlue }} />
-                    <div className="text-sm font-semibold" style={{ color: selectionBlue }}>
-                        {stopLabel || `正在创作 ${progress}%`}
+                    <div className="size-10 animate-spin rounded-full border-2" style={{ borderColor: theme.node.stroke, borderTopColor: theme.node.activeStroke }} />
+                    <div className="text-sm font-semibold" style={{ color: theme.node.activeStroke }}>
+                        {generating ? `${label} ${progress}%` : label}
                     </div>
                     <span className="rounded-full px-2 py-1 text-xs" style={{ background: theme.toolbar.panel, color: theme.node.text }}>
                         {formatDuration(elapsedMs)}
                     </span>
                     {node.metadata?.errorDetails ? <span className="max-w-full text-center text-[11px] text-red-400">{node.metadata.errorDetails}</span> : null}
                 </div>
-                <div className="space-y-1">
+                {generating ? <div className="space-y-1">
                     <div className="flex items-center justify-between text-[11px]" style={{ color: theme.node.muted }}>
                         <span>当前创作进度</span>
                         <span>{progress}%</span>
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full" style={{ background: theme.node.stroke }}>
-                        <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: selectionBlue }} />
+                        <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: theme.node.activeStroke }} />
                     </div>
-                </div>
+                </div> : null}
             </div>
         );
     }
@@ -696,8 +736,9 @@ function EmptyImageContent({ node, theme, isBatchRoot, batchCount, batchExpanded
     return content;
 }
 
-function VideoNodeContent({ node, theme, isSelected, onViewImage, onResize, onConvertDraft, isConvertingDraft = false }: NodeContentRendererProps) {
+function VideoNodeContent({ node, theme, isSelected, onReloadVideo, onViewImage, onResize, onConvertDraft, isConvertingDraft = false }: NodeContentRendererProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
+    const [isReloading, setIsReloading] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
     const [mediaDurationMs, setMediaDurationMs] = useState(0);
     const [videoTime, setVideoTime] = useState(0);
@@ -732,10 +773,20 @@ function VideoNodeContent({ node, theme, isSelected, onViewImage, onResize, onCo
     return (
         <div className="relative h-full w-full overflow-hidden rounded-[18px] bg-black">
             <video ref={videoRef} src={node.metadata.content} tabIndex={-1} playsInline className="h-full w-full object-contain outline-none" onLoadStart={() => { setVideoTime(0); setMediaDurationMs(0); }} onLoadedMetadata={(event) => { const video = event.currentTarget; setMediaDurationMs(Number.isFinite(video.duration) ? video.duration * 1000 : 0); if (video.currentSrc === video.src) onResize(node.id, video.videoWidth, video.videoHeight, undefined, node); }} onTimeUpdate={(event) => setVideoTime(event.currentTarget.currentTime)} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} onKeyDown={(event) => { if (isSelected && event.code === "Space") { event.preventDefault(); event.stopPropagation(); togglePlayback(); } }} />
+            <button type="button" title="重新获取视频并加载" aria-label="重新获取视频并加载" disabled={isReloading} className="absolute right-2 top-2 z-20 flex size-7 items-center justify-center rounded-md opacity-70 backdrop-blur transition-opacity hover:opacity-100 disabled:cursor-wait" style={controlStyle} onClick={(event) => {
+                event.stopPropagation();
+                setIsReloading(true);
+                void Promise.resolve(onReloadVideo?.(node)).then((url) => {
+                    if (typeof url === "string" && videoRef.current) videoRef.current.src = url;
+                    videoRef.current?.load();
+                }).catch(() => undefined).finally(() => setIsReloading(false));
+            }} onMouseDown={keepVideoFocus} onDoubleClick={(event) => event.stopPropagation()}>
+                <RefreshCw className={`size-3.5${isReloading ? " animate-spin" : ""}`} />
+            </button>
             {mediaDurationMs > 0 ? <span className="pointer-events-none absolute left-2 top-2 z-20 flex h-7 items-center justify-center rounded-md px-2 text-[11px] font-medium opacity-70 backdrop-blur" style={controlStyle}>{new Date(mediaDurationMs).toISOString().slice(mediaDurationMs >= 3_600_000 ? 11 : 14, 19)}</span> : null}
             {onConvertDraft ? (
                 <Tooltip title="生成正片 1080P，样片具有时效性，逾期需重新生成" placement="bottom" mouseEnterDelay={0.2} color={theme.node.panel} styles={{ container: { color: theme.node.text } }}>
-                    <button type="button" aria-label="生成正片（1080p）" disabled={convertingDraft} className="absolute right-2 top-2 z-20 flex h-7 cursor-pointer items-center justify-center rounded-md bg-foreground/70 px-2 text-[11px] font-medium transition-colors enabled:hover:bg-foreground disabled:cursor-wait" style={{ color: controlStyle.background }} onMouseDown={keepVideoFocus} onPointerDown={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()} onClick={async (event) => {
+                    <button type="button" aria-label="生成正片（1080p）" disabled={convertingDraft} className="absolute right-11 top-2 z-20 flex h-7 cursor-pointer items-center justify-center rounded-md bg-foreground/70 px-2 text-[11px] font-medium transition-colors enabled:hover:bg-foreground disabled:cursor-wait" style={{ color: controlStyle.background }} onMouseDown={keepVideoFocus} onPointerDown={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()} onClick={async (event) => {
                         event.stopPropagation();
                         setSubmittingDraft(true);
                         try { await onConvertDraft(node); } finally { setSubmittingDraft(false); }

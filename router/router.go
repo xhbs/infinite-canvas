@@ -33,6 +33,8 @@ func New() *gin.Engine {
 	api.POST("/ai/autodl/workflows", gin.WrapF(handler.AutoDLWorkflows))
 	anonymousFiles := api.Group("/anonymous/files", middleware.AnonymousStorage)
 	anonymousFiles.POST("/session", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	anonymousFiles.POST("/ai-logs", gin.WrapF(handler.ClientAICallLog))
+	anonymousFiles.GET("/ai-logs", gin.WrapF(handler.NodeAICallLogs))
 	anonymousFiles.POST("", gin.WrapF(handler.UploadFile))
 	anonymousFiles.POST("/temporary", gin.WrapF(handler.UploadTemporaryFile))
 	anonymousFiles.DELETE("/:id", func(c *gin.Context) {
@@ -60,6 +62,7 @@ func New() *gin.Engine {
 		handler.GetCanvasAudioTask(c.Writer, c.Request, c.Param("id"))
 	})
 	v1.POST("/ai-logs", gin.WrapF(handler.ClientAICallLog))
+	v1.GET("/ai-logs", gin.WrapF(handler.NodeAICallLogs))
 	v1.POST("/videos", gin.WrapF(handler.AIVideos))
 	v1.GET("/video-tasks", gin.WrapF(handler.UserVideoTasks))
 	v1.DELETE("/video-tasks/:id", func(c *gin.Context) {

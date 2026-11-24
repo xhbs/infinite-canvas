@@ -6,6 +6,7 @@ import { nanoid } from "nanoid";
 import { createImageThumbnail } from "@/lib/image-thumbnail";
 import { readImageMeta } from "@/lib/image-utils";
 import { deleteAnonymousStorageFile, uploadAnonymousStorageFile } from "@/services/anonymous-storage";
+import { getBridgeMedia, putBridgeMedia } from "@/services/canvas-bridge-media";
 import { apiGet } from "@/services/api/request";
 import { comfyOutputStorageKey } from "@/services/api/workflow-generation";
 import { useUserStore } from "@/stores/use-user-store";
@@ -383,6 +384,7 @@ export async function uploadImage(input: string | Blob, options: UploadImageOpti
     }
     const storageKey = `image:${nanoid()}`;
     await store.setItem(storageKey, blob);
+    void putBridgeMedia(storageKey, blob); // canvas-bridge 媒体中继，可选；失败静默
     const urlObj = URL.createObjectURL(blob);
     objectUrls.set(storageKey, urlObj);
     const meta = await readImageMeta(urlObj);
@@ -459,7 +461,18 @@ export async function resolveImageUrl(storageKey?: string, fallback = "") {
         serverUrls.set(id, url);
         return url;
     }
-    return await resolveLocalImageUrl(storageKey) || fallback;
+    const localUrl = await resolveLocalImageUrl(storageKey);
+    if (localUrl) return localUrl;
+    // canvas-bridge 媒体中继，可选：本地未命中时尝试从本机桥取回并存回本地
+    if (!storageKey.startsWith("server:")) {
+        try {
+            const bridged = await getBridgeMedia(storageKey);
+            if (bridged) return await setImageBlob(storageKey, bridged);
+        } catch {
+            // 静默退回原有 fallback 行为
+        }
+    }
+    return fallback;
 }
 
 async function resolveLocalImageUrl(storageKey: string) {

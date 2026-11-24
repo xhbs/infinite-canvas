@@ -262,6 +262,7 @@ func runCanvasImageTask(task model.CanvasImageTask, user model.AuthUser, body []
 	task.StartedAt = current
 	task, _ = service.SaveCanvasImageTask(task)
 
+	ctx = service.WithAICallLog(ctx, service.AICallLogInput{NodeID: task.NodeID, TaskID: task.ID})
 	payload, status, responseContentType, err := executeCanvasAIRequest(ctx, user, task.Endpoint, body, contentType, channelID, userChannelID, func(progress int) {
 		if progress > task.Progress {
 			task.Progress = min(progress, 99)
@@ -321,6 +322,7 @@ func runCanvasAudioTask(task model.CanvasAudioTask, user model.AuthUser, body []
 	task.StartedAt = current
 	task, _ = service.SaveCanvasAudioTask(task)
 
+	ctx = service.WithAICallLog(ctx, service.AICallLogInput{NodeID: task.NodeID, TaskID: task.ID})
 	payload, status, responseContentType, err := executeCanvasAIRequest(ctx, user, task.Endpoint, body, contentType, channelID, userChannelID, func(progress int) {
 		if progress > task.Progress {
 			task.Progress = min(progress, 99)

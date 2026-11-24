@@ -83,6 +83,56 @@ func TestParseVideoTaskPayloadRecognizesAICostContentURL(t *testing.T) {
 	}
 }
 
+func TestParseVideoTaskPayloadUnwrapsLLMTokenTaskResult(t *testing.T) {
+	payload := []byte(`{
+  "success": true,
+  "task": {
+    "id": "tuc_video_aa80e289-5bc4-468d-a56f-f5ed024672d9",
+    "task_id": "tuc_video_aa80e289-5bc4-468d-a56f-f5ed024672d9",
+    "status": "completed",
+    "videoUrl": "/llm-api/video/assets/2026-11-12/result.mp4",
+    "video_url": "/llm-api/video/assets/2026-11-12/result.mp4",
+    "outputUrl": "/llm-api/video/assets/2026-11-12/result.mp4",
+    "output_url": "/llm-api/video/assets/2026-11-12/result.mp4"
+  }
+}`)
+
+	got := parseVideoTaskPayload(payload, "kaka-seedance2_5-full")
+	if got.Status != "completed" {
+		t.Fatalf("status = %q, want completed", got.Status)
+	}
+	if got.UpstreamTaskID != "tuc_video_aa80e289-5bc4-468d-a56f-f5ed024672d9" {
+		t.Fatalf("upstream task id = %q", got.UpstreamTaskID)
+	}
+	wantURL := "/llm-api/video/assets/2026-11-12/result.mp4"
+	if got.VideoURL != wantURL {
+		t.Fatalf("video URL = %q, want %q", got.VideoURL, wantURL)
+	}
+	if got := normalizeVideoResultURL(got.VideoURL, "https://llmtoken.io/v1/"); got != "https://llmtoken.io/llm-api/video/assets/2026-11-12/result.mp4" {
+		t.Fatalf("normalized video URL = %q", got)
+	}
+}
+
+func TestNormalizeVideoResultURL(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		base string
+		want string
+	}{
+		{name: "absolute", raw: "https://media.example/video.mp4", base: "https://llmtoken.io/v1/", want: "https://media.example/video.mp4"},
+		{name: "root relative", raw: "/media/video.mp4?token=abc", base: "https://llmtoken.io/v1/", want: "https://llmtoken.io/media/video.mp4?token=abc"},
+		{name: "api relative", raw: "files/video.mp4", base: "https://llmtoken.io/v1/", want: "https://llmtoken.io/v1/files/video.mp4"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := normalizeVideoResultURL(test.raw, test.base); got != test.want {
+				t.Fatalf("normalizeVideoResultURL() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
 func TestParseEmbeddedVideoTaskPayloadRecoversTruncatedAICostBody(t *testing.T) {
 	message := `poll failed: unrecognized (HTTP 200): Unknown AICost video status: ; body={"data":{"code":"success","content":"https://www.aicost.me/static-custom/generated-videos/result.mp4","data":{"status":"charged","content_url":"https://www.aicost.me/static-custom/generated-videos/result.mp4","download_url":"https://www.aicost.me/static-custom/generated-videos/result.mp4","downl`
 	got, ok := parseEmbeddedVideoTaskPayload(message, "seedance2.5-900")

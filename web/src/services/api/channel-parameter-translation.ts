@@ -7,6 +7,7 @@ import { useChannelTranslationStore } from "@/stores/use-channel-translation-sto
 import { useUserStore } from "@/stores/use-user-store";
 import { uploadMediaFile } from "@/services/file-storage";
 import { WorkflowRequestError } from "./workflow-generation";
+import { loggedAIFetch } from "./ai-logs";
 
 export type TranslationInput = { kind: "image" | "video" | "audio"; variables: TranslationVariables };
 export type MatchedTranslation = { channelId: string; source: string; timeout: number; accountProxy: boolean };
@@ -176,7 +177,7 @@ export class BrowserParameterTranslation {
         const binary = responseType === "blob" || responseType === "arraybuffer";
         let response: Response, blob: Blob | undefined, payload: string | null;
         try {
-            response = await fetch(url, { ...options, signal });
+            response = await loggedAIFetch({ ...this.config, aiLogContext: { ...this.config.aiLogContext, taskId: this.config.aiLogContext?.taskId || taskId || undefined } }, url, { ...options, signal }, query ? "poll" : "create");
             blob = binary && response.ok ? await response.blob() : undefined;
             let json = Boolean(blob && /json/i.test(blob.type));
             for (let offset = 0; blob && !json && offset < blob.size; offset += 512) {

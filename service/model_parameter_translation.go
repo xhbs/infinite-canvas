@@ -357,6 +357,7 @@ func videoTaskParameterTranslation(task model.VideoTask, channel model.ModelChan
 }
 
 func ParameterTranslationVideoContent(ctx context.Context, task model.VideoTask, channel model.ModelChannel) (*http.Response, error) {
+	ctx = WithAICallLog(ctx, videoTaskAICallLog(task, channel))
 	translation, snapshot, err := videoTaskParameterTranslation(task, channel)
 	if err != nil {
 		return nil, err
@@ -392,6 +393,7 @@ func ParameterTranslationVideoContent(ctx context.Context, task model.VideoTask,
 }
 
 func PollParameterTranslationVideo(ctx context.Context, task model.VideoTask, channel model.ModelChannel) (VideoTaskPollUpdate, error) {
+	ctx = WithAICallLog(ctx, videoTaskAICallLog(task, channel))
 	translation, snapshot, err := videoTaskParameterTranslation(task, channel)
 	if err != nil {
 		return VideoTaskPollUpdate{}, err
@@ -738,8 +740,16 @@ type ParameterTranslationResult struct {
 	Retryable    bool `json:"-"`
 }
 
-func (translation *ParameterTranslation) Send(ctx context.Context, kind string, query bool, taskID string, downloadRequest ...*http.Request) (ParameterTranslationResult, error) {
-	result := ParameterTranslationResult{Status: "processing"}
+func videoTaskAICallLog(task model.VideoTask, channel model.ModelChannel) AICallLogInput {
+	input := AICallLogInput{UserID: task.UserID, UserDisplayName: task.UserDisplayName, TaskID: task.ID, Model: task.Model, ChannelID: channel.ID, ChannelName: channel.Name}
+	if task.Source == "canvas" {
+		input.NodeID = task.SourceID
+	}
+	return input
+}
+
+func (translation *ParameterTranslation) Send(ctx context.Context, kind string, query bool, taskID string, downloadRequest ...*http.Request) (result ParameterTranslationResult, requestErr error) {
+	result = ParameterTranslationResult{Status: "processing"}
 	request, responseType, err := translation.request(ctx, query, taskID, downloadRequest...)
 	if err != nil {
 		return result, err
@@ -748,6 +758,30 @@ func (translation *ParameterTranslation) Send(ctx context.Context, kind string, 
 	if !query && !download {
 		translation.Submission = request
 	}
+	stage := "create"
+	if query || download {
+		stage = "poll"
+	}
+	logInput := CaptureAIRequestLog(request, stage)
+	if query || download {
+		logInput.Credits = 0
+	}
+	startedAt := time.Now()
+	logInput.StartedAt = startedAt.UTC().Format(time.RFC3339Nano)
+	finishedAt := time.Time{}
+	defer func() {
+		if logInput.UserID == "" {
+			return
+		}
+		if finishedAt.IsZero() {
+			finishedAt = time.Now()
+		}
+		logInput.DurationMs = finishedAt.Sub(startedAt).Milliseconds()
+		if requestErr != nil {
+			logInput.Error = requestErr.Error()
+		}
+		SaveUpstreamAICallLog(logInput, translation.channel.APIKey)
+	}()
 	response, err := translation.Client.Do(request)
 	if err != nil {
 		result.Retryable = true
@@ -760,12 +794,22 @@ func (translation *ParameterTranslation) Send(ctx context.Context, kind string, 
 		return result, errors.New(message)
 	}
 	defer response.Body.Close()
+	result.StatusCode, result.ContentType = response.StatusCode, response.Header.Get("Content-Type")
+	logInput.Status = response.StatusCode
 	payload, err := io.ReadAll(response.Body)
+	finishedAt = time.Now()
+	logInput.ResponseBody = string(payload)
+	contentType := strings.ToLower(result.ContentType)
+	if contentType == "" {
+		contentType = strings.ToLower(http.DetectContentType(payload))
+	}
+	if strings.HasPrefix(contentType, "video/") || strings.HasPrefix(contentType, "audio/") || strings.HasPrefix(contentType, "image/") || strings.Contains(contentType, "octet-stream") {
+		logInput.ResponseBody = fmt.Sprintf("[binary media response: %s, %d bytes]", result.ContentType, len(payload))
+	}
 	if err != nil {
 		result.Retryable = true
 		return result, err
 	}
-	result.StatusCode, result.ContentType = response.StatusCode, response.Header.Get("Content-Type")
 	var data any
 	_ = json.Unmarshal(payload, &data)
 	if data != nil {
