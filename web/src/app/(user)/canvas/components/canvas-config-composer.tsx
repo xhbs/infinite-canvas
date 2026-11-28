@@ -120,7 +120,7 @@ export function CanvasConfigComposer({ value, inputs, onChange, onClose }: Canva
     return (
         <div
             data-canvas-no-zoom
-            className="rounded-2xl border p-3 shadow-2xl backdrop-blur"
+            className="canvas-glass-surface-strong rounded-2xl border p-3"
             style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
             onMouseDown={stopCanvasInteraction}
             onPointerDown={stopCanvasInteraction}
@@ -217,13 +217,13 @@ function MentionMenu({ inputs, allInputs, activeIndex, theme, onSelect }: { inpu
     };
 
     return (
-        <div className="absolute z-[90] max-h-56 w-64 overflow-y-auto rounded-xl border p-1 shadow-2xl" style={{ left: "var(--mention-left)", top: "var(--mention-top)", background: theme.toolbar.panel, borderColor: theme.toolbar.border }}>
+        <div className="canvas-glass-surface-strong absolute z-[90] max-h-56 w-64 overflow-y-auto rounded-xl border p-1" style={{ left: "var(--mention-left)", top: "var(--mention-top)", background: theme.toolbar.panel, borderColor: theme.toolbar.border }}>
             {inputs.map((input, index) => (
                 <button
                     key={input.nodeId}
                     type="button"
                     className="flex w-full min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition"
-                    style={{ background: index === activeIndex ? theme.toolbar.activeBg : "transparent", color: index === activeIndex ? theme.toolbar.activeText : theme.node.text }}
+                    style={{ background: index === activeIndex ? "var(--brand-accent-soft)" : "transparent", color: index === activeIndex ? "var(--brand-accent)" : theme.node.text }}
                     onMouseDown={(event) => {
                         event.preventDefault();
                         event.stopPropagation();
@@ -246,7 +246,7 @@ function ResourcePreview({ input }: { input: NodeGenerationInput }) {
     if (input.type === "video" && input.video) return <video src={input.video.url} className="size-9 rounded-md bg-black object-cover" muted preload="metadata" />;
     const Icon = input.type === "audio" ? Music2 : input.type === "video" ? Video : input.type === "image" ? ImageIcon : FileText;
     return (
-        <span className="grid size-9 shrink-0 place-items-center rounded-md bg-black/10">
+        <span className="grid size-9 shrink-0 place-items-center rounded-md bg-muted">
             <Icon className="size-4" />
         </span>
     );

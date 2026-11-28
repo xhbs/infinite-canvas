@@ -10,10 +10,10 @@ import type { useCodexAgent } from "../agent/use-codex-agent";
 type Agent = Pick<ReturnType<typeof useCodexAgent>, "connection" | "status" | "error" | "connect" | "disconnect" | "models">;
 
 const STATUS_META = {
-    idle: { label: "未连接", dot: "#a8a29e" },
+    idle: { label: "未连接", dot: "var(--muted-foreground)" },
     connecting: { label: "连接中", dot: "#f59e0b" },
     ready: { label: "已连接", dot: "#22c55e" },
-    error: { label: "连接失败", dot: "#ef4444" },
+    error: { label: "连接失败", dot: "var(--destructive)" },
 } as const;
 
 /**
@@ -49,8 +49,8 @@ export function CanvasBridgeStatus({ agent }: { agent: Agent }) {
             <Tooltip title={`画布桥：${meta.label}${connected ? `（已注册 ${agent.models.length ? "可用" : "等待"}工具）` : "，点此配置"}`}>
                 <Button
                     type="text"
-                    className="!h-10 !rounded-xl !px-3 !font-medium"
-                    style={{ background: theme.toolbar.panel, color: theme.node.text, boxShadow: "0 10px 30px rgba(28,25,23,.10)" }}
+                    className="!h-8 !rounded-lg !px-2 !font-medium"
+                    style={{ background: "transparent", color: theme.node.muted, boxShadow: "none" }}
                     icon={<Radio className="size-4" style={{ color: meta.dot }} />}
                     onClick={() => setOpen(true)}
                     aria-label={`画布桥状态：${meta.label}`}
@@ -62,6 +62,7 @@ export function CanvasBridgeStatus({ agent }: { agent: Agent }) {
                 </Button>
             </Tooltip>
             <Modal
+                className="canvas-glass-modal"
                 title="画布桥连接"
                 open={open}
                 onCancel={() => setOpen(false)}

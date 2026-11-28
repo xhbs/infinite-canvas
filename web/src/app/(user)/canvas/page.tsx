@@ -1,9 +1,11 @@
 "use client";
 
+import "./canvas-glass.css";
+
 import { useRef } from "react";
 import { useRouter } from "next/navigation";
 import { App, Button } from "antd";
-import { Download, FileUp, Plus } from "lucide-react";
+import { Download, FileUp, Layers3, Plus } from "lucide-react";
 
 import { readZip } from "@/lib/zip";
 import { setMediaBlob } from "@/services/file-storage";
@@ -57,12 +59,17 @@ export default function CanvasPage() {
     };
 
     return (
-        <main className="h-full overflow-auto bg-background text-stone-950 dark:text-stone-100">
+        <main className="canvas-ui canvas-library fx-ambient-stage h-full overflow-auto text-foreground">
             <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-10">
-                <header className="flex flex-wrap items-end justify-between gap-4 border-b border-stone-200 pb-6 dark:border-stone-800">
-                    <div>
-                        <p className="text-xs text-stone-500">画布库</p>
-                        <h1 className="mt-3 text-3xl font-semibold">无限画布</h1>
+                <header className="canvas-library-header flex flex-wrap items-end justify-between gap-4 border-b border-[var(--glass-border)] pb-6">
+                    <div className="min-w-0">
+                        <div className="flex items-center gap-2 text-xs font-medium tracking-wide text-muted-foreground">
+                            <Layers3 aria-hidden="true" className="size-4 text-[var(--brand-accent)]" />
+                            <span>灵感与创作</span>
+                            <span className="canvas-library-live-indicator" aria-hidden="true" />
+                        </div>
+                        <h1 className="mt-2 text-3xl font-semibold">无限画布</h1>
+                        <p className="mt-2 text-sm text-muted-foreground">{projects.length ? `把灵感、草稿和创作过程，收进每一张画布。 · ${projects.length} 个作品` : "从一张空白画布开始，收集灵感、绘制草稿、串起创作过程。"}</p>
                     </div>
                     <div className="flex items-center gap-2">
                         {selectedIds.length ? (
@@ -90,18 +97,21 @@ export default function CanvasPage() {
                 </header>
 
                 {!hydrated ? (
-                    <section className="flex min-h-[360px] items-center justify-center border-y border-stone-200 text-sm text-stone-500 dark:border-stone-800">正在加载画布...</section>
+                    <section className="flex min-h-[340px] items-center justify-center rounded-2xl border border-[var(--glass-border)] bg-[var(--glass-surface-subtle)] text-sm text-muted-foreground backdrop-blur-[var(--glass-blur)]">正在加载画布...</section>
                 ) : projects.length ? (
                     <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                        {projects.map((project) => (
-                            <CanvasProjectCard key={project.id} project={project} />
+                        {projects.map((project, index) => (
+                            <CanvasProjectCard key={project.id} project={project} index={index} />
                         ))}
                     </div>
                 ) : (
-                    <section className="flex min-h-[360px] flex-col items-center justify-center border-y border-stone-200 text-center dark:border-stone-800">
-                        <h2 className="text-xl font-medium">还没有画布</h2>
-                        <p className="mt-3 text-sm text-stone-500">新建一个画布后，就可以独立保存节点、连线和画布外观。</p>
-                        <Button type="primary" className="mt-6" icon={<Plus className="size-4" />} onClick={createAndEnter}>
+                    <section className="fx-rise-in flex min-h-[340px] flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--glass-border-strong)] bg-[var(--glass-surface-subtle)] px-6 py-12 text-center shadow-[var(--glass-shadow-soft),inset_0_1px_0_var(--glass-highlight)] backdrop-blur-[var(--glass-blur)]">
+                        <div className="mb-4 grid size-13 place-items-center rounded-2xl border border-[var(--brand-accent)]/30 bg-[var(--brand-accent-soft)] text-[var(--brand-accent)] shadow-[0_8px_24px_color-mix(in_srgb,var(--brand-accent)_14%,transparent)] transition-transform duration-300 hover:scale-105">
+                            <Layers3 className="size-6" />
+                        </div>
+                        <h2 className="text-xl font-semibold text-foreground">还没有画布</h2>
+                        <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">新建一个画布后，就可以独立保存节点、连线和画布外观。</p>
+                        <Button type="primary" className="fx-btn-glint mt-6" icon={<Plus className="size-4" />} onClick={createAndEnter}>
                             新建画布
                         </Button>
                     </section>

@@ -37,8 +37,8 @@ function ReferenceItem({ reference, onRemove }: { reference: CanvasResourceRefer
     const isMedia = reference.kind === "image" || reference.kind === "video";
     const previewUrl = reference.kind === "image" ? previewUrlFor(`canvas-node:${projectId}:${reference.nodeId}`, reference.previewSource) || reference.previewUrl : reference.previewUrl;
     return (
-        <Popover placement="topLeft" mouseEnterDelay={0.15} content={<ReferencePreview reference={reference} previewUrl={previewUrl} />} arrow={!isMedia} destroyOnHidden={reference.kind === "video"} styles={isMedia ? { container: { padding: 0, background: "transparent", boxShadow: "none" } } : undefined}>
-            <div className="group relative grid aspect-square w-full min-w-0 place-items-center rounded-xl border" style={{ background: theme.toolbar.activeBg, borderColor: theme.toolbar.border }}>
+        <Popover rootClassName="canvas-glass-popup" placement="topLeft" mouseEnterDelay={0.15} content={<ReferencePreview reference={reference} previewUrl={previewUrl} />} arrow={!isMedia} destroyOnHidden={reference.kind === "video"} styles={isMedia ? { container: { padding: 0, background: "transparent", boxShadow: "none" } } : undefined}>
+            <div className="group relative grid aspect-square w-full min-w-0 place-items-center rounded-xl border" style={{ background: "var(--brand-accent-soft)", borderColor: "var(--brand-accent)" }}>
                 <span className="grid size-full place-items-center overflow-hidden rounded-[inherit]">
                     {reference.kind === "image" && previewUrl ? <img src={previewUrl} alt="" className="size-full object-cover" /> : reference.kind === "video" && previewUrl ? <video src={previewUrl} className="size-full object-cover" muted /> : <Icon className="size-4 opacity-65" />}
                 </span>

@@ -69,9 +69,9 @@ export function CanvasToolbar({
     const [uploadOpen, setUploadOpen] = useState(false);
     const [appearanceOpen, setAppearanceOpen] = useState(false);
     const [panelX, setPanelX] = useState(0);
-    const dockStyle = { background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.item, boxShadow: colorTheme === "dark" ? "0 18px 45px rgba(0,0,0,.32)" : "0 16px 40px rgba(28,25,23,.12)" };
-    const hoverStyle = { background: theme.toolbar.itemHover, color: theme.toolbar.activeText };
-    const activeStyle = { background: theme.toolbar.activeBg, color: theme.toolbar.activeText };
+    const dockStyle = { background: "var(--glass-surface)", borderColor: "var(--glass-border)", color: theme.toolbar.item, boxShadow: "var(--glass-shadow), inset 0 1px 0 var(--glass-highlight)" };
+    const hoverStyle = { background: "var(--brand-accent-soft)", color: "var(--brand-accent)" };
+    const activeStyle = hoverStyle;
     const tip = hovered ? toolLabel(hovered) : "";
 
     useEffect(() => {
@@ -85,9 +85,9 @@ export function CanvasToolbar({
     }, []);
 
     return (
-        <div className="pointer-events-none absolute bottom-5 z-50 flex justify-center" style={{ left: 300, right: 16 }}>
+        <div className="canvas-toolbar-wrap pointer-events-none absolute bottom-5 z-50 flex justify-center" style={{ left: 300, right: 16 }}>
             {tip ? <DockTip label={tip} x={tipX} theme={theme} /> : null}
-            <div ref={wrapRef} className="thin-scrollbar pointer-events-auto flex h-14 max-w-full items-center gap-1 overflow-x-auto rounded-xl border px-2 shadow-lg backdrop-blur [&>*]:shrink-0" style={dockStyle}>
+            <div ref={wrapRef} className="canvas-glass-surface canvas-toolbar-dock thin-scrollbar pointer-events-auto flex h-14 max-w-full items-center gap-1 overflow-x-auto rounded-xl border px-2 [&>*]:shrink-0" style={dockStyle}>
                 <ToolbarButton id={`tool-${canvasTool}`} label={canvasTool === "select" ? "选择" : "移动"} active hovered={hovered} activeStyle={activeStyle} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={() => onCanvasToolChange(canvasTool === "select" ? "pan" : "select")}>
                     {canvasTool === "select" ? <MousePointer2 className="size-4.5" /> : <Hand className="size-4.5" />}
                 </ToolbarButton>
@@ -181,14 +181,14 @@ export function CanvasToolbar({
 
             {uploadOpen ? (
                 <div
-                    className="pointer-events-auto absolute bottom-[72px] z-30 w-37 -translate-x-1/2 rounded-xl border p-2.5 shadow-xl backdrop-blur"
+                    className="canvas-glass-surface-strong fx-popover-in pointer-events-auto absolute bottom-[72px] z-30 w-37 -translate-x-1/2 rounded-xl border p-2.5"
                     style={{ left: panelX || "50%", background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.item }}
                 >
                     <div className="px-1 pb-2 text-sm font-medium opacity-65">上传素材</div>
                     <div className="grid gap-1">
                         <button
                             type="button"
-                            className="flex h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-sm transition-colors"
+                            className="canvas-glass-action flex h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-sm transition-colors"
                             style={{ color: theme.toolbar.item }}
                             onMouseEnter={(event) => { event.currentTarget.style.background = theme.toolbar.itemHover; }}
                             onMouseLeave={(event) => { event.currentTarget.style.background = "transparent"; }}
@@ -202,7 +202,7 @@ export function CanvasToolbar({
                         </button>
                         <button
                             type="button"
-                            className="flex h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-sm transition-colors"
+                            className="canvas-glass-action flex h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-sm transition-colors"
                             style={{ color: theme.toolbar.item }}
                             onMouseEnter={(event) => { event.currentTarget.style.background = theme.toolbar.itemHover; }}
                             onMouseLeave={(event) => { event.currentTarget.style.background = "transparent"; }}
@@ -220,7 +220,7 @@ export function CanvasToolbar({
 
             {appearanceOpen ? (
                 <div
-                    className="pointer-events-auto absolute bottom-[72px] z-30 w-[248px] -translate-x-1/2 rounded-xl border p-2.5 shadow-xl backdrop-blur"
+                    className="canvas-glass-surface-strong fx-popover-in pointer-events-auto absolute bottom-[72px] z-30 w-[248px] -translate-x-1/2 rounded-xl border p-2.5"
                     style={{ left: panelX || "50%", background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.item }}
                 >
                     <div className="px-1 pb-2 text-sm font-medium opacity-65">画布外观</div>
@@ -316,9 +316,9 @@ function ToolbarButton({
         <Button
             type="text"
             aria-label={label}
-            className="!h-8 !w-8 !min-w-8 !p-0"
+            className="!h-8 !w-8 !min-w-8 !rounded-lg !p-0 !transition-transform !duration-200 hover:!-translate-y-0.5 hover:!scale-110 active:!scale-95"
             disabled={disabled}
-            style={active ? activeStyle : hovered === id && !disabled ? hoverStyle : { color: danger ? "#f87171" : theme.toolbar.item, opacity: disabled ? 0.35 : 1 }}
+            style={active ? activeStyle : hovered === id && !disabled ? hoverStyle : { color: danger ? "var(--destructive)" : theme.toolbar.item, opacity: disabled ? 0.35 : 1 }}
             icon={children}
             onMouseEnter={(event) => {
                 onHover(id);
@@ -337,7 +337,7 @@ function Divider({ theme }: { theme: CanvasTheme }) {
 function CanvasThemeButton({ colorTheme, targetTheme, onThemeChange, children }: { colorTheme: CanvasColorTheme; targetTheme: CanvasColorTheme; onThemeChange: (theme: CanvasColorTheme) => void; children: ReactNode }) {
     const theme = canvasThemes[colorTheme];
     const active = colorTheme === targetTheme;
-    const activeStyle = { background: theme.toolbar.activeBg, color: theme.toolbar.activeText };
+    const activeStyle = { background: "var(--brand-accent-soft)", color: "var(--brand-accent)" };
 
     return (
         <AnimatedThemeToggler
@@ -356,7 +356,7 @@ function CanvasThemeButton({ colorTheme, targetTheme, onThemeChange, children }:
 
 function DockTip({ label, x, theme }: { label: string; x: number; theme: CanvasTheme }) {
     return (
-        <span className="absolute bottom-[calc(100%+8px)] -translate-x-1/2 rounded-md px-2 py-1 text-xs shadow-lg" style={{ left: x, background: theme.node.text, color: theme.node.panel }}>
+        <span className="fx-popover-in pointer-events-none absolute bottom-[calc(100%+8px)] -translate-x-1/2 rounded-md px-2 py-1 text-xs shadow-lg" style={{ left: x, background: theme.node.text, color: theme.node.panel }}>
             {label}
         </span>
     );

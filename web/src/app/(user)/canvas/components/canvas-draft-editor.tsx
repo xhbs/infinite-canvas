@@ -395,19 +395,19 @@ export function CanvasDraftEditor({ nodeId, draft, previewStorageKey, onChange, 
     };
 
     const buttonStyle = (active = false) => ({
-        background: active ? theme.toolbar.activeBg : "transparent",
-        color: active ? theme.toolbar.activeText : theme.toolbar.item,
-        border: `1px solid ${active ? theme.toolbar.activeBg : theme.toolbar.border}`,
+        background: active ? "var(--brand-accent-soft)" : "transparent",
+        color: active ? "var(--brand-accent)" : theme.toolbar.item,
+        border: `1px solid ${active ? "var(--brand-accent)" : "var(--glass-border)"}`,
     });
-    const panelStyle = { background: theme.toolbar.panel, color: theme.node.text, borderColor: theme.toolbar.border };
+    const panelStyle = { background: "transparent", color: theme.node.text, borderColor: "var(--glass-border)" };
 
     return (
         <>
-        <Modal open width={1240} footer={null} closable={false} keyboard={!finishing} maskClosable={false} onCancel={onClose} styles={{ body: { padding: 0 } }} style={{ top: 18, maxWidth: "calc(100vw - 28px)" }}>
+        <Modal className="canvas-glass-modal" open width={1240} footer={null} closable={false} keyboard={!finishing} maskClosable={false} onCancel={onClose} styles={{ body: { padding: 0 } }} style={{ top: 18, maxWidth: "calc(100vw - 28px)" }}>
             <div data-canvas-draft-editor className="flex min-h-[min(780px,82vh)] flex-col overflow-hidden rounded-xl border" style={panelStyle}>
                 <header className="flex min-h-14 items-center justify-between gap-3 border-b px-4" style={{ borderColor: theme.toolbar.border }}>
                     <div className="flex min-w-0 items-center gap-3">
-                        <span className="grid size-8 shrink-0 place-items-center rounded-lg" style={{ background: theme.toolbar.activeBg, color: theme.toolbar.activeText }}><Brush className="size-4" /></span>
+                        <span className="grid size-8 shrink-0 place-items-center rounded-lg" style={{ background: "var(--brand-accent-soft)", color: "var(--brand-accent)" }}><Brush className="size-4" /></span>
                         <div className="min-w-0">
                             <div className="truncate text-sm font-semibold">画布草稿</div>
                             <div className="text-[10px] opacity-50">{documentState.width} × {documentState.height} px · 图层 {documentState.layers.length}</div>
@@ -418,7 +418,7 @@ export function CanvasDraftEditor({ nodeId, draft, previewStorageKey, onChange, 
                         <button type="button" title="重做 Ctrl+Shift+Z" disabled={!historyState.redo} onClick={redo} className="grid size-8 place-items-center rounded-md disabled:opacity-35" style={buttonStyle()}><Redo2 className="size-4" /></button>
                         <span className="mx-1 h-6 w-px" style={{ background: theme.toolbar.border }} />
                         <button type="button" onClick={() => void downloadPng()} className="flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs" style={buttonStyle()}><Download className="size-3.5" />下载 PNG</button>
-                        <button type="button" disabled={finishing} onClick={() => void finishDraft()} className="flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-semibold disabled:opacity-50" style={{ background: theme.node.activeStroke, color: "#fff" }}><Check className="size-3.5" />{finishing ? "正在保存" : "完成并返回"}</button>
+                        <button type="button" disabled={finishing} onClick={() => void finishDraft()} className="flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-semibold disabled:opacity-50" style={{ background: theme.node.activeStroke, color: theme.node.panel }}><Check className="size-3.5" />{finishing ? "正在保存" : "完成并返回"}</button>
                         <button type="button" title="返回画布" onClick={onClose} className="grid size-8 place-items-center rounded-md" style={buttonStyle()}><X className="size-4" /></button>
                     </div>
                 </header>
@@ -459,7 +459,7 @@ export function CanvasDraftEditor({ nodeId, draft, previewStorageKey, onChange, 
                         </div>
 
                         <div ref={areaRef} className="relative flex min-h-0 flex-1 items-center justify-center overflow-auto p-5" style={{ background: theme.canvas.background }}>
-                            <div className="relative shrink-0 overflow-hidden shadow-[0_12px_36px_rgba(0,0,0,.22)]" style={{ width: documentState.width * canvasScale, height: documentState.height * canvasScale, background: documentState.background === "white" ? "#fff" : "repeating-conic-gradient(#d2d5d8 0% 25%, #fff 0% 50%) 50% / 18px 18px" }}>
+                            <div className="relative shrink-0 overflow-hidden shadow-[0_12px_36px_rgba(0,0,0,.22)]" style={{ width: documentState.width * canvasScale, height: documentState.height * canvasScale, background: documentState.background === "white" ? "#fff" : `repeating-conic-gradient(${theme.canvas.background} 0% 25%, ${theme.node.stroke} 0% 50%) 50% / 18px 18px` }}>
                                 <canvas ref={canvasRef} tabIndex={0} aria-label="草稿绘图区" className="block h-full w-full touch-none outline-none" style={{ cursor: tool === "text" ? "text" : tool === "eraser" ? "cell" : "crosshair" }} onPointerDown={(event) => { event.currentTarget.focus({ preventScroll: true }); startDrawing(event); }} onPointerMove={moveDrawing} onPointerUp={finishDrawing} onPointerCancel={finishDrawing} />
                             </div>
                             <span className="pointer-events-none absolute bottom-2 left-3 text-[10px] opacity-40">{tool === "text" ? "点击画布放置文字" : "在画布上拖动绘制"}</span>
@@ -473,7 +473,7 @@ export function CanvasDraftEditor({ nodeId, draft, previewStorageKey, onChange, 
                         </div>
                         <div className="thin-scrollbar flex-1 space-y-1 overflow-y-auto p-2">
                             {documentState.layers.map((layer, index) => (
-                                <div key={layer.id} className="rounded-lg border p-2" style={{ background: selectedLayerId === layer.id ? theme.toolbar.itemHover : "transparent", borderColor: selectedLayerId === layer.id ? theme.toolbar.activeBg : theme.toolbar.border }} onClick={() => setActiveLayerId(layer.id)}>
+                                <div key={layer.id} className="rounded-lg border p-2" style={{ background: selectedLayerId === layer.id ? "var(--brand-accent-soft)" : "transparent", borderColor: selectedLayerId === layer.id ? "var(--brand-accent)" : "var(--glass-border)" }} onClick={() => setActiveLayerId(layer.id)}>
                                     <input aria-label="图层名称" value={layer.name} onChange={(event) => changeLayer(layer.id, (current) => ({ ...current, name: event.target.value }))} className="mb-2 h-7 w-full rounded border px-2 text-xs outline-none" style={panelStyle} />
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-0.5">
@@ -499,7 +499,7 @@ export function CanvasDraftEditor({ nodeId, draft, previewStorageKey, onChange, 
             </div>
             <span className="sr-only">草稿编辑器 {nodeId}</span>
         </Modal>
-        <Modal open={textDialogOpen} title="添加文字" okText="添加到画布" cancelText="取消" onOk={addText} onCancel={() => setTextDialogOpen(false)}>
+        <Modal className="canvas-glass-modal" open={textDialogOpen} title="添加文字" okText="添加到画布" cancelText="取消" onOk={addText} onCancel={() => setTextDialogOpen(false)}>
             <Input.TextArea autoFocus autoSize={{ minRows: 2, maxRows: 6 }} maxLength={500} value={textValue} onChange={(event) => setTextValue(event.target.value)} placeholder="输入草稿中的文字或标注" />
         </Modal>
         </>

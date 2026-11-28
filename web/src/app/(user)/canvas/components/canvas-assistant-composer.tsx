@@ -16,6 +16,7 @@ import { CanvasPromptChipInput } from "./canvas-prompt-chip-input";
 import { CanvasVideoSettingsPopover } from "./canvas-video-settings-popover";
 
 export type CanvasAssistantComposerProps = {
+    appearance?: "default" | "homepage";
     initialPrompt: string;
     isRunning: boolean;
     codexControls?: ReactNode;
@@ -38,6 +39,7 @@ export type CanvasAssistantComposerProps = {
 };
 
 export function CanvasAssistantComposer({
+    appearance = "default",
     initialPrompt,
     isRunning,
     codexControls,
@@ -58,6 +60,7 @@ export function CanvasAssistantComposer({
     onOpenAssets,
     onPasteImage,
 }: CanvasAssistantComposerProps) {
+    const homepageAppearance = appearance === "homepage";
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const [prompt, setPrompt] = useState(initialPrompt);
     const effectiveConfig = useEffectiveConfig();
@@ -94,7 +97,16 @@ export function CanvasAssistantComposer({
 
     return (
         <div className="px-2 pb-2" onWheelCapture={(event) => event.stopPropagation()}>
-            <div className="rounded-2xl border px-3 pb-3 pt-3" style={{ background: theme.toolbar.panel, borderColor: theme.node.stroke }}>
+            <div
+                className={`canvas-glass-surface relative rounded-2xl border px-3 pb-3 pt-3 ${homepageAppearance ? "rounded-[24px] px-4 pb-3.5 pt-4 transition-[border-color,box-shadow] duration-[var(--motion-base)] focus-within:border-[var(--brand-accent)]/45 sm:px-5 sm:pb-4" : ""}`}
+                style={{
+                    background: "var(--glass-surface)",
+                    borderColor: "var(--glass-border)",
+                    boxShadow: "var(--glass-shadow), inset 0 1px 0 var(--glass-highlight)",
+                    backdropFilter: "blur(var(--glass-blur)) saturate(1.18)",
+                }}
+            >
+                {homepageAppearance ? <span aria-hidden="true" data-home-rim="" /> : null}
                 <CanvasPromptChipInput
                     value={prompt}
                     references={promptReferences}
@@ -105,14 +117,15 @@ export function CanvasAssistantComposer({
                     onReferenceIdsChange={onReferenceIdsChange}
                     onPasteImage={onPasteImage}
                     onSubmit={submit}
-                    className="thin-scrollbar min-h-20 max-h-[220px] w-full px-1 py-0 text-sm leading-5"
+                    className={`thin-scrollbar ${homepageAppearance ? "min-h-24 max-h-[220px] sm:min-h-28 leading-6" : "min-h-20 max-h-[220px] leading-5"} w-full px-1 py-0 text-sm`}
                     style={{ color: theme.node.text }}
-                    placeholder="描述创作目标，或让我继续操作画布"
+                    placeholder={homepageAppearance ? "描述一个画面、一个故事，或你想达成的创作目标…" : "描述创作目标，或让我继续操作画布"}
                     placeholderClassName="!left-1 !top-0"
                 />
-                <div className="@container mt-2 flex items-center justify-between gap-2">
+                <div className={`@container flex items-center justify-between gap-2 ${homepageAppearance ? "mt-3 border-t border-[var(--glass-border)] pt-3" : "mt-2"}`}>
                     <div className={`flex min-w-0 flex-1 items-center gap-1${codexMode ? " @max-[340px]:gap-px @max-[340px]:[&_.ant-btn]:!size-[30px] @max-[340px]:[&_.ant-btn]:!min-w-[30px] @max-[340px]:[&_.ant-btn]:!px-0 @max-[340px]:[&_.ant-btn]:!justify-center" : ""}`}>
                         <Dropdown
+                            rootClassName="canvas-glass-popup"
                             trigger={["click"]}
                             menu={{
                                 items: [
@@ -155,7 +168,7 @@ export function CanvasAssistantComposer({
                             type="text"
                             shape="circle"
                             className="!h-8 !w-8 !min-w-8"
-                            style={{ color: theme.node.text, background: reasoningEnabled ? theme.toolbar.activeBg : undefined }}
+                            style={{ color: reasoningEnabled ? "var(--brand-accent)" : theme.node.text, background: reasoningEnabled ? "var(--brand-accent-soft)" : undefined }}
                             icon={<Brain className="size-4" />}
                             title={reasoningEnabled ? "推理已开启" : "推理已关闭"}
                             aria-label={reasoningEnabled ? "关闭推理" : "开启推理"}
@@ -164,12 +177,13 @@ export function CanvasAssistantComposer({
                         />
                         ) : null}
                         <Popover
+                            rootClassName="canvas-glass-popup"
                             trigger="click"
                             placement="topRight"
                             arrow={false}
                             open={contextOpen}
                             onOpenChange={setContextOpen}
-                            styles={{ container: { padding: 0, background: theme.toolbar.panel, border: "1px solid " + theme.node.stroke, borderRadius: 16 } }}
+                            styles={{ container: { padding: 0, background: "var(--glass-surface-strong)", border: "1px solid var(--glass-border)", borderRadius: 16, boxShadow: "var(--glass-shadow), inset 0 1px 0 var(--glass-highlight)", backdropFilter: "blur(var(--glass-blur-strong)) saturate(1.14)" } }}
                             content={
                                 <div data-canvas-no-zoom tabIndex={-1} className="w-[348px] p-4 text-xs leading-5 outline-none" style={{ color: theme.node.muted }}>
                                     <div className="opacity-65">当前会话 · 上下文{codexMode ? "窗口" : "预算"}占用</div>

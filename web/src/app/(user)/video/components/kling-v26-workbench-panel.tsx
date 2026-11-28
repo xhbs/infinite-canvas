@@ -6,6 +6,7 @@ import { ModelPicker } from "@/components/model-picker";
 import { boolConfig } from "@/lib/seedance-video";
 import type { AiConfig, VideoElementItem, VideoElementReference, VideoMultiPromptItem } from "@/stores/use-config-store";
 import type { ReferenceImage } from "@/types/image";
+import styles from "../video.module.css";
 
 type UpdateAiConfig = <K extends keyof AiConfig>(key: K, value: AiConfig[K]) => void;
 type WorkbenchLayout = "side" | "bottom";
@@ -236,7 +237,7 @@ export function KlingV26WorkbenchPanel({
     };
 
     return (
-        <div className="flex min-h-[420px] flex-col overflow-hidden rounded-lg border border-stone-200 bg-card shadow-sm dark:border-stone-800 lg:min-h-0">
+        <div className={`${styles.controls} flex min-h-[420px] flex-col overflow-hidden lg:min-h-0`}>
             <div className="shrink-0 p-4 pb-3">
                 <KlingHeader currentLayout={currentLayout} onLayoutChange={onLayoutChange} />
             </div>
@@ -405,8 +406,8 @@ function OptionGrid({ options, value, onChange, columns = 2 }: { options: { valu
 
 function optionClass(active: boolean) {
     return [
-        "h-9 rounded-full border bg-transparent px-2 text-sm font-medium transition hover:opacity-80",
-        active ? "border-stone-950 text-stone-950 dark:border-stone-100 dark:text-stone-100" : "border-stone-200 text-stone-700 dark:border-stone-800 dark:text-stone-200",
+        "h-9 rounded-full border bg-[var(--glass-surface)] px-2 text-sm font-medium transition-[background-color,border-color,color] duration-[var(--motion-fast)] hover:border-[var(--brand-accent)]/45",
+        active ? "border-[var(--brand-accent)] bg-[var(--brand-accent-soft)] text-[var(--brand-accent)]" : "border-border text-foreground",
     ].join(" ");
 }
 

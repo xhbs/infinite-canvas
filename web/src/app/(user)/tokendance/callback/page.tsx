@@ -9,6 +9,8 @@ import { fetchUserConfig, syncUserModelConfig } from "@/services/api/user-config
 import { normalizeLocalChannels, useConfigStore } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 
+import styles from "./callback-glass.module.css";
+
 export default function TokenDanceCallbackPage() {
     const { message } = App.useApp();
     const router = useRouter();
@@ -121,17 +123,19 @@ export default function TokenDanceCallbackPage() {
     }, [message, router]);
 
     return (
-        <main className="flex h-full items-center justify-center p-6">
-            {error ? (
-                <Result
-                    status="error"
-                    title="TokenDance 授权失败"
-                    subTitle={error}
-                    extra={<Button href="/">返回首页</Button>}
-                />
-            ) : (
-                <Spin size="large" tip="正在完成 TokenDance 授权……" />
-            )}
+        <main className={styles.page}>
+            <div className={styles.panel}>
+                {error ? (
+                    <Result
+                        status="error"
+                        title="TokenDance 授权失败"
+                        subTitle={error}
+                        extra={<Button href="/">返回首页</Button>}
+                    />
+                ) : (
+                    <Spin size="large" tip="正在完成 TokenDance 授权……" />
+                )}
+            </div>
         </main>
     );
 }

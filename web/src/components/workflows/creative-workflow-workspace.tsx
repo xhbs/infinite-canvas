@@ -937,17 +937,17 @@ export function CreativeWorkflowWorkspace({
     };
 
     return (
-        <main className={`${embedded ? "h-full" : "h-full overflow-y-auto bg-stone-50 p-4 dark:bg-stone-950"} text-stone-950 dark:text-stone-50`}>
+        <main className={`${embedded ? "h-full" : "fx-ambient-stage h-full overflow-y-auto bg-background p-4 sm:p-6"} text-foreground`}>
             <div className={`${embedded ? "h-full overflow-y-auto p-4" : "mx-auto max-w-7xl"} flex flex-col gap-4`}>
                 <section
-                    className={`${embedded ? "border-b border-stone-200 pb-4 dark:border-stone-800" : "rounded-lg border border-stone-200 bg-card/80 p-4 shadow-sm backdrop-blur dark:border-stone-800 dark:bg-stone-900/70"} flex flex-wrap items-center justify-between gap-3`}
+                    className={`${embedded ? "border-b border-[var(--glass-border)] pb-4" : "fx-rise-in rounded-2xl border border-[var(--glass-border)] bg-[var(--glass-surface-subtle)] p-5 shadow-[var(--glass-shadow-soft),inset_0_1px_0_var(--glass-highlight)] backdrop-blur-[var(--glass-blur)]"} flex flex-wrap items-center justify-between gap-3`}
                 >
                     <div className="min-w-0">
                         <div className="flex items-center gap-2 text-lg font-semibold">
-                            <WandSparkles className="size-5" />
+                            <WandSparkles className="size-5 text-[var(--brand-accent)]" />
                             创作工作流
                         </div>
-                        <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">{embedded ? "选择模板并启动任务，结果会写入生图历史。" : "把固定提示词和参数沉淀成模板，每次只填写变量即可批量复用。"}</p>
+                        <p className="mt-1 text-sm text-muted-foreground">{embedded ? "选择模板并启动任务，结果会写入生图历史。" : "把固定提示词和参数沉淀成模板，每次只填写变量即可批量复用。"}</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                         <Select
@@ -963,7 +963,7 @@ export function CreativeWorkflowWorkspace({
                         <Button icon={<Layers3 className="size-4" />} onClick={() => setEditingWorkflow(createBlankWorkflow(effectiveConfig, "multi_image_series"))}>
                             新建多图
                         </Button>
-                        <Button type="primary" icon={<Plus className="size-4" />} onClick={() => setEditingWorkflow(createBlankWorkflow(effectiveConfig))}>
+                        <Button type="primary" className="fx-btn-glint" icon={<Plus className="size-4" />} onClick={() => setEditingWorkflow(createBlankWorkflow(effectiveConfig))}>
                             新建工作流
                         </Button>
                     </div>
@@ -974,7 +974,7 @@ export function CreativeWorkflowWorkspace({
                         <WorkflowCard key={workflow.id} workflow={workflow} onRun={() => openRunner(workflow)} onEdit={() => setEditingWorkflow(workflow)} onCopy={() => void duplicateWorkflow(workflow)} onDelete={() => deleteWorkflow(workflow)} />
                     ))}
                     {!filteredWorkflows.length ? (
-                        <div className="col-span-full rounded-lg border border-dashed border-stone-300 bg-card/70 py-14 dark:border-stone-800 dark:bg-stone-900/60">
+                        <div className="fx-rise-in col-span-full rounded-2xl border border-dashed border-[var(--glass-border-strong)] bg-[var(--glass-surface-subtle)] py-14 backdrop-blur-[var(--glass-blur)]">
                             <Empty description="暂无工作流" />
                         </div>
                     ) : null}
@@ -1014,11 +1014,11 @@ export function CreativeWorkflowWorkspace({
                         </div>
                         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
                             {runResults.map((result, index) => (
-                                <div key={result.id} className="overflow-hidden rounded-lg border border-stone-200 bg-card dark:border-stone-800 dark:bg-stone-900">
+                                <div key={result.id} style={{ "--fx-index": index } as React.CSSProperties} className="fx-glass-card fx-rise-in overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-surface)]">
                                     <Image src={result.imageUrl} alt={result.workflowName} className="aspect-[4/3] object-cover" />
                                     <div className="space-y-1 p-2 text-xs">
                                         <div className="line-clamp-1 font-medium">{result.workflowName}</div>
-                                        <div className="flex flex-wrap gap-1 text-stone-500">
+                                        <div className="flex flex-wrap gap-1 text-[var(--muted-foreground)]">
                                             <Tag className="m-0 text-[10px]">
                                                 {result.width}x{result.height}
                                             </Tag>
@@ -1067,14 +1067,14 @@ export function CreativeWorkflowWorkspace({
                                         onMissingConfig={() => openConfigDialog(true)}
                                     />
                                 </div>
-                                <div className="hidden min-w-0 max-w-[220px] truncate rounded-md border border-stone-300 px-2 py-1 text-xs text-stone-600 dark:border-stone-700 dark:text-stone-300 lg:block" title={`${agentModelInfo.channelName} · ${agentModelInfo.modelName}`}>
+                                <div className="hidden min-w-0 max-w-[220px] truncate rounded-md border border-[var(--glass-border)] bg-[var(--glass-surface-subtle)] px-2 py-1 text-xs text-[var(--muted-foreground)] lg:block" title={`${agentModelInfo.channelName} · ${agentModelInfo.modelName}`}>
                                     {agentModelInfo.channelName}
                                 </div>
-                                <div className="inline-flex rounded-md border border-stone-300 p-0.5 dark:border-stone-700">
-                                    <button type="button" title="个人工作流" className={`inline-flex size-8 items-center justify-center rounded ${agentScope === "private" ? "border border-stone-400 text-stone-950 dark:border-stone-500 dark:text-stone-50" : "text-stone-500"}`} onClick={() => setAgentScope("private")}>
+                                <div className="inline-flex rounded-lg border border-[var(--glass-border)] bg-[var(--glass-surface-subtle)] p-0.5">
+                                    <button type="button" title="个人工作流" className={`inline-flex size-8 items-center justify-center rounded-md transition ${agentScope === "private" ? "bg-[var(--brand-accent-soft)] text-[var(--brand-accent)] shadow-sm" : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"}`} onClick={() => setAgentScope("private")}>
                                         <LockKeyhole className="size-4" />
                                     </button>
-                                    <button type="button" title="公开工作流" className={`inline-flex size-8 items-center justify-center rounded ${agentScope === "public" ? "border border-stone-400 text-stone-950 dark:border-stone-500 dark:text-stone-50" : "text-stone-500"}`} onClick={() => setAgentScope("public")}>
+                                    <button type="button" title="公开工作流" className={`inline-flex size-8 items-center justify-center rounded-md transition ${agentScope === "public" ? "bg-[var(--brand-accent-soft)] text-[var(--brand-accent)] shadow-sm" : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"}`} onClick={() => setAgentScope("public")}>
                                         <Globe2 className="size-4" />
                                     </button>
                                 </div>
@@ -1096,11 +1096,11 @@ export function CreativeWorkflowWorkspace({
                             />
                         </div>
                         <Input.TextArea value={agentPrompt} autoSize={{ minRows: 14, maxRows: 22 }} placeholder="例如：创建一个电商海报工作流，只需要输入产品名称、核心卖点、活动信息，固定商业摄影质感和营销文案结构。" onChange={(event) => setAgentPrompt(event.target.value)} />
-                        <div className="rounded-lg border border-stone-200 p-3 dark:border-stone-800">
+                        <div className="rounded-xl border border-[var(--glass-border)] bg-[var(--glass-surface-subtle)] p-3">
                             <div className="flex items-center justify-between gap-3">
                                 <div>
                                     <div className="text-sm font-medium">参考图</div>
-                                    <div className="mt-1 text-xs text-stone-500">可上传样例图，作为创建工作流的视觉参考。</div>
+                                    <div className="mt-1 text-xs text-muted-foreground">可上传样例图，作为创建工作流的视觉参考。</div>
                                 </div>
                                 <div className="flex gap-2">
                                     <Button size="small" onClick={() => setAgentAssetPickerOpen(true)}>
@@ -1127,7 +1127,7 @@ export function CreativeWorkflowWorkspace({
                             {agentReferences.length ? (
                                 <div className="mt-3 grid grid-cols-5 gap-2">
                                     {agentReferences.map((image) => (
-                                        <div key={image.id} className="group relative overflow-hidden rounded-md border border-stone-200 dark:border-stone-800">
+                                        <div key={image.id} className="group relative overflow-hidden rounded-lg border border-[var(--glass-border)]">
                                             <img src={image.dataUrl} alt={image.name} className="aspect-square w-full object-cover" />
                                             <button
                                                 type="button"
@@ -1146,7 +1146,7 @@ export function CreativeWorkflowWorkspace({
                             生成工作流草稿
                         </Button>
                     </div>
-                    <aside className="space-y-3 rounded-lg border border-stone-200 p-3 dark:border-stone-800">
+                    <aside className="space-y-3 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-surface-subtle)] p-3">
                         <div className="text-sm font-medium">草稿预览</div>
                         {agentDraft ? (
                             <>
@@ -1158,8 +1158,8 @@ export function CreativeWorkflowWorkspace({
                                         <Tag className="m-0">{agentDraft.scope === "public" ? "公开" : "个人"}</Tag>
                                     </div>
                                 </div>
-                                <p className="text-sm text-stone-500 dark:text-stone-400">{agentDraft.description || "暂无描述"}</p>
-                                <div className="max-h-60 overflow-y-auto rounded-md bg-stone-100 p-3 text-xs dark:bg-stone-950">
+                                <p className="text-sm text-muted-foreground">{agentDraft.description || "暂无描述"}</p>
+                                <div className="max-h-60 overflow-y-auto rounded-xl border border-[var(--glass-border)] bg-muted/50 p-3 text-xs">
                                     <div className="whitespace-pre-wrap">{agentDraft.config.promptTemplate}</div>
                                 </div>
                                 {agentWarnings.length ? (
@@ -1183,7 +1183,7 @@ export function CreativeWorkflowWorkspace({
                 {runningWorkflow ? (
                     <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
                         <div className="space-y-3">
-                            <div className="rounded-lg border border-stone-200 p-3 dark:border-stone-800">
+                            <div className="rounded-xl border border-[var(--glass-border)] bg-[var(--glass-surface-subtle)] p-3.5 shadow-[inset_0_1px_0_var(--glass-highlight)]">
                                 <div className="text-sm font-medium">变量输入</div>
                                 <div className="mt-3 space-y-3">
                                     {runningWorkflow.variables.map((variable) => (
@@ -1192,7 +1192,7 @@ export function CreativeWorkflowWorkspace({
                                     {!runningWorkflow.variables.length ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="此工作流没有变量" /> : null}
                                 </div>
                             </div>
-                            <div className="rounded-lg border border-stone-200 p-3 dark:border-stone-800">
+                            <div className="rounded-xl border border-[var(--glass-border)] bg-[var(--glass-surface-subtle)] p-3.5 shadow-[inset_0_1px_0_var(--glass-highlight)]">
                                 <div className="flex items-center justify-between gap-3">
                                     <div className="text-sm font-medium">参考图</div>
                                     <div className="flex gap-2">
@@ -1220,7 +1220,7 @@ export function CreativeWorkflowWorkspace({
                                 {workflowReferences.length ? (
                                     <div className="mt-3 grid grid-cols-4 gap-2">
                                         {workflowReferences.map((image) => (
-                                            <div key={image.id} className="group relative overflow-hidden rounded-md border border-stone-200 dark:border-stone-800">
+                                            <div key={image.id} className="group relative overflow-hidden rounded-lg border border-[var(--glass-border)]">
                                                 <img src={image.dataUrl} alt={image.name} className="aspect-square w-full object-cover" />
                                                 <button
                                                     type="button"
@@ -1234,31 +1234,31 @@ export function CreativeWorkflowWorkspace({
                                         ))}
                                     </div>
                                 ) : (
-                                    <div className="mt-3 rounded-md border border-dashed border-stone-300 py-5 text-center text-xs text-stone-500 dark:border-stone-800">未添加参考图</div>
+                                    <div className="mt-3 rounded-lg border border-dashed border-[var(--glass-border-strong)] py-5 text-center text-xs text-[var(--muted-foreground)]">未添加参考图</div>
                                 )}
                             </div>
-                            <Button block type="primary" size="large" loading={seriesDraftLoading} icon={runningWorkflow.mode === "multi_image_series" ? <Layers3 className="size-4" /> : <Play className="size-4" />} onClick={() => void runWorkflow()}>
+                            <Button block type="primary" size="large" className="fx-btn-glint" loading={seriesDraftLoading} icon={runningWorkflow.mode === "multi_image_series" ? <Layers3 className="size-4" /> : <Play className="size-4" />} onClick={() => void runWorkflow()}>
                                 {runningWorkflow.mode === "multi_image_series" ? "生成提示词" : "启动任务"}
                             </Button>
                         </div>
                         <div className="space-y-3">
-                            <div className="rounded-lg border border-stone-200 p-3 dark:border-stone-800">
+                            <div className="rounded-xl border border-[var(--glass-border)] bg-[var(--glass-surface-subtle)] p-3.5 shadow-[inset_0_1px_0_var(--glass-highlight)]">
                                 <div className="mb-2 flex items-center justify-between">
                                     <span className="text-sm font-medium">生成提示词预览</span>
                                     <Button size="small" icon={<Copy className="size-3.5" />} onClick={() => void navigator.clipboard.writeText(renderedPrompt)}>
                                         复制
                                     </Button>
                                 </div>
-                                <Typography.Paragraph className="!mb-0 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-md bg-stone-100 p-3 text-sm dark:bg-stone-950">{renderedPrompt || "填写变量后会在这里预览最终提示词"}</Typography.Paragraph>
+                                <Typography.Paragraph className="!mb-0 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-lg border border-[var(--glass-border)] bg-[var(--glass-surface)] p-3 text-sm">{renderedPrompt || "填写变量后会在这里预览最终提示词"}</Typography.Paragraph>
                             </div>
-                            <div className="grid grid-cols-2 gap-2 text-xs text-stone-500 dark:text-stone-400">
+                            <div className="grid grid-cols-2 gap-2 text-xs text-[var(--muted-foreground)]">
                                 <InfoPill label="模型" value={resolveWorkflowRuntime(runningWorkflow, effectiveConfig).model} />
                                 <InfoPill label="接口" value={resolveWorkflowRuntime(runningWorkflow, effectiveConfig).apiMode === "chat" ? "Chat" : resolveWorkflowRuntime(runningWorkflow, effectiveConfig).apiMode === "responses" ? "Responses" : "Images"} />
                                 <InfoPill label="尺寸" value={runningWorkflow.config.size || effectiveConfig.size} />
                                 <InfoPill label={runningWorkflow.mode === "multi_image_series" ? "草稿数量" : "数量"} value={`${runningWorkflow.mode === "multi_image_series" ? runningWorkflow.seriesConfig.targetCount || "4" : runningWorkflow.config.count || "1"} 张`} />
                             </div>
                             {runningWorkflow.mode === "multi_image_series" ? (
-                                <div className="rounded-lg border border-stone-200 p-3 dark:border-stone-800">
+                                <div className="rounded-xl border border-[var(--glass-border)] bg-[var(--glass-surface-subtle)] p-3.5 shadow-[inset_0_1px_0_var(--glass-highlight)]">
                                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                                         <div className="flex items-center gap-2 text-sm font-medium">
                                             <Layers3 className="size-4" />
@@ -1299,7 +1299,7 @@ export function CreativeWorkflowWorkspace({
                                             </div>
                                         </>
                                     ) : (
-                                        <div className="rounded-md border border-dashed border-stone-300 py-10 text-center text-sm text-stone-500 dark:border-stone-800">点击“生成提示词”后在这里审核每张图的提示词</div>
+                                        <div className="rounded-lg border border-dashed border-[var(--glass-border-strong)] py-10 text-center text-sm text-[var(--muted-foreground)]">点击“生成提示词”后在这里审核每张图的提示词</div>
                                     )}
                                 </div>
                             ) : null}
@@ -1316,8 +1316,8 @@ export function CreativeWorkflowWorkspace({
 function WorkflowCard({ workflow, onRun, onEdit, onCopy, onDelete }: { workflow: CreativeWorkflow; onRun: () => void; onEdit: () => void; onCopy: () => void; onDelete: () => void }) {
     const editable = workflow.editable !== false;
     return (
-        <article className="group flex min-h-[220px] flex-col overflow-hidden rounded-lg border border-stone-200 bg-card shadow-sm transition hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-xl dark:border-stone-800 dark:bg-stone-900 dark:hover:border-stone-700">
-            <div className="h-1 bg-gradient-to-r from-stone-900 via-stone-500 to-stone-300 opacity-80 dark:from-stone-100 dark:via-stone-500 dark:to-stone-800" />
+        <article className="fx-glass-card fx-rise-in group flex min-h-[220px] flex-col overflow-hidden rounded-2xl border border-[var(--glass-border)] bg-[var(--glass-surface)] shadow-[var(--glass-shadow-soft),inset_0_1px_0_var(--glass-highlight)] backdrop-blur-[var(--glass-blur)]">
+            <div className="h-1 bg-gradient-to-r from-[var(--brand-accent)] via-[var(--glass-glint)] to-transparent opacity-85" />
             <div className="flex flex-1 flex-col p-3.5">
             <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -1333,15 +1333,15 @@ function WorkflowCard({ workflow, onRun, onEdit, onCopy, onDelete }: { workflow:
                         </Tag>
                     </div>
                 </div>
-                <Button type="primary" size="small" icon={<Play className="size-3.5" />} onClick={onRun}>
+                <Button type="primary" size="small" className="fx-btn-glint" icon={<Play className="size-3.5" />} onClick={onRun}>
                     运行
                 </Button>
             </div>
-            <p className="mt-3 line-clamp-2 min-h-10 text-sm text-stone-500 dark:text-stone-400">{workflow.description || "暂无描述"}</p>
-            <div className="mt-3 rounded-md bg-stone-100/80 p-3 text-xs text-stone-600 dark:bg-stone-950/80 dark:text-stone-300">
+            <p className="mt-3 line-clamp-2 min-h-10 text-sm text-muted-foreground">{workflow.description || "暂无描述"}</p>
+            <div className="mt-3 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-surface-subtle)] p-3 text-xs text-foreground/80">
                 <div className="line-clamp-5 whitespace-pre-wrap">{workflow.config.promptTemplate}</div>
             </div>
-            <div className="mt-auto flex items-center justify-between gap-2 pt-4 text-xs text-stone-500">
+            <div className="mt-auto flex items-center justify-between gap-2 pt-4 text-xs text-muted-foreground">
                 <span>{workflow.lastRunAt ? `最近运行 ${formatDate(workflow.lastRunAt)}` : `创建于 ${formatDate(workflow.createdAt)}`}</span>
                 <div className="flex gap-1">
                     <Button size="small" disabled={!editable} icon={<Edit3 className="size-3.5" />} onClick={onEdit} />
@@ -1363,11 +1363,11 @@ function WorkflowTaskCard({ task, now, onCopyPrompt, onDownload }: { task: Workf
     }[task.status];
 
     return (
-        <article className="overflow-hidden rounded-lg border border-stone-200 bg-card dark:border-stone-800 dark:bg-stone-900">
-            <div className="flex items-start justify-between gap-3 border-b border-stone-200 p-3 dark:border-stone-800">
+        <article className="fx-glass-card overflow-hidden rounded-2xl border border-[var(--glass-border)] bg-[var(--glass-surface)] shadow-[var(--glass-shadow-soft),inset_0_1px_0_var(--glass-highlight)] backdrop-blur-[var(--glass-blur)]">
+            <div className="flex items-start justify-between gap-3 border-b border-[var(--glass-border)] p-3">
                 <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                        <span className="shrink-0 text-stone-500 dark:text-stone-400">{statusView.icon}</span>
+                        <span className="shrink-0 text-[var(--brand-accent)]">{statusView.icon}</span>
                         <div className="truncate font-medium">{task.workflowName}</div>
                     </div>
                     <div className="mt-1 flex flex-wrap gap-1">
@@ -1383,7 +1383,7 @@ function WorkflowTaskCard({ task, now, onCopyPrompt, onDownload }: { task: Workf
                 </Button>
             </div>
             <div className="space-y-3 p-3">
-                <div className="line-clamp-2 whitespace-pre-wrap text-sm text-stone-600 dark:text-stone-300">{task.prompt}</div>
+                <div className="line-clamp-2 whitespace-pre-wrap text-sm text-foreground/85">{task.prompt}</div>
                 <div className="flex flex-wrap gap-1">
                     <Tag className="m-0 text-[10px]">{task.model}</Tag>
                     <Tag className="m-0 text-[10px]">{task.apiMode === "chat" ? "Chat" : task.apiMode === "responses" ? "Responses" : "Images"}</Tag>
@@ -1408,9 +1408,9 @@ function WorkflowTaskCard({ task, now, onCopyPrompt, onDownload }: { task: Workf
                 {task.images.length ? (
                     <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
                         {task.images.map((image, index) => (
-                            <div key={image.id} className="overflow-hidden rounded-md border border-stone-200 bg-stone-100 dark:border-stone-800 dark:bg-stone-950">
+                            <div key={image.id} className="overflow-hidden rounded-xl border border-[var(--glass-border)] bg-muted/60">
                                 <Image src={image.imageUrl} alt={`${task.workflowName} ${index + 1}`} className="aspect-[4/3] object-cover" />
-                                <div className="flex items-center justify-between gap-2 px-2 py-1.5 text-[10px] text-stone-500">
+                                <div className="flex items-center justify-between gap-2 px-2 py-1.5 text-[10px] text-muted-foreground">
                                     <span className="truncate">
                                         {image.width}x{image.height} · {formatBytes(image.bytes)}
                                     </span>
@@ -1420,7 +1420,7 @@ function WorkflowTaskCard({ task, now, onCopyPrompt, onDownload }: { task: Workf
                         ))}
                     </div>
                 ) : task.status === "running" ? (
-                    <div className="flex h-28 items-center justify-center rounded-md border border-dashed border-stone-300 text-sm text-stone-500 dark:border-stone-800">生成中 {formatDuration(elapsedMs)}</div>
+                    <div className="flex h-28 items-center justify-center rounded-xl border border-dashed border-[var(--glass-border-strong)] bg-[var(--glass-surface-subtle)] text-sm text-muted-foreground">生成中 {formatDuration(elapsedMs)}</div>
                 ) : null}
             </div>
         </article>
@@ -1457,7 +1457,7 @@ function SeriesPromptDraftCard({
         failed: { label: "失败", color: "error" },
     }[draft.status];
     return (
-        <article className="rounded-lg border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
+        <article className="rounded-xl border border-[var(--glass-border)] bg-[var(--glass-surface)] p-3 transition-colors hover:border-[color-mix(in_srgb,var(--brand-accent)_32%,var(--glass-border))]">
             <div className="mb-2 flex items-center justify-between gap-2">
                 <Input value={draft.title} className="max-w-[280px]" placeholder={`第 ${index + 1} 张标题`} onChange={(event) => onChange({ title: event.target.value })} />
                 <div className="flex shrink-0 items-center gap-1">
@@ -1505,14 +1505,14 @@ function WorkflowEditorModal({
         <Modal title={workflow.createdAt ? "编辑工作流" : "新建工作流"} open={open} width={1080} onCancel={onCancel} onOk={() => onSave(workflow)} okText="保存" cancelText="取消" destroyOnHidden>
             <div className="grid max-h-[72vh] gap-4 overflow-y-auto pr-1 lg:grid-cols-[minmax(0,1fr)_360px]">
                 <div className="space-y-4">
-                    <section className="space-y-3 rounded-lg border border-stone-200 p-3 dark:border-stone-800">
+                    <section className="space-y-3 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-surface-subtle)] p-3.5">
                         <div className="flex items-center justify-between gap-3">
                             <div className="text-sm font-medium">基础信息</div>
-                            <div className="inline-flex rounded-md border border-stone-300 bg-transparent p-0.5 dark:border-stone-700">
-                                <button type="button" title="个人工作流" className={`inline-flex size-8 items-center justify-center rounded transition ${workflow.scope !== "public" ? "border border-stone-400 text-stone-950 dark:border-stone-500 dark:text-stone-50" : "text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100"}`} onClick={() => patch({ scope: "private" })}>
+                            <div className="inline-flex rounded-lg border border-[var(--glass-border)] bg-[var(--glass-surface)] p-0.5">
+                                <button type="button" title="个人工作流" className={`inline-flex size-8 items-center justify-center rounded-md transition ${workflow.scope !== "public" ? "bg-[var(--brand-accent-soft)] text-[var(--brand-accent)] shadow-sm" : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"}`} onClick={() => patch({ scope: "private" })}>
                                     <LockKeyhole className="size-4" />
                                 </button>
-                                <button type="button" title="公开工作流" className={`inline-flex size-8 items-center justify-center rounded transition ${workflow.scope === "public" ? "border border-stone-400 text-stone-950 dark:border-stone-500 dark:text-stone-50" : "text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100"}`} onClick={() => patch({ scope: "public" })}>
+                                <button type="button" title="公开工作流" className={`inline-flex size-8 items-center justify-center rounded-md transition ${workflow.scope === "public" ? "bg-[var(--brand-accent-soft)] text-[var(--brand-accent)] shadow-sm" : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"}`} onClick={() => patch({ scope: "public" })}>
                                     <Globe2 className="size-4" />
                                 </button>
                             </div>
@@ -1522,7 +1522,7 @@ function WorkflowEditorModal({
                         <Select value={workflow.mode} options={workflowModeOptions} onChange={(mode) => patch({ mode })} />
                         <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} value={workflow.description} placeholder="适用场景说明" onChange={(event) => patch({ description: event.target.value })} />
                     </section>
-                    <section className="space-y-3 rounded-lg border border-stone-200 p-3 dark:border-stone-800">
+                    <section className="space-y-3 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-surface-subtle)] p-3.5">
                         <div className="flex items-center justify-between">
                             <span className="text-sm font-medium">输入变量</span>
                             <Button size="small" icon={<Plus className="size-3.5" />} onClick={() => patch({ variables: [...workflow.variables, createVariable()] })}>
@@ -1531,7 +1531,7 @@ function WorkflowEditorModal({
                         </div>
                         <div className="space-y-2">
                             {workflow.variables.map((variable) => (
-                                <div key={variable.id} className="grid gap-2 rounded-md bg-stone-100 p-2 dark:bg-stone-950 lg:grid-cols-[1fr_1fr_120px_auto]">
+                                <div key={variable.id} className="grid gap-2 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-surface)] p-2.5 lg:grid-cols-[1fr_1fr_120px_auto]">
                                     <Input value={variable.key} placeholder="变量名 product_name" onChange={(event) => patchVariable(variable.id, { key: event.target.value })} />
                                     <Input value={variable.label} placeholder="显示名称" onChange={(event) => patchVariable(variable.id, { label: event.target.value })} />
                                     <Select
@@ -1555,18 +1555,18 @@ function WorkflowEditorModal({
                             ))}
                         </div>
                     </section>
-                    <section className="space-y-3 rounded-lg border border-stone-200 p-3 dark:border-stone-800">
+                    <section className="space-y-3 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-surface-subtle)] p-3">
                         <div className="text-sm font-medium">提示词模板</div>
                         <Input.TextArea autoSize={{ minRows: 2, maxRows: 5 }} value={workflow.config.systemPrompt} placeholder="系统提示词，可选" onChange={(event) => patchConfig({ systemPrompt: event.target.value })} />
                         <Input.TextArea autoSize={{ minRows: 7, maxRows: 14 }} value={workflow.config.promptTemplate} placeholder="用户提示词模板，使用 {{变量名}} 插入变量" onChange={(event) => patchConfig({ promptTemplate: event.target.value })} />
                         <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} value={workflow.config.negativePrompt} placeholder="负面约束，可选" onChange={(event) => patchConfig({ negativePrompt: event.target.value })} />
                     </section>
                 </div>
-                <aside className="space-y-3 rounded-lg border border-stone-200 p-3 dark:border-stone-800">
+                <aside className="space-y-3 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-surface-subtle)] p-3">
                     <div className="text-sm font-medium">生成配置</div>
                     <ModelPicker config={modelConfig} fullWidth capability="image" value={workflow.config.imageModel || workflow.config.model} channelId={workflow.config.imageChannelId || modelConfig.imageChannelId} onChange={(value, channelId) => patchConfig({ imageModel: value, model: value, ...(channelId ? { imageChannelId: channelId } : {}) })} />
                     {workflow.mode === "multi_image_series" ? (
-                        <div className="space-y-3 rounded-md bg-stone-100 p-3 text-sm dark:bg-stone-950">
+                        <div className="space-y-3 rounded-xl border border-[var(--glass-border)] bg-muted/50 p-3 text-sm">
                             <div className="flex items-center gap-2 font-medium">
                                 <Layers3 className="size-4" />
                                 多图提示词规划
@@ -1582,11 +1582,11 @@ function WorkflowEditorModal({
                             />
                             <div className="grid grid-cols-2 gap-2">
                                 <Space.Compact className="w-full">
-                                    <span className="inline-flex h-8 shrink-0 items-center rounded-l-md border border-r-0 border-stone-300 bg-stone-50 px-2 text-xs text-stone-500 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-400">张数</span>
+                                    <span className="inline-flex h-8 shrink-0 items-center rounded-l-md border border-r-0 border-[var(--glass-border)] bg-muted/70 px-2 text-xs text-muted-foreground">张数</span>
                                     <Input value={workflow.seriesConfig.targetCount} onChange={(event) => patchSeriesConfig({ targetCount: event.target.value })} />
                                 </Space.Compact>
                                 <Space.Compact className="w-full">
-                                    <span className="inline-flex h-8 shrink-0 items-center rounded-l-md border border-r-0 border-stone-300 bg-stone-50 px-2 text-xs text-stone-500 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-400">并发</span>
+                                    <span className="inline-flex h-8 shrink-0 items-center rounded-l-md border border-r-0 border-[var(--glass-border)] bg-muted/70 px-2 text-xs text-muted-foreground">并发</span>
                                     <Input value={workflow.seriesConfig.concurrency} onChange={(event) => patchSeriesConfig({ concurrency: event.target.value })} />
                                 </Space.Compact>
                             </div>
@@ -1613,12 +1613,12 @@ function WorkflowEditorModal({
                         maxCount={10}
                         quickCount={6}
                     />
-                    <div className="space-y-2 rounded-md bg-stone-100 p-3 text-sm dark:bg-stone-950">
+                    <div className="space-y-2 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-surface)] p-3 text-sm">
                         <ToggleRow label="流式传输" checked={Boolean(workflow.config.streamImages)} onChange={(checked) => patchConfig({ streamImages: checked ? "1" : "" })} />
                         <ToggleRow label="返回 Base64" checked={Boolean(workflow.config.responseFormatB64Json)} onChange={(checked) => patchConfig({ responseFormatB64Json: checked ? "1" : "" })} />
                         <ToggleRow label="Codex CLI 兼容" checked={Boolean(workflow.config.codexCli)} onChange={(checked) => patchConfig({ codexCli: checked ? "1" : "" })} />
                         <Space.Compact className="w-full">
-                            <span className="inline-flex h-8 shrink-0 items-center rounded-l-md border border-r-0 border-stone-300 bg-stone-50 px-3 text-xs text-stone-500 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-400">超时(秒)</span>
+                            <span className="inline-flex h-8 shrink-0 items-center rounded-l-md border border-r-0 border-[var(--glass-border)] bg-[var(--glass-surface-subtle)] px-3 text-xs text-[var(--muted-foreground)]">超时(秒)</span>
                             <Input value={workflow.config.timeout} onChange={(event) => patchConfig({ timeout: event.target.value })} />
                         </Space.Compact>
                     </div>
@@ -1656,8 +1656,8 @@ function VariableEditorValueControls({ variable, onChange }: { variable: Workflo
 
     if (variable.type === "boolean") {
         return (
-            <div className="flex items-center gap-3 rounded-md border border-stone-200 px-3 py-2 dark:border-stone-800">
-                <span className="text-xs text-stone-500">默认开关</span>
+            <div className="flex items-center gap-3 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-surface-subtle)] px-3 py-2">
+                <span className="text-xs text-[var(--muted-foreground)]">默认开关</span>
                 <Switch size="small" checked={variable.defaultValue === "true"} onChange={(checked) => onChange({ defaultValue: String(checked) })} />
             </div>
         );
@@ -1696,9 +1696,9 @@ function ToggleRow({ label, checked, onChange }: { label: string; checked: boole
 
 function InfoPill({ label, value }: { label: string; value: string }) {
     return (
-        <div className="rounded-md bg-stone-100 px-3 py-2 dark:bg-stone-950">
+        <div className="rounded-lg border border-[var(--glass-border)] bg-[var(--glass-surface)] px-3 py-2">
             <div>{label}</div>
-            <div className="mt-1 truncate text-stone-900 dark:text-stone-100">{value}</div>
+            <div className="mt-1 truncate font-medium text-[var(--foreground)]">{value}</div>
         </div>
     );
 }

@@ -9,6 +9,8 @@ import { useCopyText } from "@/hooks/use-copy-text";
 import type { AdminAsset } from "@/services/api/admin";
 import { useAdminAssets } from "./use-admin-assets";
 
+import styles from "../admin-glass.module.css";
+
 type AssetFormValues = Partial<AdminAsset> & { tagText?: string };
 
 const typeOptions = [
@@ -200,7 +202,7 @@ export default function AdminAssetsPage() {
                 />
             </Flex>
 
-            <Modal title={editingAsset?.id ? "编辑素材" : "新增素材"} open={Boolean(editingAsset)} width={760} onCancel={() => setEditingAsset(null)} onOk={() => void saveAsset()} okText="保存" cancelText="取消" destroyOnHidden>
+            <Modal rootClassName={styles.dialogRoot} title={editingAsset?.id ? "编辑素材" : "新增素材"} open={Boolean(editingAsset)} width={760} onCancel={() => setEditingAsset(null)} onOk={() => void saveAsset()} okText="保存" cancelText="取消" destroyOnHidden>
                 <Form form={form} layout="vertical" requiredMark={false}>
                     <Form.Item name="type" label="类型" rules={[{ required: true, message: "请选择类型" }]}>
                         <Select options={editTypeOptions} />
@@ -232,7 +234,7 @@ export default function AdminAssetsPage() {
                 </Form>
             </Modal>
 
-            <Modal title="素材详情" open={Boolean(detailAsset)} width={760} onCancel={() => setDetailAsset(null)} footer={<Button onClick={() => setDetailAsset(null)}>关闭</Button>}>
+            <Modal rootClassName={styles.dialogRoot} title="素材详情" open={Boolean(detailAsset)} width={760} onCancel={() => setDetailAsset(null)} footer={<Button onClick={() => setDetailAsset(null)}>关闭</Button>}>
                 {detailAsset ? (
                     <Flex vertical gap={14}>
                         <Flex gap={14} align="start">
@@ -264,6 +266,7 @@ export default function AdminAssetsPage() {
             </Modal>
 
             <Modal
+                rootClassName={styles.dialogRoot}
                 title="删除素材"
                 open={Boolean(deletingAsset)}
                 onCancel={() => setDeletingAsset(null)}

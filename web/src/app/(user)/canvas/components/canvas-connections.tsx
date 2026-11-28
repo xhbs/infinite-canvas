@@ -29,13 +29,14 @@ export function ConnectionPath({
     const pathD = `M ${startX} ${startY} C ${startX + curvature} ${startY}, ${endX - curvature} ${endY}, ${endX} ${endY}`;
 
     return (
-        <g>
+        <g className="canvas-conn-group">
             <path
                 data-connection-id={connection.id}
                 d={pathD}
                 stroke="transparent"
                 strokeWidth="16"
                 fill="none"
+                vectorEffect="non-scaling-stroke"
                 style={{ cursor: "pointer", pointerEvents: "stroke" }}
                 onClick={(event) => {
                     event.stopPropagation();
@@ -48,13 +49,50 @@ export function ConnectionPath({
                 }}
             />
             <path
+                className="canvas-conn-base"
                 d={pathD}
-                stroke={active ? theme.node.activeStroke : theme.node.muted}
-                strokeWidth={active ? 3 : 2}
-                strokeOpacity={active ? 1 : 0.82}
+                stroke={active ? "var(--brand-accent)" : "color-mix(in srgb, var(--brand-accent) 44%, var(--muted-foreground))"}
+                strokeWidth={active ? 2.8 : 1.75}
+                strokeOpacity={active ? 0.96 : 0.76}
                 fill="none"
-                style={{ filter: active ? `drop-shadow(0 0 8px ${theme.node.activeStroke}66)` : undefined, pointerEvents: "none" }}
+                vectorEffect="non-scaling-stroke"
+                style={{
+                    filter: active ? "drop-shadow(0 0 8px color-mix(in srgb, var(--brand-accent) 55%, transparent))" : undefined,
+                    pointerEvents: "none",
+                }}
             />
+            {active ? (
+                <path
+                    className="canvas-conn-flow"
+                    d={pathD}
+                    stroke="var(--glass-glint)"
+                    strokeWidth={2}
+                    strokeDasharray="6 18"
+                    strokeLinecap="round"
+                    fill="none"
+                    vectorEffect="non-scaling-stroke"
+                    style={{
+                        pointerEvents: "none",
+                        animation: "fx-flow-dash 1.1s linear infinite",
+                    }}
+                />
+            ) : (
+                <path
+                    className="canvas-conn-flow"
+                    d={pathD}
+                    stroke="var(--brand-accent)"
+                    strokeWidth={1.5}
+                    strokeOpacity={0.52}
+                    strokeDasharray="5 22"
+                    strokeLinecap="round"
+                    fill="none"
+                    vectorEffect="non-scaling-stroke"
+                    style={{
+                        pointerEvents: "none",
+                        animation: "fx-flow-dash 2.2s linear infinite",
+                    }}
+                />
+            )}
         </g>
     );
 }
@@ -74,5 +112,18 @@ export function ActiveConnectionPath({ node, handle, mouseWorld, target }: { nod
     const distance = Math.abs(snappedEndX - snappedStartX);
     const pathD = `M ${snappedStartX} ${snappedStartY} C ${snappedStartX + distance * 0.5} ${snappedStartY}, ${snappedEndX - distance * 0.5} ${snappedEndY}, ${snappedEndX} ${snappedEndY}`;
 
-    return <path d={pathD} stroke={theme.node.activeStroke} strokeWidth="2" fill="none" strokeDasharray="5,5" />;
+    return (
+        <path
+            d={pathD}
+            stroke="var(--brand-accent)"
+            strokeWidth="2.5"
+            fill="none"
+            strokeDasharray="6 6"
+            strokeLinecap="round"
+            style={{
+                filter: "drop-shadow(0 0 6px color-mix(in srgb, var(--brand-accent) 40%, transparent))",
+                animation: "fx-flow-dash 0.8s linear infinite",
+            }}
+        />
+    );
 }

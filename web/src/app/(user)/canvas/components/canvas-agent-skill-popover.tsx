@@ -99,8 +99,8 @@ export function CanvasAgentSkillPopover({ selectedSkills, onSelect, onDeleteSele
             </div>
             <div className="mb-3 flex items-center gap-2">
                 <div className="flex shrink-0 rounded-lg p-0.5" style={{ background: theme.node.fill }}>
-                    <button type="button" className="rounded-md px-3 py-1.5 text-xs" style={tab === "system" ? { background: theme.toolbar.activeBg, color: theme.toolbar.activeText } : { color: theme.node.muted }} onClick={() => setTab("system")}>通用</button>
-                    <button type="button" className="rounded-md px-3 py-1.5 text-xs" style={tab === "user" ? { background: theme.toolbar.activeBg, color: theme.toolbar.activeText } : { color: theme.node.muted }} onClick={() => setTab("user")}>我的</button>
+                    <button type="button" className="rounded-md px-3 py-1.5 text-xs" style={tab === "system" ? { background: "var(--brand-accent-soft)", color: "var(--brand-accent)" } : { color: theme.node.muted }} onClick={() => setTab("system")}>通用</button>
+                    <button type="button" className="rounded-md px-3 py-1.5 text-xs" style={tab === "user" ? { background: "var(--brand-accent-soft)", color: "var(--brand-accent)" } : { color: theme.node.muted }} onClick={() => setTab("user")}>我的</button>
                 </div>
                 <Input allowClear size="small" prefix={<Search className="size-3.5 opacity-55" />} placeholder="搜索 Skill" value={query} onChange={(event) => setQuery(event.target.value)} />
             </div>
@@ -154,16 +154,17 @@ export function CanvasAgentSkillPopover({ selectedSkills, onSelect, onDeleteSele
     return (
         <>
             <Popover
+                rootClassName="canvas-glass-popup"
                 trigger="click"
                 placement="topLeft"
                 open={open}
                 onOpenChange={setOpen}
                 content={content}
-                styles={{ container: { padding: 14, background: theme.toolbar.panel, color: theme.node.text, border: `1px solid ${theme.node.stroke}`, borderRadius: 16 } }}
+                styles={{ container: { padding: 14, background: "var(--glass-surface-strong)", color: theme.node.text, border: "1px solid var(--glass-border)", borderRadius: 16, boxShadow: "var(--glass-shadow), inset 0 1px 0 var(--glass-highlight)", backdropFilter: "blur(var(--glass-blur-strong)) saturate(1.14)" } }}
             >
                 <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={{ color: theme.node.text }} icon={<Wrench className="size-4" />} title="Skill" aria-label="Skill" />
             </Popover>
-            <Modal title="编辑 Skill" open={Boolean(editingSkill)} width={920} footer={null} destroyOnHidden onCancel={() => setEditingSkill(null)}>
+            <Modal className="canvas-glass-modal" title="编辑 Skill" open={Boolean(editingSkill)} width={920} footer={null} destroyOnHidden onCancel={() => setEditingSkill(null)}>
                 <Form form={form} layout="vertical" requiredMark={false}>
                     <Form.Item name="coverUrl" hidden><Input /></Form.Item>
                     <Form.Item name="coverStorageKey" hidden><Input /></Form.Item>

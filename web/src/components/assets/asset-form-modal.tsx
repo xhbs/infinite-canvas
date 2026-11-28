@@ -8,6 +8,7 @@ import { formatBytes, readFileAsDataUrl } from "@/lib/image-utils";
 import { uploadAssetMediaFile } from "@/services/file-storage";
 import { uploadImage } from "@/services/image-storage";
 import { useAssetStore, type Asset, type AssetKind, type AudioAsset, type ImageAsset, type VideoAsset } from "@/stores/use-asset-store";
+import styles from "./resource-glass.module.css";
 
 type AssetFormValues = {
     kind: AssetKind;
@@ -144,7 +145,7 @@ export function AssetFormModal({ open, asset = null, onClose }: AssetFormModalPr
     };
 
     return (
-            <Modal title={asset ? "编辑素材" : "新增素材"} open={open} width={980} onCancel={onClose} onOk={() => void saveAsset()} okText="保存" cancelText="取消" destroyOnHidden>
+            <Modal rootClassName={styles.glassModal} title={asset ? "编辑素材" : "新增素材"} open={open} width={980} onCancel={onClose} onOk={() => void saveAsset()} okText="保存" cancelText="取消" destroyOnHidden>
                 <div className="grid gap-6 pt-1 lg:grid-cols-[minmax(0,1fr)_320px]">
                     <Form form={form} layout="vertical" requiredMark={false} initialValues={{ kind: "text", tags: [] }}>
                         <Form.Item name="kind" label="类型">
@@ -191,7 +192,7 @@ export function AssetFormModal({ open, asset = null, onClose }: AssetFormModalPr
                             </Form.Item>
                         ) : (
                             <Form.Item name="content" label={formKind === "image" ? "图片内容" : formKind === "video" ? "视频内容" : "音频内容"} required>
-                                <div className="rounded-lg border border-dashed border-stone-300 p-4 dark:border-stone-700">
+                                <div className="rounded-lg border border-dashed border-[var(--glass-border)] bg-[var(--glass-surface)] p-4">
                                     <Space.Compact className="w-full">
                                         <Input placeholder={formKind === "image" ? "填写图片 URL，或选择本地图片文件" : formKind === "video" ? "填写视频 URL，或选择本地视频文件" : "填写音频 URL，或选择本地音频文件"} />
                                         <Button icon={<Upload className="size-4" />} onClick={() => (formKind === "image" ? imageInputRef.current?.click() : mediaInputRef.current?.click())}>
@@ -217,17 +218,17 @@ export function AssetFormModal({ open, asset = null, onClose }: AssetFormModalPr
                             </Form.Item>
                         )}
                     </Form>
-                    <div className="rounded-xl border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
+                    <div className={styles.formPreviewPanel}>
                         <Typography.Text strong>预览</Typography.Text>
-                        <div className="mt-3 overflow-hidden rounded-lg border border-stone-200 bg-background dark:border-stone-800">
+                        <div className={styles.formPreviewSurface}>
                             {coverUrl || imageDraft?.dataUrl ? (
-                                <img src={coverUrl || imageDraft?.dataUrl} alt="" className="aspect-[4/3] w-full object-cover" />
+                                <img src={coverUrl || imageDraft?.dataUrl} alt="" className={styles.thumbnail} />
                             ) : formKind === "video" && (mediaDraft?.url || content) ? (
-                                <video src={mediaDraft?.url || content} className="aspect-[4/3] w-full bg-black object-contain" controls />
+                                <video src={mediaDraft?.url || content} className={styles.thumbnail} controls />
                             ) : formKind === "audio" && (mediaDraft?.url || content) ? (
-                                <div className="flex aspect-[4/3] items-center justify-center bg-stone-100 p-5 dark:bg-stone-900"><audio src={mediaDraft?.url || content} controls className="w-full" /></div>
+                                <div className="flex aspect-[4/3] items-center justify-center bg-muted p-5"><audio src={mediaDraft?.url || content} controls className="w-full" /></div>
                             ) : (
-                                <div className="flex aspect-[4/3] items-center justify-center bg-stone-100 p-5 text-center text-sm text-stone-500 dark:bg-stone-900">{content || "暂无封面"}</div>
+                                <div className="flex aspect-[4/3] items-center justify-center bg-muted p-5 text-center text-sm text-muted-foreground">{content || "暂无封面"}</div>
                             )}
                             <div className="p-4">
                                 <Typography.Text strong ellipsis className="block">

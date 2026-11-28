@@ -125,6 +125,7 @@ export function CanvasNodeCropDialog({ dataUrl, open, onClose, onConfirm }: { da
 
     return (
         <Modal 
+            className="canvas-glass-modal"
             title="裁剪图片" 
             open={open && Boolean(dataUrl)} 
             onCancel={loading ? undefined : onClose} 
@@ -162,7 +163,7 @@ export function CanvasNodeCropDialog({ dataUrl, open, onClose, onConfirm }: { da
                             </span>
                         ) : null}
                     </div>
-                    <Dropdown menu={ratioMenu} disabled={loading}>
+                    <Dropdown rootClassName="canvas-glass-popup" menu={ratioMenu} disabled={loading}>
                         <Button icon={aspectRatio === null ? <LockOpen className="size-4" /> : <Lock className="size-4" />}>
                             {getRatioLabel()} <ChevronDown className="size-3.5 ml-1 inline-block" />
                         </Button>

@@ -1,0 +1,102 @@
+.page {
+    height: 100%;
+    min-height: 0;
+    background-color: var(--background);
+}
+
+.page :global(main) {
+    background-color: var(--background) !important;
+    color: var(--foreground) !important;
+}
+
+.page :global(main > div > section:first-child) {
+    border: 1px solid var(--glass-border) !important;
+    border-radius: 20px !important;
+    background: var(--glass-surface-subtle) !important;
+    box-shadow: var(--glass-shadow-soft), inset 0 1px 0 var(--glass-highlight);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+
+.page :global(main > div > section:nth-child(2) article),
+.page :global(main > div > section:not(:first-child) article) {
+    position: relative;
+    overflow: hidden;
+    border-color: var(--glass-border) !important;
+    border-radius: 17px !important;
+    background: var(--glass-surface) !important;
+    color: var(--card-foreground);
+    box-shadow: var(--glass-shadow-soft), inset 0 1px 0 var(--glass-highlight);
+    backdrop-filter: blur(var(--glass-blur));
+    transition: border-color 240ms ease, box-shadow 340ms cubic-bezier(0.22, 1, 0.36, 1), transform 340ms cubic-bezier(0.22, 1, 0.36, 1), background 240ms ease;
+}
+
+.page :global(main > div > section:nth-child(2) article)::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    z-index: 3;
+    pointer-events: none;
+    background: var(--fx-sheen);
+    opacity: 0;
+    transform: translateX(-125%) skewX(-14deg);
+    transition: transform 720ms cubic-bezier(0.22, 1, 0.36, 1), opacity 220ms ease;
+}
+
+.page :global(main > div > section:nth-child(2) article:hover) {
+    border-color: color-mix(in srgb, var(--brand-accent) 44%, var(--glass-border)) !important;
+    background: var(--glass-surface-strong) !important;
+    box-shadow: var(--glass-shadow), 0 0 26px color-mix(in srgb, var(--brand-accent) 10%, transparent);
+    transform: translateY(-4px);
+}
+
+.page :global(main > div > section:nth-child(2) article:hover)::after {
+    opacity: 1;
+    transform: translateX(135%) skewX(-14deg);
+}
+
+.page :global(main > div > section:nth-child(2) article > div:first-child) {
+    background: linear-gradient(90deg, var(--brand-accent), color-mix(in srgb, var(--brand-accent) 24%, var(--background))) !important;
+}
+
+.page :global(.ant-input),
+.page :global(.ant-input-affix-wrapper),
+.page :global(.ant-select-selector) {
+    border-color: var(--glass-border) !important;
+    background-color: var(--glass-surface-strong) !important;
+    color: var(--foreground) !important;
+}
+
+.page :global(.ant-btn-primary:not(:disabled)) {
+    border-color: var(--brand-accent) !important;
+    background-color: var(--brand-accent) !important;
+    color: #fffdf8 !important;
+}
+
+.page :global(.ant-btn-primary:not(:disabled):hover) {
+    border-color: color-mix(in srgb, var(--brand-accent) 88%, black) !important;
+    background-color: color-mix(in srgb, var(--brand-accent) 88%, black) !important;
+}
+
+.page :global(.ant-btn-default:hover),
+.page :global(.ant-btn-text:hover) {
+    border-color: color-mix(in srgb, var(--brand-accent) 42%, transparent) !important;
+    color: var(--brand-accent) !important;
+}
+
+@media (max-width: 639px) {
+    .page :global(main) {
+        padding: 0.75rem !important;
+    }
+
+    .page :global(main > div > section:first-child) {
+        border-radius: 16px !important;
+        padding: 0.875rem !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .page :global(main > div > section:nth-child(2) article) {
+        transition: none;
+    }
+}

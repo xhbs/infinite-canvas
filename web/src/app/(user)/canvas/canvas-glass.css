@@ -1,0 +1,761 @@
+.canvas-ui {
+    position: relative;
+    --canvas-focus-ring: color-mix(in srgb, var(--brand-accent) 72%, transparent);
+}
+
+.canvas-ambient-glow {
+    overflow: hidden;
+}
+
+.canvas-ambient-glow::before,
+.canvas-ambient-glow::after {
+    content: "";
+    position: absolute;
+    border-radius: 9999px;
+    pointer-events: none;
+    will-change: transform, opacity;
+}
+
+.canvas-ambient-glow::before {
+    top: -12%;
+    left: -8%;
+    width: max(56vw, 520px);
+    height: max(52vh, 420px);
+    background: radial-gradient(ellipse closest-side, color-mix(in srgb, var(--brand-accent) 22%, transparent), color-mix(in srgb, var(--brand-accent) 7%, transparent) 55%, transparent);
+    animation: canvas-orb-drift-a 14s ease-in-out infinite alternate;
+}
+
+.canvas-ambient-glow::after {
+    right: -10%;
+    bottom: -14%;
+    width: max(52vw, 480px);
+    height: max(48vh, 380px);
+    background: radial-gradient(ellipse closest-side, color-mix(in srgb, var(--glass-glint) 18%, transparent), color-mix(in srgb, var(--chart-2) 7%, transparent) 56%, transparent);
+    animation: canvas-orb-drift-b 18s ease-in-out infinite alternate;
+}
+
+@keyframes canvas-orb-drift-a {
+    0% {
+        opacity: 0.72;
+        transform: translate3d(-4%, -3%, 0) scale(0.96);
+    }
+    100% {
+        opacity: 1;
+        transform: translate3d(14%, 10%, 0) scale(1.12);
+    }
+}
+
+@keyframes canvas-orb-drift-b {
+    0% {
+        opacity: 0.68;
+        transform: translate3d(4%, 4%, 0) scale(0.94);
+    }
+    100% {
+        opacity: 0.96;
+        transform: translate3d(-14%, -9%, 0) scale(1.1);
+    }
+}
+
+.canvas-ui :where(button, a, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid var(--canvas-focus-ring);
+    outline-offset: 2px;
+}
+
+body:has(.canvas-ui) .ant-modal :where(button, a, input, select, textarea, [tabindex]):focus-visible,
+.canvas-glass-modal :where(button, a, input, select, textarea, [tabindex]):focus-visible,
+.canvas-glass-popup :where(button, a, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid var(--canvas-focus-ring);
+    outline-offset: 2px;
+}
+
+.canvas-ui :where(.ant-input, .ant-select-selector, .ant-picker):focus-within,
+.canvas-glass-modal :where(.ant-input, .ant-select-selector, .ant-picker):focus-within {
+    border-color: var(--brand-accent) !important;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-accent) 16%, transparent) !important;
+}
+
+.canvas-ui .canvas-control-select.ant-select .ant-select-selector,
+.canvas-ui .canvas-control-number.ant-input-number,
+.canvas-glass-modal .canvas-control-select.ant-select .ant-select-selector,
+.canvas-glass-modal .canvas-control-number.ant-input-number {
+    border-color: var(--glass-border) !important;
+}
+
+.canvas-ui .canvas-control-select.ant-select-focused .ant-select-selector,
+.canvas-ui .canvas-control-number.ant-input-number-focused,
+.canvas-glass-modal .canvas-control-select.ant-select-focused .ant-select-selector,
+.canvas-glass-modal .canvas-control-number.ant-input-number-focused {
+    border-color: var(--brand-accent) !important;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-accent) 16%, transparent) !important;
+}
+
+.canvas-ui .prompt-filter-tag.ant-tag-checkable,
+.canvas-glass-modal .prompt-filter-tag.ant-tag-checkable {
+    border-color: var(--glass-border);
+    color: var(--muted-foreground);
+}
+
+.canvas-ui .prompt-filter-tag.ant-tag-checkable:hover,
+.canvas-glass-modal .prompt-filter-tag.ant-tag-checkable:hover {
+    background: var(--brand-accent-soft);
+    border-color: color-mix(in srgb, var(--brand-accent) 38%, var(--glass-border));
+    color: var(--brand-accent);
+}
+
+.canvas-ui .prompt-filter-tag.ant-tag-checkable.is-active,
+.canvas-ui .prompt-filter-tag.ant-tag-checkable-checked,
+.canvas-glass-modal .prompt-filter-tag.ant-tag-checkable.is-active,
+.canvas-glass-modal .prompt-filter-tag.ant-tag-checkable-checked {
+    background: var(--brand-accent-soft) !important;
+    border-color: var(--brand-accent) !important;
+    color: var(--brand-accent) !important;
+}
+
+.canvas-glass-surface,
+.canvas-glass-surface-strong {
+    position: relative;
+    isolation: isolate;
+    border-color: var(--glass-border) !important;
+    box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-highlight) !important;
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.14);
+    backdrop-filter: blur(var(--glass-blur)) saturate(1.14);
+}
+
+.canvas-glass-surface {
+    background: var(--glass-surface) !important;
+}
+
+.canvas-glass-surface-strong {
+    background: var(--glass-surface-strong) !important;
+    -webkit-backdrop-filter: blur(var(--glass-blur-strong)) saturate(1.16);
+    backdrop-filter: blur(var(--glass-blur-strong)) saturate(1.16);
+}
+
+.canvas-glass-control {
+    border-color: var(--glass-border) !important;
+    background: var(--glass-surface-strong) !important;
+    box-shadow: inset 0 1px 0 var(--glass-highlight) !important;
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.12);
+    backdrop-filter: blur(var(--glass-blur)) saturate(1.12);
+}
+
+body:has(.canvas-ui) .ant-modal-content,
+.canvas-glass-modal .ant-modal-content {
+    border: 1px solid var(--glass-border);
+    background: var(--glass-surface-strong);
+    box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-highlight);
+    -webkit-backdrop-filter: blur(var(--glass-blur-strong)) saturate(1.14);
+    backdrop-filter: blur(var(--glass-blur-strong)) saturate(1.14);
+}
+
+body:has(.canvas-ui) .ant-modal-header,
+body:has(.canvas-ui) .ant-modal-footer,
+.canvas-glass-modal .ant-modal-header,
+.canvas-glass-modal .ant-modal-footer {
+    border-color: var(--glass-border);
+    background: transparent;
+}
+
+body:has(.canvas-ui) .ant-modal-title,
+body:has(.canvas-ui) .ant-modal-body,
+.canvas-glass-modal .ant-modal-title,
+.canvas-glass-modal .ant-modal-body {
+    color: var(--foreground);
+}
+
+body:has(.canvas-ui) .ant-modal-close,
+.canvas-glass-modal .ant-modal-close {
+    color: var(--muted-foreground);
+}
+
+body:has(.canvas-ui) .ant-modal-close:hover,
+.canvas-glass-modal .ant-modal-close:hover {
+    color: var(--brand-accent);
+    background: var(--brand-accent-soft);
+}
+
+body:has(.canvas-ui) .ant-dropdown-menu,
+body:has(.canvas-ui) .ant-popover-inner,
+body:has(.canvas-ui) .ant-select-dropdown,
+body:has(.canvas-ui) .ant-picker-dropdown,
+.canvas-glass-popup .ant-dropdown-menu,
+.canvas-glass-popup .ant-popover-inner {
+    border: 1px solid var(--glass-border);
+    background: var(--glass-surface-strong);
+    box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-highlight);
+    color: var(--foreground);
+    -webkit-backdrop-filter: blur(var(--glass-blur-strong)) saturate(1.14);
+    backdrop-filter: blur(var(--glass-blur-strong)) saturate(1.14);
+}
+
+body:has(.canvas-ui) .ant-dropdown-menu-item:hover,
+body:has(.canvas-ui) .ant-dropdown-menu-submenu-title:hover,
+.canvas-glass-popup .ant-dropdown-menu-item:hover,
+.canvas-glass-popup .ant-dropdown-menu-submenu-title:hover {
+    background: var(--brand-accent-soft);
+    color: var(--brand-accent);
+}
+
+body:has(.canvas-ui) .ant-select-item-option-selected:not(.ant-select-item-option-disabled),
+body:has(.canvas-ui) .ant-segmented-item-selected,
+body:has(.canvas-ui) [data-radix-popper-content-wrapper] [data-highlighted] {
+    background: var(--brand-accent-soft) !important;
+    color: var(--brand-accent) !important;
+}
+
+body:has(.canvas-ui) .ant-segmented-item-selected {
+    box-shadow: none;
+}
+
+body:has(.canvas-ui) [data-radix-popper-content-wrapper] > .bg-popover {
+    border-color: var(--glass-border) !important;
+    background: var(--glass-surface-strong) !important;
+    box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-highlight);
+    -webkit-backdrop-filter: blur(var(--glass-blur-strong)) saturate(1.14);
+    backdrop-filter: blur(var(--glass-blur-strong)) saturate(1.14);
+}
+
+body:has(.canvas-ui) .ant-tooltip .ant-tooltip-inner {
+    border: 1px solid var(--glass-border);
+    background: var(--glass-surface-strong);
+    box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-highlight);
+    color: var(--foreground);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.12);
+    backdrop-filter: blur(var(--glass-blur)) saturate(1.12);
+}
+
+.canvas-image-settings-popover {
+    border: 1px solid var(--glass-border) !important;
+    background: var(--glass-surface-strong) !important;
+    box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-highlight) !important;
+    -webkit-backdrop-filter: blur(var(--glass-blur-strong)) saturate(1.14);
+    backdrop-filter: blur(var(--glass-blur-strong)) saturate(1.14);
+}
+
+.canvas-glass-action:hover,
+.canvas-glass-action[aria-pressed="true"] {
+    background: var(--brand-accent-soft) !important;
+    color: var(--brand-accent) !important;
+}
+
+.canvas-glass-action {
+    transition: transform var(--motion-fast) cubic-bezier(0.22, 1, 0.36, 1), background-color var(--motion-fast) ease, color var(--motion-fast) ease;
+}
+
+.canvas-glass-action:hover {
+    transform: translateY(-1px);
+}
+
+.canvas-glass-action:active {
+    transform: scale(0.92);
+}
+
+.canvas-theme-hover:hover {
+    background: color-mix(in srgb, var(--foreground) 5%, transparent);
+}
+
+.canvas-node-frame {
+    box-shadow: var(--glass-shadow-soft), 0 0 0 1px color-mix(in srgb, var(--glass-highlight) 35%, transparent), inset 0 1px 0 var(--glass-highlight);
+    backdrop-filter: blur(10px);
+    transition: border-color var(--motion-fast) ease, box-shadow var(--motion-base) ease, transform var(--motion-base) cubic-bezier(0.22, 1, 0.36, 1);
+    animation: canvas-node-enter 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.canvas-node-frame:hover {
+    border-color: color-mix(in srgb, var(--brand-accent) 42%, var(--glass-border)) !important;
+    box-shadow: var(--glass-shadow), 0 0 24px color-mix(in srgb, var(--brand-accent) 16%, transparent), inset 0 1px 0 var(--glass-highlight);
+}
+
+.canvas-conn-group .canvas-conn-base {
+    transition: stroke 200ms ease, stroke-width 200ms ease, stroke-opacity 200ms ease, filter 200ms ease;
+}
+
+.canvas-conn-group:hover .canvas-conn-base {
+    stroke: var(--brand-accent) !important;
+    stroke-opacity: 0.95 !important;
+    stroke-width: 2.8 !important;
+    filter: drop-shadow(0 0 8px color-mix(in srgb, var(--brand-accent) 50%, transparent));
+}
+
+.canvas-conn-group:hover .canvas-conn-flow {
+    stroke: var(--glass-glint) !important;
+    stroke-opacity: 0.95 !important;
+    animation-duration: 0.9s !important;
+}
+
+.canvas-node-frame-selected {
+    box-shadow:
+        var(--glass-shadow),
+        0 0 0 2px color-mix(in srgb, var(--brand-accent) 26%, transparent),
+        0 0 28px color-mix(in srgb, var(--brand-accent) 18%, transparent),
+        inset 0 1px 0 var(--glass-highlight);
+    animation: canvas-selected-breathe 3.2s ease-in-out infinite;
+}
+
+.canvas-node-frame[data-running="true"] {
+    border-color: color-mix(in srgb, var(--brand-accent) 68%, var(--glass-border)) !important;
+    box-shadow:
+        var(--glass-shadow),
+        0 0 0 2px color-mix(in srgb, var(--brand-accent) 34%, transparent),
+        0 0 36px color-mix(in srgb, var(--brand-accent) 26%, transparent),
+        inset 0 1px 0 var(--glass-highlight);
+    animation: canvas-running-breathe 1.9s ease-in-out infinite;
+}
+
+@keyframes canvas-running-breathe {
+    0%,
+    100% {
+        box-shadow:
+            var(--glass-shadow),
+            0 0 0 2px color-mix(in srgb, var(--brand-accent) 30%, transparent),
+            0 0 28px color-mix(in srgb, var(--brand-accent) 20%, transparent),
+            inset 0 1px 0 var(--glass-highlight);
+    }
+    50% {
+        box-shadow:
+            var(--glass-shadow),
+            0 0 0 4px color-mix(in srgb, var(--brand-accent) 52%, transparent),
+            0 0 46px color-mix(in srgb, var(--brand-accent) 36%, transparent),
+            inset 0 1px 0 var(--glass-highlight);
+    }
+}
+
+.canvas-running-stage {
+    position: relative;
+    overflow: hidden;
+    background:
+        radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--brand-accent) 18%, transparent), transparent 64%),
+        linear-gradient(160deg, color-mix(in srgb, var(--brand-accent) 8%, transparent), transparent 52%);
+}
+
+.canvas-running-orbit {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+}
+
+.canvas-running-orbit::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    padding: 2px;
+    background: conic-gradient(from 0deg, transparent 15%, var(--brand-accent) 68%, var(--glass-glint) 92%, transparent 100%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: canvas-orbit-spin 1.35s linear infinite;
+}
+
+.canvas-running-orbit::after {
+    content: "";
+    position: absolute;
+    inset: 8px;
+    border-radius: 9999px;
+    border: 1px dashed color-mix(in srgb, var(--brand-accent) 45%, transparent);
+    animation: canvas-orbit-spin 3.2s linear infinite reverse;
+}
+
+.canvas-running-core {
+    width: 14px;
+    height: 14px;
+    border-radius: 9999px;
+    background: radial-gradient(circle, var(--glass-glint), var(--brand-accent));
+    box-shadow: 0 0 16px color-mix(in srgb, var(--brand-accent) 70%, transparent);
+    animation: canvas-core-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes canvas-orbit-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes canvas-core-pulse {
+    0%,
+    100% {
+        transform: scale(0.86);
+        opacity: 0.78;
+    }
+    50% {
+        transform: scale(1.16);
+        opacity: 1;
+    }
+}
+
+.canvas-node-rim-glow {
+    position: relative;
+}
+
+.canvas-node-rim-glow::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1.5px;
+    pointer-events: none;
+    background: linear-gradient(125deg, color-mix(in srgb, var(--brand-accent) 55%, transparent), transparent 36%, transparent 64%, color-mix(in srgb, var(--glass-glint) 48%, transparent));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0.45;
+    transition: opacity 240ms ease;
+}
+
+.canvas-node-frame:hover .canvas-node-rim-glow::before,
+.canvas-node-frame-selected .canvas-node-rim-glow::before {
+    opacity: 0.95;
+}
+
+.canvas-handle-dot {
+    transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1), border-color 160ms ease, background-color 160ms ease, box-shadow 200ms ease;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-accent) 14%, transparent);
+}
+
+.canvas-handle-group:hover .canvas-handle-dot {
+    transform: scale(1.45);
+    border-color: var(--brand-accent) !important;
+    background: var(--brand-accent) !important;
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--brand-accent) 26%, transparent), 0 0 12px color-mix(in srgb, var(--brand-accent) 45%, transparent);
+}
+
+@keyframes canvas-node-enter {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@keyframes canvas-selected-breathe {
+    0%,
+    100% {
+        box-shadow:
+            var(--glass-shadow),
+            0 0 0 2px color-mix(in srgb, var(--brand-accent) 26%, transparent),
+            0 0 26px color-mix(in srgb, var(--brand-accent) 16%, transparent),
+            inset 0 1px 0 var(--glass-highlight);
+    }
+    50% {
+        box-shadow:
+            var(--glass-shadow),
+            0 0 0 3px color-mix(in srgb, var(--brand-accent) 38%, transparent),
+            0 0 34px color-mix(in srgb, var(--brand-accent) 24%, transparent),
+            inset 0 1px 0 var(--glass-highlight);
+    }
+}
+
+.canvas-library {
+    isolation: isolate;
+    --preview-node-image: color-mix(in srgb, var(--brand-accent) 14%, var(--glass-surface-strong));
+    --preview-node-video: color-mix(in srgb, var(--chart-2) 18%, var(--glass-surface-strong));
+    --preview-node-audio: color-mix(in srgb, var(--chart-3) 18%, var(--glass-surface-strong));
+    --preview-node-config: color-mix(in srgb, var(--chart-4) 12%, var(--glass-surface-strong));
+    --preview-node-text: color-mix(in srgb, var(--glass-glint) 9%, var(--glass-surface-strong));
+    background-image:
+        radial-gradient(ellipse at 14% 4%, color-mix(in srgb, var(--brand-accent) 8%, transparent), transparent 42%),
+        linear-gradient(150deg, var(--background), color-mix(in srgb, var(--glass-surface) 72%, var(--background)));
+}
+
+.canvas-library-header {
+    position: relative;
+}
+
+.canvas-library-header::after {
+    position: absolute;
+    right: 0;
+    bottom: -1px;
+    left: 0;
+    height: 1px;
+    background: linear-gradient(90deg, var(--brand-accent), color-mix(in srgb, var(--brand-accent) 22%, transparent) 38%, transparent 80%);
+    content: "";
+    transform: scaleX(0.52);
+    transform-origin: left;
+    transition: transform var(--motion-gentle) ease;
+}
+
+.canvas-library:has(.canvas-project-card:hover) .canvas-library-header::after {
+    transform: scaleX(1);
+}
+
+.canvas-library-live-indicator {
+    position: relative;
+    width: 6px;
+    height: 6px;
+    flex: none;
+    border-radius: 999px;
+    background: var(--brand-accent);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--brand-accent) 48%, transparent);
+    animation: canvas-library-beacon 3.2s ease-in-out infinite;
+}
+
+@keyframes canvas-library-beacon {
+    50% {
+        opacity: 0.55;
+        transform: scale(0.8);
+    }
+}
+
+.canvas-project-card {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--glass-border);
+    background: var(--glass-surface);
+    box-shadow: var(--glass-shadow-soft), inset 0 1px 0 var(--glass-highlight);
+    animation: canvas-project-enter 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    transition: border-color var(--motion-fast) ease, transform var(--motion-base) ease, box-shadow var(--motion-base) ease, background var(--motion-base) ease;
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.12);
+    backdrop-filter: blur(var(--glass-blur)) saturate(1.12);
+}
+
+@keyframes canvas-project-enter {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.canvas-project-card::before {
+    position: absolute;
+    z-index: 2;
+    inset: 0 20% auto;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--brand-accent) 42%, transparent), transparent);
+    content: "";
+    opacity: 0.3;
+    transition: opacity var(--motion-fast) ease, inset var(--motion-base) ease;
+    pointer-events: none;
+}
+
+.canvas-project-card::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    z-index: 3;
+    pointer-events: none;
+    background: var(--fx-sheen);
+    opacity: 0;
+    transform: translateX(-125%) skewX(-14deg);
+    transition: transform 720ms cubic-bezier(0.22, 1, 0.36, 1), opacity 220ms ease;
+}
+
+.canvas-project-card:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in srgb, var(--brand-accent) 46%, var(--glass-border));
+    background: var(--glass-surface-strong);
+    box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-highlight);
+}
+
+.canvas-project-card:hover::before {
+    inset-inline: 4%;
+    opacity: 0.9;
+}
+
+.canvas-project-card:hover::after {
+    opacity: 1;
+    transform: translateX(135%) skewX(-14deg);
+}
+
+.canvas-project-card[data-selected="true"] {
+    border-color: color-mix(in srgb, var(--brand-accent) 58%, var(--glass-border));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand-accent) 22%, transparent), inset 0 1px 0 var(--glass-highlight);
+}
+
+.canvas-project-preview {
+    height: clamp(124px, 13vw, 168px);
+    isolation: isolate;
+    background: radial-gradient(ellipse at 50% 112%, color-mix(in srgb, var(--brand-accent) 10%, transparent), transparent 57%), color-mix(in srgb, var(--glass-surface-strong) 82%, var(--background));
+}
+
+.canvas-project-preview-graphic {
+    pointer-events: none;
+}
+
+.canvas-project-preview-empty {
+    color: var(--brand-accent);
+    background: color-mix(in srgb, var(--glass-surface-strong) 84%, transparent);
+    box-shadow: 0 6px 22px color-mix(in srgb, var(--brand-accent) 9%, transparent);
+}
+
+.canvas-project-preview-group {
+    fill: color-mix(in srgb, var(--brand-accent) 4%, var(--glass-surface-strong));
+    stroke: color-mix(in srgb, var(--brand-accent) 24%, var(--glass-border));
+    stroke-dasharray: 4 3;
+}
+
+.canvas-project-preview-links {
+    stroke: var(--brand-accent);
+    stroke-linecap: round;
+    stroke-width: 1.6;
+    opacity: 0.58;
+    transition: opacity var(--motion-base) ease, stroke-width var(--motion-base) ease;
+}
+
+.canvas-project-preview-node rect {
+    fill: var(--preview-node-text);
+    stroke: color-mix(in srgb, var(--muted-foreground) 22%, var(--glass-border));
+    stroke-width: 1;
+}
+
+.canvas-project-preview-node[data-kind="image"] rect,
+.canvas-project-preview-node[data-kind="panorama"] rect,
+.canvas-project-preview-node[data-kind="draft"] rect {
+    fill: var(--preview-node-image);
+}
+
+.canvas-project-preview-node[data-kind="video"] rect {
+    fill: var(--preview-node-video);
+}
+
+.canvas-project-preview-node[data-kind="audio"] rect {
+    fill: var(--preview-node-audio);
+}
+
+.canvas-project-preview-node[data-kind="config"] rect,
+.canvas-project-preview-node[data-kind="director"] rect {
+    fill: var(--preview-node-config);
+}
+
+.canvas-project-preview-node > path {
+    fill: none;
+    stroke: var(--muted-foreground);
+    stroke-width: 1.5;
+}
+
+.canvas-project-open {
+    opacity: 0.78;
+    transform: translate(0, 0);
+    transition: color var(--motion-fast) ease, background var(--motion-fast) ease, opacity var(--motion-fast) ease, transform var(--motion-fast) ease;
+}
+
+.canvas-project-card:hover .canvas-project-open {
+    transform: translate(2px, -2px);
+    border-color: color-mix(in srgb, var(--brand-accent) 34%, var(--glass-border));
+    color: var(--brand-accent);
+    opacity: 1;
+}
+
+.canvas-project-card:hover .canvas-project-preview-links {
+    stroke-width: 2;
+    opacity: 0.85;
+    stroke-dasharray: 5 6;
+    animation: fx-flow-dash 1.1s linear infinite;
+}
+
+.canvas-project-card .ant-btn:hover {
+    background: var(--brand-accent-soft);
+    color: var(--brand-accent);
+}
+
+.canvas-asset-card {
+    border-color: var(--glass-border) !important;
+    background: var(--glass-surface) !important;
+    transition: border-color var(--motion-fast) ease, box-shadow var(--motion-base) ease, transform var(--motion-base) ease;
+}
+
+.canvas-asset-card:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--brand-accent) 44%, var(--glass-border)) !important;
+    box-shadow: var(--glass-shadow);
+}
+
+.canvas-ui .canvas-toolbar-wrap {
+    left: var(--canvas-side-panel-width, 280px);
+    transition: left 260ms cubic-bezier(0.22, 1, 0.36, 1), right 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.canvas-ui .canvas-toolbar-dock {
+    position: relative;
+    transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 220ms ease, border-color 220ms ease;
+}
+
+.canvas-ui .canvas-toolbar-dock::before {
+    content: "";
+    position: absolute;
+    inset: 0 20px auto;
+    height: 1px;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--brand-accent) 45%, transparent), transparent);
+}
+
+.canvas-ui .canvas-toolbar-dock:hover {
+    border-color: color-mix(in srgb, var(--brand-accent) 28%, var(--glass-border)) !important;
+    box-shadow: var(--glass-shadow), 0 0 24px color-mix(in srgb, var(--brand-accent) 8%, transparent), inset 0 1px 0 var(--glass-highlight) !important;
+}
+
+@media (max-width: 700px) {
+    .canvas-ui .canvas-side-panel-wrap {
+        position: absolute;
+        z-index: 60;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        max-width: 88vw;
+    }
+
+    .canvas-ui .canvas-side-panel-wrap > aside {
+        max-width: 88vw;
+    }
+
+    .canvas-ui .canvas-agent-panel-wrap {
+        position: fixed;
+        z-index: 80;
+        inset: 0 0 0 auto;
+        max-width: 100vw;
+    }
+
+    .canvas-ui .canvas-agent-panel-wrap > aside {
+        max-width: 100vw;
+    }
+
+    .canvas-ui .canvas-topbar {
+        z-index: 70;
+    }
+
+    .canvas-ui .canvas-toolbar-wrap {
+        right: 12px !important;
+        bottom: 84px !important;
+        left: 12px !important;
+    }
+
+    .canvas-ui .canvas-toolbar-dock {
+        max-width: calc(100vw - 24px);
+    }
+
+    .canvas-ui .canvas-topbar {
+        padding-right: 8px;
+        padding-left: 8px;
+    }
+
+    .canvas-glass-modal.ant-modal {
+        max-width: calc(100vw - 24px);
+        margin-inline: 12px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .canvas-ui *,
+    body:has(.canvas-ui) .ant-modal,
+    body:has(.canvas-ui) .ant-modal *,
+    .canvas-glass-modal,
+    .canvas-glass-modal * {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+    .canvas-library-live-indicator,
+    .canvas-project-card {
+        animation: none !important;
+        animation-delay: 0ms !important;
+    }
+}

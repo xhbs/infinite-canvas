@@ -77,9 +77,9 @@ export function CanvasAudioSettingsPopover({ config, onConfigChange, resourceOpt
 }
 
 function AudioSettingsPortal({ buttonRect, panelRef, placement, theme, config, onConfigChange, audioOptions, cloneAudioNodeId, onMetadataChange }: { buttonRect: DOMRect; panelRef: RefObject<HTMLDivElement | null>; placement: CanvasAudioSettingsPopoverProps["placement"]; theme: (typeof canvasThemes)[keyof typeof canvasThemes]; config: AiConfig; onConfigChange: CanvasAudioSettingsPopoverProps["onConfigChange"]; audioOptions: CanvasVideoResourceOption[]; cloneAudioNodeId: string; onMetadataChange?: CanvasAudioSettingsPopoverProps["onMetadataChange"] }) {
-    const width = 356;
     const gap = 8;
     const margin = 12;
+    const width = Math.min(356, window.innerWidth - margin * 2);
     const alignRight = placement?.endsWith("Right");
     const alignCenter = placement === "top" || placement === "bottom";
     const left = alignCenter ? buttonRect.left + buttonRect.width / 2 - width / 2 : alignRight ? buttonRect.right - width : buttonRect.left;
@@ -90,9 +90,9 @@ function AudioSettingsPortal({ buttonRect, panelRef, placement, theme, config, o
         width,
         left: Math.max(margin, Math.min(window.innerWidth - width - margin, left)),
         ...(topPlacement ? { bottom: window.innerHeight - buttonRect.top + gap, maxHeight: Math.max(260, buttonRect.top - margin * 2) } : { top: buttonRect.bottom + gap, maxHeight: Math.max(260, window.innerHeight - buttonRect.bottom - margin * 2) }),
-        background: theme.toolbar.panel,
+        background: "var(--glass-surface-strong)",
         borderRadius: 18,
-        boxShadow: "0 18px 54px rgba(28, 25, 23, 0.16)",
+        boxShadow: "var(--glass-shadow), inset 0 1px 0 var(--glass-highlight)",
         padding: 18,
         overflowY: "auto",
         color: theme.node.text,

@@ -56,6 +56,11 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
     const count = Math.max(1, Math.min(maxCount, Math.floor(Math.abs(Number(config.count)) || 1)));
     const activeSize = config.size || "auto";
     const selectedAspect = aspectOptions.find((item) => (item.size || item.value) === activeSize || item.value === activeSize);
+    const isHighResPreset = Boolean(selectedAspect?.value.includes("-2k") || selectedAspect?.value.includes("-4k"));
+    const [showMoreRatios, setShowMoreRatios] = useState(isHighResPreset);
+    const visibleAspectOptions = showMoreRatios
+        ? aspectOptions
+        : aspectOptions.filter((item) => !item.value.includes("-2k") && !item.value.includes("-4k"));
     const dimensions = readSizeDimensions(activeSize, selectedAspect || aspectOptions[0]);
     const selectAspect = (value: string) => {
         const option = aspectOptions.find((item) => item.value === value);
@@ -111,21 +116,37 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
                             </div>
                         </div>
                         <div className="space-y-2.5">
-                            <SettingTitle color={theme.node.muted}>宽高比</SettingTitle>
+                            <div className="flex items-center justify-between gap-2">
+                                <SettingTitle color={theme.node.muted}>宽高比</SettingTitle>
+                                <button
+                                    type="button"
+                                    className="cursor-pointer text-xs font-medium text-[var(--brand-accent)] transition-opacity hover:opacity-80"
+                                    onMouseDown={(event) => event.stopPropagation()}
+                                    onClick={() => setShowMoreRatios((current) => !current)}
+                                >
+                                    {showMoreRatios ? "收起高分预设" : "2K / 4K 预设"}
+                                </button>
+                            </div>
                             <div className="grid grid-cols-4 gap-2.5">
-                                {aspectOptions.map((item) => (
+                                {visibleAspectOptions.map((item) => {
+                                    const active = selectedAspect?.value === item.value;
+                                    return (
                                     <button
                                         key={item.value}
                                         type="button"
-                                        className="flex h-[72px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border bg-transparent text-sm transition hover:opacity-80"
-                                        style={{ borderColor: selectedAspect?.value === item.value ? theme.node.text : theme.node.stroke, background: "transparent", color: theme.node.text }}
+                                        data-active={active}
+                                        className="fx-glass-tile flex h-[72px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl text-sm"
+                                        style={!active ? { borderColor: theme.node.stroke, color: theme.node.text } : undefined}
                                         onMouseDown={(event) => event.stopPropagation()}
                                         onClick={() => selectAspect(item.value)}
                                     >
-                                        <AspectIcon type={item.icon} width={item.width} height={item.height} color={theme.node.text} />
+                                        <span className={`transition-transform duration-200 ${active ? "scale-110" : ""}`}>
+                                            <AspectIcon type={item.icon} width={item.width} height={item.height} color={active ? "var(--brand-accent)" : theme.node.text} />
+                                        </span>
                                         <span>{item.label}</span>
                                     </button>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
                     </>
@@ -152,10 +173,10 @@ export function ImageSettingsTheme({ theme, children }: { theme: CanvasTheme; ch
     return (
         <ConfigProvider
             theme={{
-                token: { colorBgContainer: theme.toolbar.panel, colorBgElevated: theme.toolbar.panel, colorBorder: theme.node.stroke, colorPrimary: theme.node.activeStroke, colorText: theme.node.text, colorTextLightSolid: theme.node.panel },
+                token: { colorBgContainer: theme.toolbar.panel, colorBgElevated: theme.toolbar.panel, colorBorder: theme.node.stroke, colorPrimary: "#df6b48", colorText: theme.node.text, colorTextLightSolid: "#fffdf8" },
                 components: {
                     Button: { defaultBg: theme.toolbar.panel, defaultBorderColor: theme.node.stroke, defaultColor: theme.node.text },
-                    Slider: { railBg: theme.node.stroke, railHoverBg: theme.node.stroke, trackBg: theme.node.activeStroke, trackHoverBg: theme.node.activeStroke, handleColor: theme.node.text, handleActiveColor: theme.node.text },
+                    Slider: { railBg: theme.node.stroke, railHoverBg: theme.node.stroke, trackBg: "#df6b48", trackHoverBg: "#e57a58", handleColor: "#df6b48", handleActiveColor: "#e57a58" },
                 },
             }}
         >
@@ -176,8 +197,9 @@ function OptionPill({ selected, theme, onClick, children }: { selected: boolean;
     return (
         <button
             type="button"
-            className="h-9 cursor-pointer rounded-full border px-2 text-sm transition hover:opacity-80"
-            style={{ background: "transparent", borderColor: selected ? theme.node.text : theme.node.stroke, color: theme.node.text }}
+            data-active={selected}
+            className="fx-glass-tile h-9 cursor-pointer rounded-full px-2 text-sm font-medium"
+            style={!selected ? { borderColor: theme.node.stroke, color: theme.node.text } : undefined}
             onMouseDown={(event) => event.stopPropagation()}
             onClick={onClick}
         >

@@ -235,22 +235,25 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
             onDragOver={(event) => event.preventDefault()}
             onDrop={onDrop}
         >
+            <div aria-hidden="true" className="canvas-ambient-glow pointer-events-none absolute inset-0" />
             <CanvasGrid viewport={viewport} mode={backgroundMode} />
             {typeof alignmentGuides.vertical === "number" ? (
                 <div
-                    className="pointer-events-none absolute inset-y-0 z-[90] w-px opacity-[.48]"
+                    className="pointer-events-none absolute inset-y-0 z-[90] w-px opacity-85"
                     style={{
                         left: viewport.x + alignmentGuides.vertical * viewport.k,
-                        backgroundImage: `repeating-linear-gradient(to bottom, ${theme.canvas.selectionStroke} 0 5px, transparent 5px 10px)`,
+                        backgroundImage: "repeating-linear-gradient(to bottom, var(--brand-accent) 0 5px, transparent 5px 10px)",
+                        boxShadow: "0 0 8px color-mix(in srgb, var(--brand-accent) 55%, transparent)",
                     }}
                 />
             ) : null}
             {typeof alignmentGuides.horizontal === "number" ? (
                 <div
-                    className="pointer-events-none absolute inset-x-0 z-[90] h-px opacity-[.48]"
+                    className="pointer-events-none absolute inset-x-0 z-[90] h-px opacity-85"
                     style={{
                         top: viewport.y + alignmentGuides.horizontal * viewport.k,
-                        backgroundImage: `repeating-linear-gradient(to right, ${theme.canvas.selectionStroke} 0 5px, transparent 5px 10px)`,
+                        backgroundImage: "repeating-linear-gradient(to right, var(--brand-accent) 0 5px, transparent 5px 10px)",
+                        boxShadow: "0 0 8px color-mix(in srgb, var(--brand-accent) 55%, transparent)",
                     }}
                 />
             ) : null}
@@ -268,16 +271,18 @@ function CanvasGrid({ viewport, mode }: { viewport: ViewportTransform; mode: Can
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     if (mode === "blank") return null;
 
-    const gridSize = 48 * viewport.k;
+    let step = 48;
+    while (step * viewport.k < 20) step *= 4;
+    const gridSize = step * viewport.k;
     const x = viewport.x % gridSize;
     const y = viewport.y % gridSize;
-    const dotSize = viewport.k < 0.12 ? 0.8 : 1.15;
+    const dotSize = viewport.k < 0.25 ? 1.25 : 1.35;
     const backgroundImage =
         mode === "dots" ? `radial-gradient(circle, ${theme.canvas.dot} ${dotSize}px, transparent ${dotSize + 0.2}px)` : `linear-gradient(${theme.canvas.line} 1px, transparent 1px), linear-gradient(90deg, ${theme.canvas.line} 1px, transparent 1px)`;
 
     return (
         <div
-            className="pointer-events-none absolute inset-0 opacity-40"
+            className="pointer-events-none absolute inset-0 opacity-75 transition-opacity duration-300"
             style={{
                 backgroundImage,
                 backgroundSize: `${gridSize}px ${gridSize}px`,

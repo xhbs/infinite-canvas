@@ -1,0 +1,232 @@
+.shell {
+    min-height: 100dvh;
+    background: var(--background);
+}
+
+.sider {
+    background: var(--glass-surface-strong) !important;
+    border-right: 1px solid var(--glass-border) !important;
+    box-shadow: var(--glass-shadow-soft);
+    backdrop-filter: blur(var(--glass-blur-strong));
+}
+
+.brandRow {
+    position: relative;
+    border-bottom: 1px solid var(--glass-border) !important;
+    background: linear-gradient(115deg, var(--glass-highlight), transparent 66%);
+}
+
+.brandMark {
+    flex: 0 0 auto;
+    border-radius: 9px;
+    background: var(--brand-accent) !important;
+    box-shadow: 0 6px 18px rgb(223 107 72 / 20%);
+}
+
+.menu {
+    background: transparent !important;
+}
+
+.menu :global(.ant-menu-item) {
+    transition: background-color var(--motion-fast), color var(--motion-fast), transform var(--motion-fast);
+}
+
+.menu :global(.ant-menu-item:hover) {
+    color: var(--brand-accent) !important;
+    background: var(--brand-accent-soft) !important;
+    transform: translateX(3px);
+}
+
+.menu :global(.ant-menu-item-selected) {
+    color: var(--brand-accent) !important;
+    background: var(--brand-accent-soft) !important;
+    font-weight: 600;
+}
+
+.menu :global(.ant-menu-item-selected .anticon) {
+    color: var(--brand-accent) !important;
+}
+
+.siderActions {
+    border-top: 1px solid var(--glass-border) !important;
+    background: var(--glass-surface) !important;
+    backdrop-filter: blur(var(--glass-blur));
+}
+
+.header {
+    position: relative;
+    z-index: 2;
+    border-bottom: 1px solid var(--glass-border) !important;
+    background: var(--glass-surface-strong) !important;
+    box-shadow: 0 5px 20px rgb(41 40 38 / 3%);
+    backdrop-filter: blur(var(--glass-blur-strong));
+}
+
+.content {
+    min-width: 0;
+    background-color: var(--background);
+    background-image:
+        radial-gradient(ellipse at 10% 0%, color-mix(in srgb, var(--brand-accent) 7%, transparent), transparent 32rem),
+        radial-gradient(ellipse at 92% 48%, color-mix(in srgb, var(--glass-glint) 5%, transparent), transparent 32rem);
+}
+
+.content :global(main) {
+    max-width: 1800px;
+    margin-inline: auto;
+    padding: 24px !important;
+}
+
+.content :global(.ant-card) {
+    min-width: 0;
+    border: 1px solid var(--glass-border) !important;
+    border-radius: 16px;
+    background: var(--glass-surface) !important;
+    box-shadow: var(--glass-shadow-soft), inset 0 1px 0 var(--glass-highlight);
+    backdrop-filter: blur(var(--glass-blur));
+    animation: fx-rise-in 460ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    transition: border-color var(--motion-base), box-shadow var(--motion-base), transform var(--motion-base);
+}
+
+.content :global(main > .ant-flex > .ant-card:first-child),
+.content :global(main > .ant-space > .ant-card:first-child) {
+    border-color: var(--glass-border) !important;
+    background: var(--glass-surface-strong) !important;
+    box-shadow: var(--glass-shadow-soft), inset 0 1px 0 var(--glass-highlight);
+    backdrop-filter: blur(var(--glass-blur));
+}
+
+.content :global(.ant-card-head) {
+    border-bottom-color: var(--glass-border) !important;
+}
+
+.content :global(.ant-card-body) {
+    min-width: 0;
+}
+
+.content :global(.ant-table-wrapper) {
+    min-width: 0;
+    max-width: 100%;
+    border-radius: 11px;
+}
+
+.content :global(.ant-table-thead > tr > th) {
+    background: var(--glass-surface-strong) !important;
+    border-bottom-color: var(--glass-border) !important;
+    font-weight: 600;
+}
+
+.content :global(.ant-table-tbody > tr > td) {
+    border-bottom-color: var(--glass-border) !important;
+    transition: background-color var(--motion-fast) ease;
+}
+
+.content :global(.ant-table-tbody > tr:hover > td) {
+    background: var(--brand-accent-soft) !important;
+}
+
+.content :global(.ant-btn:focus-visible),
+.content :global(a:focus-visible),
+.content :global(input:focus-visible),
+.content :global(textarea:focus-visible),
+.content :global(.ant-select-focused .ant-select-selector) {
+    outline: 2px solid var(--brand-accent) !important;
+    outline-offset: 2px;
+}
+
+.dialogRoot :global(.ant-modal-mask),
+.dialogRoot :global(.ant-drawer-mask) {
+    backdrop-filter: blur(8px);
+}
+
+.dialogRoot :global(.ant-modal-container) {
+    border: 1px solid var(--glass-border);
+    background: var(--glass-surface-strong);
+    box-shadow: var(--glass-shadow);
+    backdrop-filter: blur(var(--glass-blur-strong));
+}
+
+.dialogRoot :global(.ant-modal-header),
+.dialogRoot :global(.ant-modal-footer) {
+    background: transparent;
+    border-color: var(--glass-border);
+}
+
+.dialogRoot :global(.ant-drawer-content) {
+    border-inline-start: 1px solid var(--glass-border);
+    background: var(--glass-surface-strong);
+    backdrop-filter: blur(var(--glass-blur-strong));
+}
+
+.dialogRoot :global(.ant-drawer-header),
+.dialogRoot :global(.ant-drawer-footer) {
+    background: transparent;
+    border-color: var(--glass-border);
+}
+
+@media (max-width: 760px) {
+    .sider {
+        flex: 0 0 56px !important;
+        width: 56px !important;
+        min-width: 56px !important;
+        max-width: 56px !important;
+    }
+
+    .brandRow {
+        justify-content: center;
+        padding-inline: 0 !important;
+    }
+
+    .brandText {
+        display: none;
+    }
+
+    .menu {
+        padding: 10px 4px !important;
+    }
+
+    .menu :global(.ant-menu-item) {
+        padding-inline: 0 !important;
+        text-align: center;
+    }
+
+    .menu :global(.ant-menu-item-icon) {
+        margin-inline-end: 0 !important;
+        font-size: 18px;
+    }
+
+    .menu :global(.ant-menu-title-content) {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+    }
+
+    .siderActions {
+        padding: 8px 4px !important;
+    }
+
+    .siderActions :global(.ant-btn) {
+        padding-inline: 0;
+    }
+
+    .siderActions :global(.ant-btn > span:not(.anticon)) {
+        display: none;
+    }
+
+    .header {
+        padding-inline: 12px !important;
+    }
+
+    .content :global(main) {
+        padding: 14px 12px !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .menu :global(.ant-menu-item),
+    .content :global(.ant-card) {
+        transition: none;
+    }
+}

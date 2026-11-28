@@ -351,7 +351,7 @@ function MentionMenu({
     return createPortal(
         <div
             data-canvas-resource-mention-menu="true"
-            className="fixed z-[1100] max-h-56 w-64 overflow-y-auto rounded-xl border p-1 shadow-2xl backdrop-blur-md"
+            className="canvas-glass-surface-strong fixed z-[1100] max-h-56 w-64 overflow-y-auto rounded-xl border p-1"
             style={{
                 left,
                 top,
@@ -372,8 +372,8 @@ function MentionMenu({
                     type="button"
                     className="flex w-full min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition"
                     style={{
-                        background: index === activeIndex ? theme.toolbar.activeBg : "transparent",
-                        color: index === activeIndex ? theme.toolbar.activeText : theme.node.text,
+                        background: index === activeIndex ? "var(--brand-accent-soft)" : "transparent",
+                        color: index === activeIndex ? "var(--brand-accent)" : theme.node.text,
                     }}
                     onPointerDown={(event) => {
                         event.preventDefault();
@@ -408,7 +408,7 @@ function ReferencePreview({ reference }: { reference: CanvasResourceReference })
     }
     const Icon = reference.kind === "audio" ? Music2 : reference.kind === "video" ? Video : reference.kind === "image" ? ImageIcon : FileText;
     return (
-        <span className="grid size-9 shrink-0 place-items-center rounded-md bg-black/10">
+        <span className="grid size-9 shrink-0 place-items-center rounded-md bg-muted">
             <Icon className="size-4" />
         </span>
     );

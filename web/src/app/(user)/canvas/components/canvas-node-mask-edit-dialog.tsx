@@ -135,9 +135,9 @@ export function CanvasNodeMaskEditDialog({
     };
 
     return (
-        <Modal title={null} open={open && Boolean(dataUrl)} onCancel={onClose} footer={null} width={980} centered destroyOnHidden>
+        <Modal className="canvas-glass-modal" title={null} open={open && Boolean(dataUrl)} onCancel={onClose} footer={null} width={980} centered destroyOnHidden>
             <div className="grid gap-5 lg:grid-cols-[minmax(360px,1fr)_320px]">
-                <div className="flex min-h-[360px] items-center justify-center rounded-xl border border-black/10 bg-transparent p-0 dark:border-white/10">
+                <div className="flex min-h-[360px] items-center justify-center rounded-xl border border-[var(--glass-border)] bg-transparent p-0">
                     <div className="relative inline-block max-w-full overflow-hidden rounded-lg bg-transparent select-none">
                         <img src={dataUrl} alt="" className="block max-h-[68vh] max-w-full bg-transparent" draggable={false} />
                         {image ? (
@@ -193,7 +193,7 @@ export function CanvasNodeMaskEditDialog({
                                 setError("");
                             }}
                         />
-                        {error ? <div className="text-xs font-medium text-[#ef4444]">{error}</div> : null}
+                        {error ? <div className="text-xs font-medium text-[var(--destructive)]">{error}</div> : null}
                     </div>
 
                     <div className="space-y-2">

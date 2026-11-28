@@ -9,6 +9,8 @@ import { fetchCurrentUser } from "@/services/api/auth";
 import { useConfigStore } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 
+import styles from "./login-glass.module.css";
+
 type LoginFormValues = {
     username: string;
     password: string;
@@ -85,19 +87,20 @@ function LoginContent() {
     };
 
     return (
-        <main className="flex h-full min-h-0 items-center justify-center overflow-y-auto bg-background bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] px-6 py-10 [background-size:16px_16px] dark:bg-[radial-gradient(rgba(245,245,244,.16)_1px,transparent_1px)]">
-            <section className="w-full max-w-[420px]">
+        <main className={`${styles.page} fx-ambient-stage`}>
+            <section className={styles.card}>
                 <div className="mb-7 text-center">
                     <span
-                        className="mx-auto mb-4 block size-12 bg-stone-950 dark:bg-stone-100"
+                        className={`mx-auto block ${styles.logo}`}
                         style={{
                             mask: "url(/logo.svg) center / contain no-repeat",
                             WebkitMask: "url(/logo.svg) center / contain no-repeat",
                         }}
                         aria-label="无限画布"
                     />
-                    <h1 className="text-3xl font-semibold tracking-normal text-stone-950 dark:text-stone-100">账号登录</h1>
-                    <p className="mt-3 text-base leading-7 text-stone-500 dark:text-stone-400">支持账号密码和 Linux.do 登录。</p>
+                    <p className={styles.brandCaption}>无限画布 · AI 创作工作台</p>
+                    <h1 className="text-3xl font-semibold tracking-normal text-foreground">账号登录</h1>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">支持账号密码和 Linux.do 登录</p>
                 </div>
 
                 <Form<LoginFormValues> layout="vertical" size="large" requiredMark={false} onFinish={submit}>
@@ -109,19 +112,19 @@ function LoginContent() {
                             options={allowRegister ? [{ label: "登录", value: "login" }, { label: "注册", value: "register" }] : [{ label: "登录", value: "login" }]}
                         />
                     </Form.Item>
-                    <Form.Item name="username" label={<span className="font-medium text-stone-800 dark:text-stone-200">用户名</span>} rules={[{ required: true, message: "请输入用户名" }]}>
+                    <Form.Item name="username" label={<span className="font-medium text-foreground">用户名</span>} rules={[{ required: true, message: "请输入用户名" }]}>
                         <Input prefix={<UserOutlined />} autoComplete="username" />
                     </Form.Item>
-                    <Form.Item name="password" label={<span className="font-medium text-stone-800 dark:text-stone-200">密码</span>} rules={[{ required: true, message: "请输入密码" }]}>
+                    <Form.Item name="password" label={<span className="font-medium text-foreground">密码</span>} rules={[{ required: true, message: "请输入密码" }]}>
                         <Input.Password prefix={<LockOutlined />} autoComplete="current-password" />
                     </Form.Item>
                     {mode === "register" ? (
-                        <Form.Item name="confirmPassword" label={<span className="font-medium text-stone-800 dark:text-stone-200">确认密码</span>} rules={[{ required: true, message: "请再次输入密码" }]}>
+                        <Form.Item name="confirmPassword" label={<span className="font-medium text-foreground">确认密码</span>} rules={[{ required: true, message: "请再次输入密码" }]}>
                             <Input.Password prefix={<LockOutlined />} autoComplete="new-password" />
                         </Form.Item>
                     ) : null}
                     <Space orientation="vertical" size={12} style={{ width: "100%" }}>
-                        <Button block type="primary" htmlType="submit" loading={isLoading}>
+                        <Button block type="primary" htmlType="submit" className="fx-btn-glint" loading={isLoading}>
                             {mode === "register" ? "注册" : "登录"}
                         </Button>
                         {linuxDoEnabled ? (

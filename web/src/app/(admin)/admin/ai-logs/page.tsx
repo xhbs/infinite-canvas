@@ -7,6 +7,8 @@ import { useEffect, useMemo, useState } from "react";
 import { deleteAdminAICallLogs, fetchAdminAICallLogs, fetchAdminSettings, saveAdminSettings, type AdminAICallLog } from "@/services/api/admin";
 import { useUserStore } from "@/stores/use-user-store";
 
+import styles from "../admin-glass.module.css";
+
 export default function AdminAICallLogsPage() {
     const token = useUserStore((state) => state.token);
     const { message } = App.useApp();
@@ -173,7 +175,7 @@ export default function AdminAICallLogsPage() {
                     />
                 </Card>
             </Flex>
-            <Modal title={detail?.title || "AI 调用详情"} open={Boolean(detail)} width="min(1100px, 92vw)" footer={null} onCancel={() => setDetail(null)} destroyOnHidden>
+            <Modal rootClassName={styles.dialogRoot} title={detail?.title || "AI 调用详情"} open={Boolean(detail)} width="min(1100px, 92vw)" footer={null} onCancel={() => setDetail(null)} destroyOnHidden>
                 <LogBlock value={detail?.value || ""} />
             </Modal>
         </main>

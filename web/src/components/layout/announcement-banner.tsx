@@ -5,9 +5,9 @@ import { Carousel, type GetRef } from "antd";
 import { Megaphone, X } from "lucide-react";
 
 const ANNOUNCEMENTS = [
-    <><Megaphone />TokenDance X 百亿 Token 补贴，一键登录即可接入，SD 2 Mini 低至 0.09元/秒 <a href="https://tokendance.space/" target="_blank" rel="noopener" className="underline!">查看详情</a></>,
-    <><Megaphone />无限画布现已支持 RunningHub X ComfyUI 工作流</>,
-    <><Megaphone />微信交流群现已开放 <a href="https://qr.tdeh.uk/ai" target="_blank" rel="noopener" className="underline!">扫码加入</a></>,
+    <><Megaphone className="mr-2 inline-block size-[18px] align-middle text-[var(--brand-accent)]" />TokenDance X 百亿 Token 补贴，一键登录即可接入，SD 2 Mini 低至 0.09元/秒 <a href="https://tokendance.space/" target="_blank" rel="noopener" className="whitespace-nowrap text-[var(--brand-accent)] underline-offset-4 hover:underline">查看详情</a></>,
+    <><Megaphone className="mr-2 inline-block size-[18px] align-middle text-[var(--brand-accent)]" />无限画布现已支持 RunningHub X ComfyUI 工作流</>,
+    <><Megaphone className="mr-2 inline-block size-[18px] align-middle text-[var(--brand-accent)]" />微信交流群现已开放 <a href="https://qr.tdeh.uk/ai" target="_blank" rel="noopener" className="whitespace-nowrap text-[var(--brand-accent)] underline-offset-4 hover:underline">扫码加入</a></>,
 ];
 const DISMISSED_KEY = "infinite-canvas:announcement-dismissed";
 
@@ -30,7 +30,7 @@ export function AnnouncementBanner() {
     return (
         <section
             aria-label="站点公告"
-            className="relative min-h-12 w-full shrink-0 bg-sky-100 text-foreground dark:bg-neutral-700"
+            className="relative isolate min-h-9 w-full shrink-0 overflow-hidden border-b border-[var(--glass-border)] bg-[var(--glass-surface-subtle)] text-foreground/90 backdrop-blur-[var(--glass-blur)]"
             onMouseEnter={() => setPaused(true)}
             onMouseLeave={() => setPaused(false)}
             onFocus={() => setPaused(true)}
@@ -49,8 +49,8 @@ export function AnnouncementBanner() {
             >
                 {ANNOUNCEMENTS.map((content, index) => (
                     <div key={index}>
-                        <div className={`flex min-h-12 items-center justify-center gap-2 px-12 py-2 text-center text-sm duration-300 in-[.slick-active]:animate-in in-[.slick-active]:fade-in sm:text-base ${slide.direction === "left" ? "in-[.slick-active]:slide-in-from-left-2" : "in-[.slick-active]:slide-in-from-right-2"}`}>
-                            <span className="min-w-0 break-words font-medium leading-[1.6] [&_a]:whitespace-nowrap [&_svg]:mr-2 [&_svg]:inline-block [&_svg]:size-[18px] [&_svg]:align-middle [&_svg]:-translate-y-[2.5px]">{content}</span>
+                        <div className={`flex min-h-9 items-center justify-center gap-2 px-10 py-1.5 text-center text-xs duration-300 in-[.slick-active]:animate-in in-[.slick-active]:fade-in sm:text-[13px] ${slide.direction === "left" ? "in-[.slick-active]:slide-in-from-left-2" : "in-[.slick-active]:slide-in-from-right-2"}`}>
+                            <span className="min-w-0 break-words font-medium leading-5">{content}</span>
                         </div>
                     </div>
                 ))}
@@ -63,14 +63,14 @@ export function AnnouncementBanner() {
                             type="button"
                             aria-label={`显示第 ${index + 1} 条公告`}
                             aria-current={slide.index === index ? true : undefined}
-                            className={`group/item flex h-2.5 shrink cursor-pointer items-end justify-center rounded-sm px-1 pb-0.5 transition-[width] duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${slide.index === index ? "w-9" : "w-5"}`}
+                            className={`group/item flex h-2.5 shrink cursor-pointer items-end justify-center rounded-sm px-1 pb-0.5 transition-[width] duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-accent)]/50 ${slide.index === index ? "w-9" : "w-5"}`}
                             onClick={() => {
                                 if (index === slide.index) return;
                                 setSlide({ index, direction: index < slide.index ? "left" : "right" });
                                 carouselRef.current?.goTo(index);
                             }}
                         >
-                            <span className={`h-0.5 w-full rounded-full transition-[height,background-color] duration-150 group-hover/indicators:h-1.5 ${slide.index === index ? "bg-foreground" : "bg-foreground/20 group-hover/item:bg-foreground/50"}`} />
+                            <span className={`h-0.5 w-full rounded-full transition-[height,background-color] duration-150 group-hover/indicators:h-1.5 ${slide.index === index ? "bg-[var(--brand-accent)]" : "bg-foreground/20 group-hover/item:bg-foreground/50"}`} />
                         </button>
                     ))}
                 </div>
@@ -78,7 +78,7 @@ export function AnnouncementBanner() {
             <button
                 type="button"
                 aria-label="关闭公告"
-                className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer rounded-md p-1.5 hover:bg-foreground/10 sm:right-4"
+                className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer rounded-full p-1.5 text-muted-foreground transition hover:bg-[var(--brand-accent-soft)] hover:text-[var(--brand-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-accent)]/50 sm:right-4"
                 onClick={() => {
                     setVisible(false);
                     try {

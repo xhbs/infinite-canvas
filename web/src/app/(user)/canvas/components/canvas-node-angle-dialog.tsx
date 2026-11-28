@@ -28,7 +28,7 @@ export function CanvasNodeAngleDialog({ dataUrl, open, onClose, onConfirm }: { d
     const update = <Key extends keyof CanvasImageAngleParams>(key: Key, value: CanvasImageAngleParams[Key]) => setParams((current) => ({ ...current, [key]: value }));
 
     return (
-        <Modal title={null} open={open && Boolean(dataUrl)} onCancel={onClose} footer={null} width={860} centered destroyOnHidden>
+        <Modal className="canvas-glass-modal" title={null} open={open && Boolean(dataUrl)} onCancel={onClose} footer={null} width={860} centered destroyOnHidden>
             <div className="space-y-5">
                 <div>
                     <h2 className="text-xl font-semibold">AI 多角度</h2>
@@ -39,7 +39,7 @@ export function CanvasNodeAngleDialog({ dataUrl, open, onClose, onConfirm }: { d
                         <div className="grid flex-1 place-items-center">
                             <div className="relative">
                                 <img src={dataUrl} alt="" className="size-48 rounded-2xl object-cover shadow-2xl" draggable={false} style={{ transform: previewTransform(params) }} />
-                                <div className="absolute -bottom-6 left-1/2 h-10 w-24 -translate-x-1/2 rounded-full border bg-black/20 backdrop-blur" />
+                                <div className="absolute -bottom-6 left-1/2 h-10 w-24 -translate-x-1/2 rounded-full border bg-foreground/20 backdrop-blur" />
                             </div>
                         </div>
                         <Button className="w-fit" icon={<RotateCcw className="size-4" />} onClick={() => setParams(defaultParams)}>

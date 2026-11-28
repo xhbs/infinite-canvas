@@ -77,16 +77,16 @@ export function CanvasVoicePresetSelector({ value, valueName, onChange }: Canvas
             size="small"
             type="text"
             className="!h-8 !w-8 !min-w-8 !shrink-0 !rounded-full !p-0 transition-colors hover:!bg-[var(--canvas-toolbar-hover)]"
-            style={{ "--canvas-toolbar-hover": theme.toolbar.itemHover, background: value || selected ? theme.toolbar.activeBg : "transparent", color: value || selected ? theme.toolbar.activeText : theme.node.text } as CSSProperties}
+            style={{ "--canvas-toolbar-hover": theme.toolbar.itemHover, background: value || selected ? "var(--brand-accent-soft)" : "transparent", color: value || selected ? "var(--brand-accent)" : theme.node.text } as CSSProperties}
             icon={<Mic className="size-4" />}
             aria-label={selected || valueName ? `语音预设：${selected?.name || valueName}` : "选择语音预设"}
             title={selected || valueName ? `语音预设：${selected?.name || valueName}` : "选择语音预设"}
             onClick={() => token ? setOpen(true) : message.info("请先登录后使用语音预设")}
         />
-        <Modal title={null} open={open} onCancel={() => { setOpen(false); setEditing(null); setEditOpen(false); }} footer={null} width="min(760px, calc(100vw - 24px))" centered destroyOnHidden styles={{ body: { padding: 0 } }}>
+        <Modal className="canvas-glass-modal" title={null} open={open} onCancel={() => { setOpen(false); setEditing(null); setEditOpen(false); }} footer={null} width="min(760px, calc(100vw - 24px))" centered destroyOnHidden styles={{ body: { padding: 0 } }}>
             {editOpen ? <div className="p-5 sm:p-6">
                 <div className="mb-6 flex items-start gap-3">
-                    <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--brand-accent-soft)] text-[var(--brand-accent)] dark:bg-rose-500/10 dark:text-rose-600"><Mic className="size-5" /></div>
+                    <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--brand-accent-soft)] text-[var(--brand-accent)]"><Mic className="size-5" /></div>
                     <div className="min-w-0 flex-1"><div className="text-lg font-semibold">{editing ? "编辑语音预设" : "新建语音预设"}</div><p className="mt-1 text-sm text-muted-foreground">按作品保存角色代称和声音设计，仅应用于视频生成。</p></div>
                 </div>
                 <div className="space-y-4">
@@ -105,12 +105,12 @@ export function CanvasVoicePresetSelector({ value, valueName, onChange }: Canvas
                 </div>
                 <div className="mt-6 flex justify-end gap-2 border-t border-border pt-4"><Button onClick={() => { setEditing(null); setEditOpen(false); setName(""); }}>返回</Button><Button type="primary" loading={saving} onClick={() => void submit()}>保存预设</Button></div>
             </div> : <div>
-                <div className="border-b border-border bg-gradient-to-br from-rose-500/[.08] to-transparent px-5 py-5 sm:px-7">
-                    <div className="flex items-start gap-3"><div className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--brand-accent-soft)] text-[var(--brand-accent)] dark:bg-rose-500/10 dark:text-rose-600"><Mic className="size-5" /></div><div><div className="text-lg font-semibold">语音预设</div><p className="mt-1 text-sm text-muted-foreground">按作品复用角色声音设计</p></div>{value ? <Button className="ml-auto" type="text" onClick={() => { onChange(undefined); setOpen(false); }}>清除引用</Button> : null}</div>
+                <div className="border-b border-[var(--glass-border)] bg-gradient-to-br from-[var(--brand-accent)]/[.08] to-transparent px-5 py-5 sm:px-7">
+                    <div className="flex items-start gap-3"><div className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--brand-accent-soft)] text-[var(--brand-accent)]"><Mic className="size-5" /></div><div><div className="text-lg font-semibold">语音预设</div><p className="mt-1 text-sm text-muted-foreground">按作品复用角色声音设计</p></div>{value ? <Button className="ml-auto" type="text" onClick={() => { onChange(undefined); setOpen(false); }}>清除引用</Button> : null}</div>
                 </div>
                 <div className="thin-scrollbar max-h-[min(55vh,480px)] space-y-2 overflow-y-auto p-4 sm:p-6">
-                    {isLoading ? <div className="grid h-28 place-items-center"><Spin /></div> : presets.length ? presets.map((preset) => <div key={preset.id} className={`flex items-center gap-3 rounded-xl border p-3 ${preset.id === value ? "border-rose-500/70 bg-rose-500/[.05]" : "border-border"}`}>
-                        <button type="button" className="min-w-0 flex-1 text-left" onClick={() => { onChange(preset.id === value ? undefined : preset); setOpen(false); }}><div className="flex items-center gap-2 font-medium">{preset.id === value ? <Check className="size-4 text-rose-600" /> : null}{preset.name}<Tag className="!mr-0">{preset.roles.length} 个角色</Tag></div><div className="mt-1 truncate text-xs text-muted-foreground">{preset.roles.map((role) => role.alias).join(" · ")}</div></button>
+                    {isLoading ? <div className="grid h-28 place-items-center"><Spin /></div> : presets.length ? presets.map((preset) => <div key={preset.id} className={`flex items-center gap-3 rounded-xl border p-3 ${preset.id === value ? "border-[var(--brand-accent)]/60 bg-[var(--brand-accent-soft)]" : "border-[var(--glass-border)]"}`}>
+                        <button type="button" className="min-w-0 flex-1 text-left" onClick={() => { onChange(preset.id === value ? undefined : preset); setOpen(false); }}><div className="flex items-center gap-2 font-medium">{preset.id === value ? <Check className="size-4 text-[var(--brand-accent)]" /> : null}{preset.name}<Tag className="!mr-0">{preset.roles.length} 个角色</Tag></div><div className="mt-1 truncate text-xs text-muted-foreground">{preset.roles.map((role) => role.alias).join(" · ")}</div></button>
                         <Button type="text" size="small" onClick={() => beginEdit(preset)}>编辑</Button>
                         <Popconfirm title="删除该作品语音预设？" okText="删除" cancelText="取消" onConfirm={() => void deletePreset(preset)}><Button danger type="text" size="small" aria-label="删除语音预设" icon={<Trash2 className="size-4" />} /></Popconfirm>
                     </div>) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="还没有语音预设" />}

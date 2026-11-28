@@ -121,6 +121,7 @@ export function ImageToolSettingsModal({
 
     return (
         <Modal
+            className="canvas-glass-modal"
             title="自定义工具栏"
             open={open}
             centered
@@ -159,7 +160,7 @@ export function ImageToolSettingsModal({
                 <div className="relative flex min-h-[300px] w-full justify-center pt-20 pb-9">
                     <div
                         ref={previewToolbarRef}
-                        className="hide-scrollbar absolute left-2 right-2 top-3 z-10 flex h-12 items-center gap-x-2 overflow-x-auto rounded-xl border border-white/10 bg-[#242424] px-2 text-[13px] text-[#f3f3f3] shadow-[0_8px_28px_rgba(0,0,0,.28)]"
+                        className="canvas-glass-surface-strong hide-scrollbar absolute left-2 right-2 top-3 z-10 flex h-12 items-center gap-x-2 overflow-x-auto rounded-xl border px-2 text-[13px]"
                         onScroll={syncPreviewScroll}
                     >
                         {previewTools.map((tool) => (
@@ -180,7 +181,7 @@ export function ImageToolSettingsModal({
                         max={Math.max(previewScroll.max, 1)}
                         value={Math.min(previewScroll.left, Math.max(previewScroll.max, 1))}
                         disabled={previewScroll.max <= 0}
-                        className="absolute bottom-4 left-10 right-10 h-2.5 cursor-pointer appearance-none bg-transparent disabled:cursor-default [&::-moz-range-thumb]:h-2.5 [&::-moz-range-thumb]:w-[var(--preview-scrollbar-thumb-width)] [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-[#8d9498] [&::-moz-range-track]:h-2.5 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:bg-[#bdc4c8] [&::-webkit-slider-runnable-track]:h-2.5 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-[#bdc4c8] [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:w-[var(--preview-scrollbar-thumb-width)] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#8d9498]"
+                        className="absolute bottom-4 left-10 right-10 h-2.5 cursor-pointer appearance-none bg-transparent disabled:cursor-default [&::-moz-range-thumb]:h-2.5 [&::-moz-range-thumb]:w-[var(--preview-scrollbar-thumb-width)] [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-[var(--brand-accent)] [&::-moz-range-track]:h-2.5 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:bg-[var(--brand-accent-soft)] [&::-webkit-slider-runnable-track]:h-2.5 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-[var(--brand-accent-soft)] [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:w-[var(--preview-scrollbar-thumb-width)] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--brand-accent)]"
                         style={{ "--preview-scrollbar-thumb-width": `${scrollbarThumbWidth}px` } as CSSProperties}
                         onInput={(event) => setPreviewScrollLeft(Number(event.currentTarget.value))}
                         onChange={(event) => setPreviewScrollLeft(Number(event.target.value))}
@@ -219,7 +220,7 @@ export function ImageToolSettingsModal({
 function PreviewToolbarItem({ tool, showLabels }: { tool: PreviewTool; showLabels: boolean }) {
     return (
         <Tooltip title={tool.title}>
-            <span className="flex h-12 shrink-0 items-center" style={{ color: tool.danger ? "#ef4444" : undefined }}>
+            <span className="flex h-12 shrink-0 items-center" style={{ color: tool.danger ? "var(--destructive)" : undefined }}>
                 <span className={`flex h-9 items-center rounded-lg px-2 ${showLabels ? "gap-2" : "justify-center"}`}>
                     {tool.icon}
                     {showLabels ? <span className="whitespace-nowrap">{tool.label}</span> : null}

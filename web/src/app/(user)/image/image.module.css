@@ -1,0 +1,261 @@
+.page {
+    min-height: 0;
+    background-color: var(--background);
+    background-image:
+        radial-gradient(ellipse at 8% 0%, color-mix(in srgb, var(--brand-accent) 9%, transparent), transparent 38%),
+        radial-gradient(ellipse at 100% 100%, color-mix(in srgb, var(--glass-glint) 7%, transparent), transparent 34%),
+        linear-gradient(145deg, color-mix(in srgb, var(--background) 96%, var(--brand-accent) 4%), var(--background) 62%);
+    color: var(--foreground);
+}
+
+.layout {
+    min-width: 0;
+}
+
+.controls {
+    min-width: 0;
+    border: 1px solid var(--glass-border) !important;
+    border-radius: 20px !important;
+    background: var(--glass-surface-subtle) !important;
+    box-shadow: var(--glass-shadow-soft), inset 0 1px 0 var(--glass-highlight);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    transition: border-color var(--motion-base), box-shadow var(--motion-base), background-color var(--motion-base);
+}
+
+.controls > div:last-child,
+.controls :global(section > div + div) {
+    border-color: var(--glass-border) !important;
+}
+
+.controls :global(section) {
+    border-color: var(--glass-border) !important;
+    border-radius: 14px;
+    background: var(--glass-surface) !important;
+    box-shadow: inset 0 1px 0 var(--glass-highlight);
+}
+
+.controls :global(.ant-input),
+.controls :global(.ant-input-affix-wrapper),
+.controls :global(.ant-select-selector),
+.composer :global(.ant-input),
+.composer :global(.ant-input-affix-wrapper),
+.composer :global(.ant-select-selector) {
+    border-color: var(--glass-border) !important;
+    background-color: var(--glass-surface-strong) !important;
+    color: var(--foreground) !important;
+}
+
+.controls :global(.ant-input:focus),
+.controls :global(.ant-input-affix-wrapper:focus-within),
+.composer :global(.ant-input:focus),
+.composer :global(.ant-input-affix-wrapper:focus-within) {
+    border-color: var(--brand-accent) !important;
+    box-shadow: 0 0 0 3px var(--brand-accent-soft), 0 5px 18px color-mix(in srgb, var(--brand-accent) 12%, transparent) !important;
+}
+
+.controls :global(.ant-input),
+.controls :global(.ant-input-affix-wrapper),
+.controls :global(.ant-select-selector),
+.composer :global(.ant-input),
+.composer :global(.ant-input-affix-wrapper),
+.composer :global(.ant-select-selector) {
+    box-shadow: inset 0 1px 0 var(--glass-highlight);
+    transition: border-color var(--motion-fast), box-shadow var(--motion-fast), background-color var(--motion-fast);
+}
+
+.page :global(.ant-input::placeholder),
+.page :global(.ant-select-selection-placeholder) {
+    color: var(--muted-foreground) !important;
+}
+
+.composer {
+    border: 1px solid var(--glass-border);
+    border-radius: 22px;
+    background: var(--glass-surface-strong);
+    box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-highlight);
+    backdrop-filter: blur(var(--glass-blur-strong));
+    -webkit-backdrop-filter: blur(var(--glass-blur-strong));
+    transition: border-color var(--motion-base), box-shadow var(--motion-base);
+}
+
+.composer:focus-within {
+    border-color: color-mix(in srgb, var(--brand-accent) 48%, var(--glass-border)) !important;
+    box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-highlight), 0 0 0 1px color-mix(in srgb, var(--brand-accent) 20%, transparent);
+}
+
+.results {
+    min-width: 0;
+    border-color: var(--glass-border) !important;
+    border-radius: 20px !important;
+    background: var(--glass-surface) !important;
+    color: var(--card-foreground);
+    box-shadow: var(--glass-shadow-soft), inset 0 1px 0 var(--glass-highlight);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    transition: border-color var(--motion-base), box-shadow var(--motion-base);
+}
+
+.results :global(.grid > div:not([class*="border-red"])) {
+    transition: border-color var(--motion-fast), box-shadow var(--motion-fast), background-color var(--motion-fast);
+}
+
+.results :global(.grid > div:not([class*="border-red"]):hover) {
+    border-color: color-mix(in srgb, var(--brand-accent) 38%, var(--glass-border)) !important;
+    box-shadow: 0 12px 30px color-mix(in srgb, var(--foreground) 10%, transparent), 0 0 0 1px color-mix(in srgb, var(--brand-accent) 12%, transparent);
+}
+
+.results :global(.grid > div:focus-within) {
+    outline: 2px solid color-mix(in srgb, var(--brand-accent) 52%, transparent);
+    outline-offset: 2px;
+}
+
+.results :global(.border-dashed) {
+    border-color: color-mix(in srgb, var(--glass-border) 72%, var(--brand-accent) 28%);
+    box-shadow: inset 0 1px 0 var(--glass-highlight);
+}
+
+.results :global(.ant-empty-description) {
+    color: var(--muted-foreground);
+}
+
+.results :global(.ant-tag) {
+    border-color: var(--glass-border);
+    background: color-mix(in srgb, var(--glass-surface-strong) 86%, transparent);
+    color: var(--muted-foreground);
+}
+
+.page :global(select),
+.page :global(input[type="number"]) {
+    border-color: var(--glass-border) !important;
+    background-color: color-mix(in srgb, var(--glass-surface-strong) 78%, var(--background)) !important;
+    color: var(--foreground) !important;
+    box-shadow: inset 0 1px 0 var(--glass-highlight);
+    transition: border-color var(--motion-fast), box-shadow var(--motion-fast), background-color var(--motion-fast);
+}
+
+.page :global(select:focus-visible),
+.page :global(input[type="number"]:focus-visible) {
+    border-color: var(--brand-accent) !important;
+    outline: 2px solid var(--brand-accent-soft);
+    outline-offset: 1px;
+}
+
+.page :global(.ant-segmented) {
+    background: color-mix(in srgb, var(--glass-surface) 78%, var(--background)) !important;
+    box-shadow: inset 0 1px 0 var(--glass-highlight);
+}
+
+.page :global(.ant-segmented-item-selected) {
+    background: var(--glass-surface-strong) !important;
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--foreground) 10%, transparent), inset 0 1px 0 var(--glass-highlight) !important;
+}
+
+.page :global(.ant-btn:not(:disabled)) {
+    transition: color var(--motion-fast), background-color var(--motion-fast), border-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast);
+}
+
+.page :global(.ant-btn-primary:not(:disabled)) {
+    border-color: var(--brand-accent) !important;
+    background: var(--brand-accent) !important;
+    color: #fffdf8 !important;
+    box-shadow: 0 6px 18px color-mix(in srgb, var(--brand-accent) 24%, transparent), inset 0 1px 0 color-mix(in srgb, white 26%, transparent);
+}
+
+.page :global(.ant-btn-primary:not(:disabled):hover) {
+    border-color: color-mix(in srgb, var(--brand-accent) 84%, #8d3f2b) !important;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--brand-accent) 92%, white), var(--brand-accent)) !important;
+    box-shadow: 0 8px 22px color-mix(in srgb, var(--brand-accent) 34%, transparent), inset 0 1px 0 color-mix(in srgb, white 38%, transparent);
+    transform: translateY(-1px);
+}
+
+.page :global(.ant-btn:not(:disabled):active) {
+    transform: translateY(0);
+}
+
+.page :global(.ant-btn-default:not(.ant-btn-dangerous):hover),
+.page :global(.ant-btn-text:not(.ant-btn-dangerous):hover) {
+    border-color: color-mix(in srgb, var(--brand-accent) 42%, transparent) !important;
+    background-color: var(--brand-accent-soft) !important;
+    color: var(--brand-accent) !important;
+}
+
+.page :global(.ant-btn:focus-visible) {
+    outline: 2px solid color-mix(in srgb, var(--brand-accent) 72%, transparent);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px var(--brand-accent-soft);
+}
+
+.page :global(.ant-btn-dangerous:not(:disabled):hover) {
+    box-shadow: 0 5px 16px color-mix(in srgb, var(--destructive) 20%, transparent);
+}
+
+.controls:focus-within {
+    border-color: color-mix(in srgb, var(--brand-accent) 42%, var(--glass-border)) !important;
+    box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-highlight), 0 0 0 1px color-mix(in srgb, var(--brand-accent) 12%, transparent);
+}
+
+@media (hover: hover) {
+    .controls:hover,
+    .results:hover {
+        border-color: color-mix(in srgb, var(--brand-accent) 30%, var(--glass-border)) !important;
+        box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-highlight), 0 0 24px color-mix(in srgb, var(--brand-accent) 7%, transparent);
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .controls,
+    .results,
+    .composer {
+        animation: surface-arrive var(--motion-gentle) cubic-bezier(0.2, 0.75, 0.25, 1) both;
+    }
+
+    .results {
+        animation-delay: 50ms;
+    }
+}
+
+@keyframes surface-arrive {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@media (max-width: 639px) {
+    .layout {
+        gap: 0.625rem !important;
+        padding: 0.625rem !important;
+    }
+
+    .controls,
+    .results {
+        border-radius: 16px !important;
+    }
+
+    .composer {
+        max-height: 54vh;
+        overflow-y: auto;
+        border-radius: 18px;
+        padding: 0.75rem !important;
+    }
+
+    .results {
+        padding: 0.875rem !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .controls,
+    .composer,
+    .results,
+    .page :global(.ant-btn:not(:disabled)),
+    .page :global(select),
+    .page :global(input[type="number"]) {
+        animation: none;
+        transition: none;
+    }
+}

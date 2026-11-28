@@ -9,6 +9,8 @@ import { useCopyText } from "@/hooks/use-copy-text";
 import type { Prompt } from "@/services/api/prompts";
 import { useAdminPrompts } from "./use-admin-prompts";
 
+import styles from "../admin-glass.module.css";
+
 export default function AdminPromptsPage() {
     const {
         categories,
@@ -214,7 +216,7 @@ export default function AdminPromptsPage() {
                 />
             </Flex>
 
-            <Modal title={editingPrompt?.id ? "编辑提示词" : "新增提示词"} open={Boolean(editingPrompt)} width={720} onCancel={() => setEditingPrompt(null)} onOk={() => void savePrompt()} okText="保存" cancelText="取消" destroyOnHidden>
+            <Modal rootClassName={styles.dialogRoot} title={editingPrompt?.id ? "编辑提示词" : "新增提示词"} open={Boolean(editingPrompt)} width={720} onCancel={() => setEditingPrompt(null)} onOk={() => void savePrompt()} okText="保存" cancelText="取消" destroyOnHidden>
                 <Form form={form} layout="vertical" requiredMark={false}>
                     <Form.Item name="title" label="标题" rules={[{ required: true, message: "请输入标题" }]}>
                         <Input />
@@ -234,7 +236,7 @@ export default function AdminPromptsPage() {
                 </Form>
             </Modal>
 
-            <Modal title="提示词详情" open={Boolean(detailPrompt)} width={760} onCancel={() => setDetailPrompt(null)} footer={<Button onClick={() => setDetailPrompt(null)}>关闭</Button>}>
+            <Modal rootClassName={styles.dialogRoot} title="提示词详情" open={Boolean(detailPrompt)} width={760} onCancel={() => setDetailPrompt(null)} footer={<Button onClick={() => setDetailPrompt(null)}>关闭</Button>}>
                 {detailPrompt ? (
                     <Flex vertical gap={14}>
                         <Flex gap={14} align="start">
@@ -272,6 +274,7 @@ export default function AdminPromptsPage() {
             </Modal>
 
             <Modal
+                rootClassName={styles.dialogRoot}
                 title="同步远程提示词源"
                 open={isSyncOpen}
                 width={640}
@@ -326,6 +329,7 @@ export default function AdminPromptsPage() {
             </Modal>
 
             <Modal
+                rootClassName={styles.dialogRoot}
                 title="删除提示词"
                 open={Boolean(deletingPrompt)}
                 onCancel={() => setDeletingPrompt(null)}
@@ -341,7 +345,7 @@ export default function AdminPromptsPage() {
                 确定删除「{deletingPrompt?.title}」吗？删除后会从当前分类中删除。
             </Modal>
 
-            <Modal title="批量删除提示词" open={isBatchDeleteOpen} onCancel={() => setIsBatchDeleteOpen(false)} onOk={() => void batchDeletePrompts()} okText="删除" okButtonProps={{ danger: true }} cancelText="取消">
+            <Modal rootClassName={styles.dialogRoot} title="批量删除提示词" open={isBatchDeleteOpen} onCancel={() => setIsBatchDeleteOpen(false)} onOk={() => void batchDeletePrompts()} okText="删除" okButtonProps={{ danger: true }} cancelText="取消">
                 确定删除已选中的 {selectedPromptIds.length} 条提示词吗？删除后会从当前分类中删除。
             </Modal>
         </main>

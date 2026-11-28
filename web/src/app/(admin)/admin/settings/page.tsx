@@ -19,6 +19,8 @@ import { clearStorageConfigCache as clearImageStorageConfigCache } from "@/servi
 import { useUserStore } from "@/stores/use-user-store";
 import { filterChannelModelsByCapability, useConfigStore, type ModelCapabilities } from "@/stores/use-config-store";
 
+import styles from "../admin-glass.module.css";
+
 const CodeMirror = dynamic(() => import("@uiw/react-codemirror"), { ssr: false });
 const WorkflowChannelPane = dynamic(() => import("@/components/workflow/workflow-channel-pane").then((module) => module.WorkflowChannelPane), { ssr: false });
 const jsonEditorTheme = EditorView.theme({
@@ -952,6 +954,7 @@ export default function AdminSettingsPage() {
                     )}
                 </Card>
                 <Drawer
+                    rootClassName={styles.dialogRoot}
                     title={editingChannelIndex === null ? "新增渠道" : "编辑渠道"}
                     open={isChannelDrawerOpen}
                     size={isWorkflowProtocol(channelProtocol) ? "75vw" : 560}
@@ -1086,6 +1089,7 @@ export default function AdminSettingsPage() {
                     />
                 ) : null}
                 <Modal
+                    rootClassName={styles.dialogRoot}
                     title={
                         <Space>
                             {testChannel?.name || "渠道"} 渠道的模型测试<Typography.Text type="secondary">共 {testChannel?.models.length || 0} 个模型</Typography.Text>

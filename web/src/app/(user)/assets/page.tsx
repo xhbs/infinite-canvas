@@ -1,7 +1,7 @@
 "use client";
 
 import { Copy, Download, PencilLine, Search, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { App, Button, Card, Drawer, Empty, Image, Input, Modal, Pagination, Select, Space, Tag, Typography } from "antd";
 import { saveAs } from "file-saver";
 
@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { useAssetStore, type Asset, type AssetKind } from "@/stores/use-asset-store";
 import { exportAssets, readAssetPackage } from "./asset-transfer";
 import { AssetFormModal } from "@/components/assets/asset-form-modal";
+import styles from "@/components/assets/resource-glass.module.css";
 
 const kindOptions = [
     { label: "全部", value: "all" },
@@ -118,20 +119,18 @@ export default function AssetsPage() {
     };
 
     return (
-        <div className="flex h-full flex-col overflow-hidden bg-background text-stone-900 dark:text-stone-100">
-            <main className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] px-6 py-8 [background-size:16px_16px] dark:bg-[radial-gradient(rgba(245,245,244,.14)_1px,transparent_1px)]">
-                <div className="pb-8">
-                    <div className="mx-auto max-w-5xl text-center">
-                        <h1 className="text-4xl font-semibold tracking-tight text-stone-950 dark:text-stone-100">我的素材</h1>
-                        <p className="mt-3 text-sm text-stone-500 dark:text-stone-400">收藏和管理常用素材，按类型、标题、分类和标签快速查找。</p>
-                    </div>
-
-                    <div className="mx-auto mt-8 w-full max-w-2xl">
+        <div className={styles.page}>
+            <main className={styles.main}>
+                <header className={styles.hero}>
+                    <span className={styles.eyebrow}>个人收藏</span>
+                    <h1 className={styles.title}>我的素材</h1>
+                    <p className={styles.description}>收藏和管理常用素材，按类型、标题、分类和标签快速查找。</p>
+                    <div className={styles.search}>
                         <Input.Search
                             className="w-full"
                             size="large"
                             allowClear
-                            prefix={<Search className="size-4 text-stone-400" />}
+                            prefix={<Search className="size-4 text-muted-foreground" />}
                             value={keyword}
                             placeholder="搜索标题、内容、分类、标签或来源"
                             onChange={(event) => {
@@ -144,17 +143,18 @@ export default function AssetsPage() {
                             }}
                         />
                     </div>
+                </header>
 
-                    <div className="mx-auto mt-6 grid max-w-6xl gap-3 text-left">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="grid gap-2 sm:grid-cols-[56px_minmax(0,1fr)] sm:items-center">
-                                <div className="text-xs font-medium text-stone-500 dark:text-stone-400">类型</div>
-                                <div className="flex flex-wrap gap-2">
+                <section className={styles.filters} aria-label="素材筛选与操作">
+                    <div className={styles.filterToolbar}>
+                        <div className={styles.filterRow}>
+                            <div className={styles.filterLabel}>类型</div>
+                            <div className={styles.filterValues}>
                                     {kindOptions.map((option) => (
                                         <Tag.CheckableTag
                                             key={option.value}
                                             checked={kindFilter === option.value}
-                                            className={cn("prompt-filter-tag", kindFilter === option.value && "is-active")}
+                                            className={cn(styles.filterTag, "prompt-filter-tag", kindFilter === option.value && "is-active")}
                                             onChange={() => {
                                                 setPage(1);
                                                 setKindFilter(option.value as AssetKind | "all");
@@ -163,89 +163,100 @@ export default function AssetsPage() {
                                             {option.label}
                                         </Tag.CheckableTag>
                                     ))}
-                                </div>
                             </div>
-                            <div className="flex flex-wrap gap-4">
+                        </div>
+                        <div className={styles.actions}>
                                 <button
                                     type="button"
-                                    className="cursor-pointer text-sm font-medium text-stone-700 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:underline dark:text-stone-300"
+                                    className={styles.actionButton}
                                     onClick={() => void exportAllAssets()}
                                 >
                                     导出素材
                                 </button>
                                 <button
                                     type="button"
-                                    className="cursor-pointer text-sm font-medium text-stone-700 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:underline dark:text-stone-300"
+                                    className={styles.actionButton}
                                     onClick={() => assetInputRef.current?.click()}
                                 >
                                     导入素材
                                 </button>
                                 <button
                                     type="button"
-                                    className="cursor-pointer text-sm font-medium text-stone-700 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:underline dark:text-stone-300"
+                                    className={cn(styles.actionButton, styles.primaryAction)}
                                     onClick={openCreate}
                                 >
                                     新增素材
                                 </button>
-                            </div>
                         </div>
-                        <div className="grid gap-2 sm:grid-cols-[56px_minmax(0,1fr)] sm:items-center">
-                            <div className="text-xs font-medium text-stone-500 dark:text-stone-400">分类</div>
-                            <div className="thin-scrollbar flex max-h-[112px] flex-wrap gap-2 overflow-y-auto pr-1">
+                    </div>
+                    <div className={styles.filterRow}>
+                        <div className={styles.filterLabel}>分类</div>
+                        <div className={cn(styles.filterValues, "thin-scrollbar")}>
                                 {["", ...categories].map((category) => (
-                                    <Tag.CheckableTag key={category || "all"} checked={categoryFilter === category} className={cn("prompt-filter-tag", categoryFilter === category && "is-active")} onChange={() => {
-                                        setPage(1);
-                                        setCategoryFilter(category);
-                                    }}>
+                                    <Tag.CheckableTag
+                                        key={category || "all"}
+                                        checked={categoryFilter === category}
+                                        className={cn(styles.filterTag, "prompt-filter-tag", categoryFilter === category && "is-active")}
+                                        onChange={() => {
+                                            setPage(1);
+                                            setCategoryFilter(category);
+                                        }}
+                                    >
                                         {category || "全部"}
                                     </Tag.CheckableTag>
                                 ))}
-                            </div>
                         </div>
-                        <div className="grid gap-2 sm:grid-cols-[56px_minmax(0,1fr)] sm:items-center">
-                            <div className="text-xs font-medium text-stone-500 dark:text-stone-400">标签</div>
-                            <div className="thin-scrollbar flex max-h-[112px] flex-wrap gap-2 overflow-y-auto pr-1">
-                                <Tag.CheckableTag checked={tagFilters.length === 0} className={cn("prompt-filter-tag", tagFilters.length === 0 && "is-active")} onChange={() => {
-                                    setPage(1);
-                                    setTagFilters([]);
-                                }}>
+                    </div>
+                    <div className={styles.filterRow}>
+                        <div className={styles.filterLabel}>标签</div>
+                        <div className={cn(styles.filterValues, "thin-scrollbar")}>
+                                <Tag.CheckableTag
+                                    checked={tagFilters.length === 0}
+                                    className={cn(styles.filterTag, "prompt-filter-tag", tagFilters.length === 0 && "is-active")}
+                                    onChange={() => {
+                                        setPage(1);
+                                        setTagFilters([]);
+                                    }}
+                                >
                                     全部
                                 </Tag.CheckableTag>
                                 {tags.map((tag) => (
-                                    <Tag.CheckableTag key={tag} checked={tagFilters.includes(tag)} className={cn("prompt-filter-tag", tagFilters.includes(tag) && "is-active")} onChange={() => {
-                                        setPage(1);
-                                        setTagFilters((items) => items.includes(tag) ? items.filter((item) => item !== tag) : [...items, tag]);
-                                    }}>
+                                    <Tag.CheckableTag
+                                        key={tag}
+                                        checked={tagFilters.includes(tag)}
+                                        className={cn(styles.filterTag, "prompt-filter-tag", tagFilters.includes(tag) && "is-active")}
+                                        onChange={() => {
+                                            setPage(1);
+                                            setTagFilters((items) => items.includes(tag) ? items.filter((item) => item !== tag) : [...items, tag]);
+                                        }}
+                                    >
                                         {tag}
                                     </Tag.CheckableTag>
                                 ))}
-                            </div>
                         </div>
                     </div>
+                </section>
+
+                <div className={styles.grid}>
+                    {visibleAssets.map((asset, index) => (
+                        <AssetCard key={asset.id} index={index} asset={asset} onOpen={() => setPreviewAsset(asset)} onEdit={() => openEdit(asset)} onCopy={copyAssetText} onDownload={downloadAsset} onDelete={() => setDeletingAsset(asset)} />
+                    ))}
                 </div>
 
-                <div className="mx-auto flex max-w-7xl flex-col gap-5">
-                    <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {visibleAssets.map((asset) => (
-                            <AssetCard key={asset.id} asset={asset} onOpen={() => setPreviewAsset(asset)} onEdit={() => openEdit(asset)} onCopy={copyAssetText} onDownload={downloadAsset} onDelete={() => setDeletingAsset(asset)} />
-                        ))}
-                    </div>
+                {!visibleAssets.length ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="没有找到素材" className={cn(styles.empty, "py-20")} /> : null}
 
-                    {!visibleAssets.length ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="没有找到素材" className="py-20" /> : null}
-
-                    <div className="flex justify-center">
-                        <Pagination
-                            current={page}
-                            pageSize={pageSize}
-                            total={filteredAssets.length}
-                            showSizeChanger
-                            pageSizeOptions={[12, 24, 48, 96]}
-                            onChange={(nextPage, nextPageSize) => {
-                                setPage(nextPage);
-                                setPageSize(nextPageSize);
-                            }}
-                        />
-                    </div>
+                <div className={styles.pager}>
+                    <Pagination
+                        current={page}
+                        pageSize={pageSize}
+                        total={filteredAssets.length}
+                        showSizeChanger
+                        pageSizeOptions={[12, 24, 48, 96]}
+                        onChange={(nextPage, nextPageSize) => {
+                            setPage(nextPage);
+                            setPageSize(nextPageSize);
+                        }}
+                    />
                 </div>
             </main>
 
@@ -255,38 +266,39 @@ export default function AssetsPage() {
 
             <input ref={assetInputRef} type="file" accept="application/zip,.zip" className="hidden" onChange={(event) => void importAssetZip(event.target.files?.[0])} />
 
-            <Modal title="删除素材" open={Boolean(deletingAsset)} onCancel={() => setDeletingAsset(null)} onOk={confirmDelete} okText="删除" okButtonProps={{ danger: true }} cancelText="取消">
+            <Modal rootClassName={styles.glassModal} title="删除素材" open={Boolean(deletingAsset)} onCancel={() => setDeletingAsset(null)} onOk={confirmDelete} okText="删除" okButtonProps={{ danger: true }} cancelText="取消">
                 确定删除「{deletingAsset?.title}」吗？删除后会从我的素材中移除。
             </Modal>
         </div>
     );
 }
 
-function AssetCard({ asset, onOpen, onEdit, onCopy, onDownload, onDelete }: { asset: Asset; onOpen: () => void; onEdit: () => void; onCopy: (asset: Asset) => void; onDownload: (asset: Asset) => void; onDelete: () => void }) {
+function AssetCard({ asset, index = 0, onOpen, onEdit, onCopy, onDownload, onDelete }: { asset: Asset; index?: number; onOpen: () => void; onEdit: () => void; onCopy: (asset: Asset) => void; onDownload: (asset: Asset) => void; onDelete: () => void }) {
     const cover = asset.coverUrl || (asset.kind === "image" ? asset.data.dataUrl : "");
     const summary = assetSummary(asset);
     return (
         <Card
             hoverable
-            className="overflow-hidden"
+            className={styles.card}
+            style={{ "--fx-index": Math.min(index, 11) } as CSSProperties}
             styles={{ body: { padding: 0 } }}
             cover={
-                <button type="button" className="block w-full text-left" onClick={onOpen}>
+                <button type="button" className={styles.mediaButton} onClick={onOpen}>
                     {cover ? (
-                        <img src={cover} alt={asset.title} className="aspect-[4/3] w-full object-cover" />
+                        <img src={cover} alt={asset.title} className={styles.thumbnail} />
                     ) : asset.kind === "video" ? (
-                        <video src={asset.data.url + "#t=0.1"} muted playsInline preload="metadata" className="aspect-[4/3] w-full object-cover" />
+                        <video src={asset.data.url + "#t=0.1"} muted playsInline preload="metadata" className={styles.thumbnail} />
                     ) : (
-                        <div className="flex aspect-[4/3] items-center justify-center bg-stone-100 p-5 text-center text-sm leading-6 text-stone-600 dark:bg-stone-900 dark:text-stone-300">{asset.kind === "text" ? asset.data.content : "暂无封面"}</div>
+                        <div className={styles.placeholder}>{asset.kind === "text" ? asset.data.content : "暂无封面"}</div>
                     )}
                 </button>
             }
         >
-            <button type="button" className="block w-full text-left" onClick={onOpen}>
-                <div className="p-4">
-                    <div className="flex items-start justify-between gap-3">
+            <button type="button" className={styles.cardOpen} onClick={onOpen}>
+                <div className={styles.cardContent}>
+                    <div className={styles.cardHeading}>
                         <div className="min-w-0">
-                            <h2 className="line-clamp-1 text-sm font-semibold text-stone-950 dark:text-stone-100">{asset.title}</h2>
+                            <h2 className={styles.cardTitle}>{asset.title}</h2>
                             <Typography.Text type="secondary" className="mt-1 block text-xs">
                                 {asset.source || "未标注来源"}
                             </Typography.Text>
@@ -296,7 +308,7 @@ function AssetCard({ asset, onOpen, onEdit, onCopy, onDownload, onDelete }: { as
                     <Typography.Paragraph type="secondary" ellipsis={{ rows: 3 }} className="!mb-0 !mt-2 !text-xs !leading-5">
                         {summary}
                     </Typography.Paragraph>
-                    <div className="mt-3 flex flex-wrap gap-1.5">
+                    <div className={styles.cardTags}>
                         {(asset.tags || []).slice(0, 3).map((tag) => (
                             <Tag key={tag} className="m-0 text-[11px]">
                                 {tag}
@@ -306,7 +318,7 @@ function AssetCard({ asset, onOpen, onEdit, onCopy, onDownload, onDelete }: { as
                     </div>
                 </div>
             </button>
-            <div className="flex items-center gap-2 px-4 pb-4">
+            <div className={styles.cardActions}>
                 <Button size="small" onClick={onOpen}>
                     查看
                 </Button>
@@ -334,13 +346,13 @@ function AssetCard({ asset, onOpen, onEdit, onCopy, onDownload, onDelete }: { as
 function AssetDrawer({ asset, onClose, onCopy, onDownload }: { asset: Asset | null; onClose: () => void; onCopy: (asset: Asset) => void; onDownload: (asset: Asset) => void }) {
     const cover = asset ? asset.coverUrl || (asset.kind === "image" ? asset.data.dataUrl : "") : "";
     return (
-        <Drawer title="素材详情" open={Boolean(asset)} size="large" onClose={onClose}>
+        <Drawer rootClassName={styles.glassDrawer} title="素材详情" open={Boolean(asset)} size="large" onClose={onClose}>
             {asset ? (
                 <div className="space-y-5">
                     {cover ? (
-                        <Image src={cover} alt={asset.title} className="rounded-lg" />
+                        <Image src={cover} alt={asset.title} className={styles.drawerImage} />
                     ) : (
-                        <div className="rounded-lg border border-stone-200 bg-stone-50 p-5 text-sm leading-6 text-stone-600 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300">{asset.kind === "text" ? asset.data.content : "暂无封面"}</div>
+                        <div className={styles.contentPanel}>{asset.kind === "text" ? asset.data.content : "暂无封面"}</div>
                     )}
                     <div>
                         <Typography.Title level={4} className="!mb-2">
@@ -353,7 +365,7 @@ function AssetDrawer({ asset, onClose, onCopy, onDownload }: { asset: Asset | nu
                             ))}
                         </Space>
                     </div>
-                    <div className="rounded-lg border border-stone-200 p-4 dark:border-stone-800">
+                    <div className={styles.contentPanel}>
                         <Typography.Text type="secondary" className="block text-xs">
                             内容
                         </Typography.Text>

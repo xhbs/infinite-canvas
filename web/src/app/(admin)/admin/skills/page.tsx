@@ -13,6 +13,8 @@ import { deleteStoredImages } from "@/services/image-storage";
 import { invalidateAgentSkillCache } from "@/stores/use-agent-skill-store";
 import { useUserStore } from "@/stores/use-user-store";
 
+import styles from "../admin-glass.module.css";
+
 export default function AdminSkillsPage() {
     const { message, modal } = App.useApp();
     const { token: antToken } = theme.useToken();
@@ -291,7 +293,7 @@ export default function AdminSkillsPage() {
                 />
             </Flex>
 
-            <Modal title={editingSkill?.id ? "编辑 Skill" : "新增 Skill"} open={Boolean(editingSkill)} width={1120} footer={null} onCancel={() => setEditingSkill(null)} destroyOnHidden>
+            <Modal rootClassName={styles.dialogRoot} title={editingSkill?.id ? "编辑 Skill" : "新增 Skill"} open={Boolean(editingSkill)} width={1120} footer={null} onCancel={() => setEditingSkill(null)} destroyOnHidden>
                 <Form form={form} layout="vertical" requiredMark={false}>
                     <Form.Item name="coverUrl" hidden><Input /></Form.Item>
                     <Form.Item name="coverStorageKey" hidden><Input /></Form.Item>
@@ -436,7 +438,7 @@ export default function AdminSkillsPage() {
                 </Form>
             </Modal>
 
-            <Modal title="删除 Skill" open={Boolean(deletingSkill)} onCancel={() => setDeletingSkill(null)} onOk={async () => { if (!deletingSkill) return; await deleteMutation.mutateAsync(deletingSkill.id); if (deletingSkill.coverStorageKey) await deleteStoredImages([deletingSkill.coverStorageKey]).catch(() => undefined); setDeletingSkill(null); }} okText="删除" okButtonProps={{ danger: true }} cancelText="取消">
+            <Modal rootClassName={styles.dialogRoot} title="删除 Skill" open={Boolean(deletingSkill)} onCancel={() => setDeletingSkill(null)} onOk={async () => { if (!deletingSkill) return; await deleteMutation.mutateAsync(deletingSkill.id); if (deletingSkill.coverStorageKey) await deleteStoredImages([deletingSkill.coverStorageKey]).catch(() => undefined); setDeletingSkill(null); }} okText="删除" okButtonProps={{ danger: true }} cancelText="取消">
                 确定删除「{deletingSkill?.name}」吗？
             </Modal>
         </main>

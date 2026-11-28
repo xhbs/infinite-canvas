@@ -128,17 +128,15 @@ export function VideoSettingsPanel({ config, modelName, onConfigChange, theme, s
                         <DimensionInput prefix="H" value={dimensions.height} disabled={size === "auto"} theme={theme} onChange={(value) => updateDimension("height", value)} />
                     </div>
                     <div className="grid grid-cols-3 gap-2.5">
-                        {seedanceRatioOptions.map((item) => (
+                        {seedanceRatioOptions.map((item) => {
+                            const active = normalizeSeedanceRatio(config.size) === item.value;
+                            return (
                             <button
                                 key={item.value}
                                 type="button"
-                                className="flex h-[68px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border bg-transparent px-1 text-sm transition hover:opacity-80"
-                                style={{
-                                    borderColor: normalizeSeedanceRatio(config.size) === item.value
-                                        ? theme.node.text
-                                        : theme.node.stroke,
-                                    color: theme.node.text,
-                                }}
+                                data-active={active}
+                                className="fx-glass-tile flex h-[68px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl px-1 text-sm"
+                                style={!active ? { borderColor: theme.node.stroke, color: theme.node.text } : undefined}
                                 onMouseDown={(event) => event.stopPropagation()}
                                 onClick={() =>
                                     onConfigChange(
@@ -152,7 +150,7 @@ export function VideoSettingsPanel({ config, modelName, onConfigChange, theme, s
                                 <SizePreview
                                     width={ratioPreview(item.value).width}
                                     height={ratioPreview(item.value).height}
-                                    color={theme.node.text}
+                                    color={active ? "var(--brand-accent)" : theme.node.text}
                                 />
                                 <span>{item.label}</span>
                                 <span className="text-[10px] leading-none opacity-55">
@@ -161,7 +159,8 @@ export function VideoSettingsPanel({ config, modelName, onConfigChange, theme, s
                                         : seedancePixelLabel(resolution, item.value)}
                                 </span>
                             </button>
-                        ))}
+                            );
+                        })}
                     </div>
                 </SettingGroup>
                 {!visualOnly ? (
@@ -202,37 +201,45 @@ function KlingV26VideoSettingsPanel({ config, modelName, onConfigChange, theme, 
                 )}
                 <SettingGroup title="模式选择" color={theme.node.muted}>
                     <div className={`grid gap-2.5 ${isV3 ? "grid-cols-3" : "grid-cols-2"}`}>
-                        {(isV3 ? klingV3ModeOptions : klingV26ModeOptions).map((item) => (
+                        {(isV3 ? klingV3ModeOptions : klingV26ModeOptions).map((item) => {
+                            const active = mode === item.value;
+                            return (
                             <button
                                 key={item.value}
                                 type="button"
-                                className="flex min-h-12 cursor-pointer flex-col items-center justify-center rounded-full border bg-transparent px-2 text-sm leading-4 transition hover:opacity-80"
-                                style={{ borderColor: mode === item.value ? theme.node.text : theme.node.stroke, color: theme.node.text }}
+                                data-active={active}
+                                className="fx-glass-tile flex min-h-12 cursor-pointer flex-col items-center justify-center rounded-full px-2 text-sm leading-4"
+                                style={!active ? { borderColor: theme.node.stroke, color: theme.node.text } : undefined}
                                 onMouseDown={(event) => event.stopPropagation()}
                                 onClick={() => onConfigChange("videoMode", item.value)}
                             >
                                 <span>{item.title}</span>
                                 <span>{item.desc}</span>
                             </button>
-                        ))}
+                            );
+                        })}
                     </div>
                 </SettingGroup>
                 <SettingGroup title="比例" color={theme.node.muted}>
                     <div className="grid grid-cols-3 gap-2.5">
-                        {klingV26RatioOptions.map((item) => (
+                        {klingV26RatioOptions.map((item) => {
+                            const active = ratio === item.value;
+                            return (
                             <button
                                 key={item.value}
                                 type="button"
-                                className="flex h-[68px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border bg-transparent px-1 text-sm transition hover:opacity-80"
-                                style={{ borderColor: ratio === item.value ? theme.node.text : theme.node.stroke, color: theme.node.text }}
+                                data-active={active}
+                                className="fx-glass-tile flex h-[68px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl px-1 text-sm"
+                                style={!active ? { borderColor: theme.node.stroke, color: theme.node.text } : undefined}
                                 onMouseDown={(event) => event.stopPropagation()}
                                 onClick={() => onConfigChange("size", item.value)}
                             >
-                                <SizePreview width={ratioPreview(item.value).width} height={ratioPreview(item.value).height} color={theme.node.text} />
+                                <SizePreview width={ratioPreview(item.value).width} height={ratioPreview(item.value).height} color={active ? "var(--brand-accent)" : theme.node.text} />
                                 <span>{item.label}</span>
                                 <span className="text-[10px] leading-none opacity-55">{klingV26RatioLabels[item.value]}</span>
                             </button>
-                        ))}
+                            );
+                        })}
                     </div>
                 </SettingGroup>
                 {!visualOnly ? (
@@ -292,20 +299,24 @@ function SeedanceVideoSettingsPanel({ config, modelName, onConfigChange, theme, 
                 </SettingGroup>
                 <SettingGroup title="比例" color={theme.node.muted}>
                     <div className="grid grid-cols-3 gap-2.5">
-                        {seedanceRatioOptions.map((item) => (
+                        {seedanceRatioOptions.map((item) => {
+                            const active = ratio === item.value;
+                            return (
                             <button
                                 key={item.value}
                                 type="button"
-                                className="flex h-[68px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border bg-transparent px-1 text-sm transition hover:opacity-80"
-                                style={{ borderColor: ratio === item.value ? theme.node.text : theme.node.stroke, color: theme.node.text }}
+                                data-active={active}
+                                className="fx-glass-tile flex h-[68px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl px-1 text-sm"
+                                style={!active ? { borderColor: theme.node.stroke, color: theme.node.text } : undefined}
                                 onMouseDown={(event) => event.stopPropagation()}
                                 onClick={() => onConfigChange("size", item.value)}
                             >
-                                <SizePreview width={ratioPreview(item.value).width} height={ratioPreview(item.value).height} color={theme.node.text} />
+                                <SizePreview width={ratioPreview(item.value).width} height={ratioPreview(item.value).height} color={active ? "var(--brand-accent)" : theme.node.text} />
                                 <span>{item.label}</span>
                                 <span className="text-[10px] leading-none opacity-55">{item.value === "adaptive" ? "adaptive" : seedancePixelLabel(resolution, item.value)}</span>
                             </button>
-                        ))}
+                            );
+                        })}
                     </div>
                 </SettingGroup>
                 {!visualOnly ? (
@@ -378,7 +389,15 @@ export function videoSizeOptions(resolution: string) {
 
 function OptionPill({ selected, disabled = false, theme, onClick, children }: { selected: boolean; disabled?: boolean; theme: CanvasTheme; onClick: () => void; children: ReactNode }) {
     return (
-        <button type="button" disabled={disabled} className="h-9 cursor-pointer rounded-full border px-2 text-sm transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-35" style={{ background: "transparent", borderColor: selected ? theme.node.text : theme.node.stroke, color: theme.node.text }} onMouseDown={(event) => event.stopPropagation()} onClick={onClick}>
+        <button
+            type="button"
+            disabled={disabled}
+            data-active={selected}
+            className="fx-glass-tile h-9 cursor-pointer rounded-full px-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-35"
+            style={!selected ? { borderColor: theme.node.stroke, color: theme.node.text } : undefined}
+            onMouseDown={(event) => event.stopPropagation()}
+            onClick={onClick}
+        >
             {children}
         </button>
     );

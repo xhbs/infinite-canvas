@@ -48,7 +48,7 @@ export function CanvasImageMergeDialog({ images, open, busy, onClose, onConfirm 
     const slots = Array.from({ length: capacity }, (_, index) => orderedImages[index]);
 
     return (
-        <Modal title={null} open={open} onCancel={onClose} footer={null} width="min(1040px, calc(100vw - 24px))" centered destroyOnHidden>
+        <Modal className="canvas-glass-modal" title={null} open={open} onCancel={onClose} footer={null} width="min(1040px, calc(100vw - 24px))" centered destroyOnHidden>
             <div className="space-y-4">
                 <header className="flex flex-wrap items-end justify-between gap-3">
                     <div>
@@ -61,7 +61,7 @@ export function CanvasImageMergeDialog({ images, open, busy, onClose, onConfirm 
                     {IMAGE_GRID_LAYOUTS.filter((item) => item.columns * item.rows >= orderedImages.length).map((item) => {
                         const active = item.columns === layout.columns && item.rows === layout.rows;
                         return (
-                            <button key={`${item.columns}x${item.rows}`} type="button" disabled={busy} onClick={() => setLayout(item)} className="flex h-10 items-center gap-2 rounded-lg border px-2.5 text-xs transition hover:opacity-85 disabled:opacity-50" style={{ background: active ? theme.toolbar.activeBg : theme.toolbar.panel, borderColor: active ? theme.toolbar.activeText : theme.toolbar.border, color: active ? theme.toolbar.activeText : theme.node.text }}>
+                            <button key={`${item.columns}x${item.rows}`} type="button" disabled={busy} onClick={() => setLayout(item)} className={`${active ? "" : "canvas-glass-control"} flex h-10 items-center gap-2 rounded-lg border px-2.5 text-xs transition hover:opacity-85 disabled:opacity-50`} style={{ background: active ? "var(--brand-accent-soft)" : "var(--glass-surface)", borderColor: active ? "var(--brand-accent)" : "var(--glass-border)", color: active ? "var(--brand-accent)" : theme.node.text }}>
                                 <LayoutGlyph layout={item} active={active} />
                                 <span className="tabular-nums">{item.columns} × {item.rows}</span>
                                 <span className="opacity-55">{item.columns * item.rows} 格</span>
@@ -69,7 +69,7 @@ export function CanvasImageMergeDialog({ images, open, busy, onClose, onConfirm 
                         );
                     })}
                 </div>
-                <div className="grid max-h-[54vh] min-h-44 place-items-center overflow-auto rounded-lg border p-1" style={{ background: "#34383a", borderColor: "#34383a" }}>
+                <div className="grid max-h-[54vh] min-h-44 place-items-center overflow-auto rounded-lg border p-1" style={{ background: theme.node.fill, borderColor: theme.node.stroke }}>
                     <div className="grid max-w-full gap-1" style={{ width: previewWidth, gridTemplateColumns: `repeat(${layout.columns}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${layout.rows}, minmax(0, 1fr))`, aspectRatio: `${layout.columns * cellAspect} / ${layout.rows}` }}>
                         {slots.map((image, index) => (
                             <div
@@ -86,7 +86,7 @@ export function CanvasImageMergeDialog({ images, open, busy, onClose, onConfirm 
                                 onDragEnd={() => setDraggingId(null)}
                                 title={image?.title || "留白"}
                                 className="group relative min-h-0 min-w-0 overflow-hidden"
-                                style={{ background: "#f3f3f0", opacity: image && draggingId === image.id ? 0.45 : 1 }}
+                                style={{ background: theme.node.panel, opacity: image && draggingId === image.id ? 0.45 : 1 }}
                             >
                                 {image ? <img src={image.src} alt={image.title} draggable={false} className="size-full object-contain p-1" /> : <span className="grid size-full place-items-center text-xs opacity-30">留白</span>}
                                 <span className="absolute left-1 top-1 grid size-5 place-items-center rounded text-[10px] font-semibold shadow-sm" style={{ background: theme.toolbar.panel, color: theme.node.text }}>{index + 1}</span>

@@ -117,7 +117,7 @@ export function CanvasNodeSplitDialog({ dataUrl, open, onClose, onConfirm }: { d
     };
 
     return (
-        <Modal title={null} open={open && Boolean(dataUrl)} onCancel={onClose} footer={null} width={780} centered destroyOnHidden>
+        <Modal className="canvas-glass-modal" title={null} open={open && Boolean(dataUrl)} onCancel={onClose} footer={null} width={780} centered destroyOnHidden>
             <div className="space-y-5">
                 <div>
                     <h2 className="text-xl font-semibold">切分图片</h2>
@@ -125,7 +125,7 @@ export function CanvasNodeSplitDialog({ dataUrl, open, onClose, onConfirm }: { d
                 </div>
                 <div className="grid gap-6 md:grid-cols-[minmax(260px,1fr)_280px]">
                     <div className="rounded-xl border p-4">
-                        <div className="grid min-h-[300px] place-items-center rounded-lg bg-black/5">
+                        <div className="grid min-h-[300px] place-items-center rounded-lg bg-muted">
                             <div ref={previewRef} className="relative inline-block max-w-full overflow-hidden rounded-lg bg-black shadow-xl">
                                 <img src={dataUrl} alt="" className="block max-h-[340px] max-w-full object-contain opacity-95" draggable={false} />
                                 <SplitGrid horizontalLines={horizontalLines} verticalLines={verticalLines} active={active} onPointerDown={startDrag} onPointerMove={moveLine} onPointerEnd={endDrag} />

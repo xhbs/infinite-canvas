@@ -11,6 +11,8 @@ import { UserStatusActions } from "@/components/layout/user-status-actions";
 import { adminLayoutStyle } from "@/lib/app-theme";
 import { useUserStore } from "@/stores/use-user-store";
 
+import styles from "./admin-glass.module.css";
+
 const adminMenus = [
     { key: "/admin/users", icon: <UserOutlined />, label: "用户管理" },
     { key: "/admin/credit-logs", icon: <TransactionOutlined />, label: "算力点日志" },
@@ -66,40 +68,42 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     }
 
     return (
-        <Layout hasSider style={{ height: "100vh", overflow: "hidden", background: antToken.colorBgLayout }}>
-            <Layout.Sider width={adminLayoutStyle.siderWidth} style={{ height: "100vh", overflow: "hidden", background: antToken.colorBgContainer, borderRight: `1px solid ${antToken.colorBorder}` }}>
-                <Flex align="center" gap={12} style={{ height: adminLayoutStyle.brandHeight, padding: "0 20px", borderBottom: `1px solid ${antToken.colorBorderSecondary}` }}>
-                    <span aria-hidden style={{ display: "inline-block", width: 30, height: 30, background: antToken.colorText, WebkitMask: "url(/logo.svg) center / contain no-repeat", mask: "url(/logo.svg) center / contain no-repeat" }} />
-                    <Typography.Text strong style={{ fontSize: 18, letterSpacing: 0 }}>
+        <Layout hasSider className={styles.shell} style={{ height: "100dvh", overflow: "hidden", background: antToken.colorBgLayout }}>
+            <Layout.Sider width={adminLayoutStyle.siderWidth} className={styles.sider} style={{ height: "100dvh", overflow: "hidden" }}>
+                <Flex align="center" gap={12} className={styles.brandRow} style={{ height: adminLayoutStyle.brandHeight, padding: "0 20px" }}>
+                    <span aria-hidden className={styles.brandMark} style={{ display: "inline-block", width: 30, height: 30, WebkitMask: "url(/logo.svg) center / contain no-repeat", mask: "url(/logo.svg) center / contain no-repeat" }} />
+                    <Typography.Text strong className={styles.brandText} style={{ fontSize: 18, letterSpacing: 0 }}>
                         无限画布
                     </Typography.Text>
                 </Flex>
                 <Menu
                     mode="inline"
                     selectedKeys={[activeKey]}
+                    className={styles.menu}
                     style={adminLayoutStyle.menu}
                     items={adminMenus.map((item) => ({
                         ...item,
                         label: (
-                            <Link href={item.key} style={{ color: "inherit" }}>
+                            <Link href={item.key} aria-label={item.label} title={item.label} style={{ color: "inherit" }}>
                                 {item.label}
                             </Link>
                         ),
                         style: adminLayoutStyle.menuItem,
                     }))}
                 />
-                <Flex vertical gap={8} style={{ position: "absolute", bottom: 0, insetInline: 0, padding: 12, borderTop: `1px solid ${antToken.colorBorder}`, background: antToken.colorBgContainer }}>
-                    <Button block icon={<HomeOutlined />} href="/canvas" target="_blank" rel="noreferrer">
+                <Flex vertical gap={8} className={styles.siderActions} style={{ position: "absolute", bottom: 0, insetInline: 0, padding: 12 }}>
+                    <Button block icon={<HomeOutlined />} href="/canvas" target="_blank" rel="noreferrer" title="前往画布" aria-label="前往画布">
                         前往画布
                     </Button>
-                    <Button block icon={<LogoutOutlined />} onClick={logout}>
+                    <Button block icon={<LogoutOutlined />} onClick={logout} title="退出登录" aria-label="退出登录">
                         退出登录
                     </Button>
                 </Flex>
             </Layout.Sider>
-            <Layout style={{ background: antToken.colorBgLayout }}>
+            <Layout style={{ background: "transparent", minWidth: 0 }}>
                 <Layout.Header
-                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: adminLayoutStyle.headerHeight, padding: "0 24px", background: antToken.colorBgContainer, borderBottom: `1px solid ${antToken.colorBorder}` }}
+                    className={styles.header}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: adminLayoutStyle.headerHeight, padding: "0 24px" }}
                 >
                     <Typography.Title level={5} style={{ margin: 0 }}>
                         {pageTitle}
@@ -108,7 +112,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                         <UserStatusActions showConfig={false} />
                     </Flex>
                 </Layout.Header>
-                <Layout.Content style={{ minHeight: 0, overflow: "auto" }}>{children}</Layout.Content>
+                <Layout.Content className={styles.content} style={{ minHeight: 0, overflow: "auto" }}>{children}</Layout.Content>
             </Layout>
         </Layout>
     );

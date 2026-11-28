@@ -27,7 +27,7 @@ import {
     X,
 } from "lucide-react";
 import { App, AutoComplete, Button, Dropdown, Modal, Segmented, Switch, Tooltip } from "antd";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { nanoid } from "nanoid";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -79,7 +79,7 @@ const ASSISTANT_NODE_TYPE_META = {
 const ASSISTANT_NODE_STATUS_COLOR: Record<string, string> = {
     success: "#22c55e",
     loading: "#f59e0b",
-    error: "#ef4444",
+    error: "var(--destructive)",
 };
 
 export type CanvasAssistantPanelProps = {
@@ -156,6 +156,7 @@ export function CanvasAssistantPanel({
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [closing, setClosing] = useState(false);
     const [resizing, setResizing] = useState(false);
+    const reducedMotion = useReducedMotion();
     const [composerReferenceIds, setComposerReferenceIds] = useState<string[]>([]);
     const [selectedSkills, setSelectedSkills] = useState<CanvasAgentSkillSelection[]>([]);
     const [removedReferenceIds, setRemovedReferenceIds] = useState<Set<string>>(new Set());
@@ -390,10 +391,10 @@ export function CanvasAssistantPanel({
     };
     const codexControls = mode === "codex" ? (
         <>
-            <Dropdown trigger={["click"]} placement="topLeft" disabled={isRunning || !codex.models.length} menu={{ selectable: true, selectedKeys: codexModel ? [codexModel.model] : [], items: codex.models.map((item) => ({ key: item.model, label: item.displayName })), onClick: ({ key }) => onAgentConfigChange({ codexModel: key, codexEffort: undefined }) }}>
+            <Dropdown rootClassName="canvas-glass-popup" trigger={["click"]} placement="topLeft" disabled={isRunning || !codex.models.length} menu={{ selectable: true, selectedKeys: codexModel ? [codexModel.model] : [], items: codex.models.map((item) => ({ key: item.model, label: item.displayName })), onClick: ({ key }) => onAgentConfigChange({ codexModel: key, codexEffort: undefined }) }}>
                 <Button type="text" className="!h-9 !min-w-8 !shrink-0 !px-2" style={{ color: theme.node.text }} icon={<Cpu className="size-4" />} aria-label="选择 Codex 模型"><span className="hidden max-w-28 truncate @[660px]:inline">{codexModel?.displayName || "选择模型"}</span></Button>
             </Dropdown>
-            <Dropdown trigger={["click"]} placement="topLeft" disabled={isRunning || !codexModel?.supportedReasoningEfforts.length} menu={{ selectable: true, selectedKeys: codexEffort ? [codexEffort] : [], items: codexModel?.supportedReasoningEfforts.map((item) => ({ key: item.reasoningEffort, label: effortLabels[item.reasoningEffort] || item.reasoningEffort })), onClick: ({ key }) => onAgentConfigChange({ codexEffort: key }) }}>
+            <Dropdown rootClassName="canvas-glass-popup" trigger={["click"]} placement="topLeft" disabled={isRunning || !codexModel?.supportedReasoningEfforts.length} menu={{ selectable: true, selectedKeys: codexEffort ? [codexEffort] : [], items: codexModel?.supportedReasoningEfforts.map((item) => ({ key: item.reasoningEffort, label: effortLabels[item.reasoningEffort] || item.reasoningEffort })), onClick: ({ key }) => onAgentConfigChange({ codexEffort: key }) }}>
                 <Button type="text" className="!h-9 !min-w-8 !shrink-0 !px-2" style={{ color: theme.node.text }} icon={<Gauge className="size-4" />} aria-label="选择 Codex 推理强度"><span className="hidden @[660px]:inline">{effortLabels[codexEffort || ""] || codexEffort}</span></Button>
             </Dropdown>
         </>
@@ -582,23 +583,23 @@ export function CanvasAssistantPanel({
     const collapse = () => {
         setClosing(true);
         onCollapseStart();
-        window.setTimeout(onCollapse, PANEL_MOTION_MS);
+        window.setTimeout(onCollapse, reducedMotion ? 0 : PANEL_MOTION_MS);
     };
 
     return (
         <motion.div
-            className={`flex shrink-0 ${fullPage ? "w-full" : ""}`}
+            className={`canvas-agent-panel-wrap flex shrink-0 ${fullPage ? "w-full" : ""}`}
             initial={{ width: 0, opacity: 0 }}
             animate={{ width: closing ? 0 : fullPage ? "100%" : width + 1, opacity: closing ? 0 : 1 }}
-            transition={{ duration: resizing ? 0 : PANEL_MOTION_SECONDS, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: resizing || reducedMotion ? 0 : PANEL_MOTION_SECONDS, ease: [0.22, 1, 0.36, 1] }}
             style={{ overflow: "clip", pointerEvents: closing ? "none" : undefined }}
         >
             <motion.aside
                 data-canvas-agent-panel
-                className="relative flex shrink-0 flex-col border-l"
+                className="canvas-glass-surface-strong relative flex shrink-0 flex-col border-l"
                 initial={{ x: 48 }}
                 animate={{ x: closing ? 28 : 0 }}
-                transition={{ duration: resizing ? 0 : PANEL_MOTION_SECONDS, ease: [0.22, 1, 0.36, 1] }}
+                transition={{ duration: resizing || reducedMotion ? 0 : PANEL_MOTION_SECONDS, ease: [0.22, 1, 0.36, 1] }}
                 style={{ width: fullPage ? "100%" : width, background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text }}
             >
                 {!fullPage ? <button type="button" className="absolute inset-y-0 left-0 z-40 w-4 -translate-x-1/2 cursor-col-resize" onMouseDown={(event) => { event.preventDefault(); startResize(); }} aria-label="调整右侧面板宽度" /> : null}
@@ -717,6 +718,7 @@ export function CanvasAssistantPanel({
                 ) : null}
 
                 <Modal
+                    className="canvas-glass-modal"
                     title="Agent 设置"
                     open={settingsOpen}
                     centered
@@ -758,6 +760,7 @@ export function CanvasAssistantPanel({
                 </Modal>
 
                 <Modal
+                    className="canvas-glass-modal"
                     title="删除对话记录？"
                     open={deleteChatIds.length > 0}
                     centered
@@ -795,7 +798,7 @@ function AssistantPanelCard({ title, children, actions }: { title: string; child
             <div className="mt-1">{children}</div>
         </div>
         <div className="flex border-t" style={{ borderColor: theme.node.stroke }}>
-            {actions.map((action, index) => <button key={action.label} type="button" className={cn("h-9 min-w-0 flex-1 cursor-pointer bg-transparent text-sm", index > 0 && "border-l", action.danger && "font-medium")} style={{ borderColor: theme.node.stroke, color: action.danger ? "#ef4444" : theme.node.text }} onClick={action.onClick}>{action.label}</button>)}
+            {actions.map((action, index) => <button key={action.label} type="button" className={cn("h-9 min-w-0 flex-1 cursor-pointer bg-transparent text-sm", index > 0 && "border-l", action.danger && "font-medium")} style={{ borderColor: theme.node.stroke, color: action.danger ? "var(--destructive)" : theme.node.text }} onClick={action.onClick}>{action.label}</button>)}
         </div>
     </section>;
 }
@@ -881,7 +884,7 @@ const AssistantMessages = memo(function AssistantMessages({ messages, nodeById, 
                                 className="max-w-[88%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-6"
                                 style={
                                     message.role === "user"
-                                        ? { background: theme.toolbar.activeBg, color: theme.toolbar.activeText }
+                                        ? { background: "var(--brand-accent-soft)", color: "var(--brand-accent)" }
                                         : message.status === "error"
                                             ? { background: theme.node.fill, color: theme.node.text }
                                             : { background: theme.node.fill, color: theme.node.text }

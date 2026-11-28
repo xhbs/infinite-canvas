@@ -100,13 +100,14 @@ export function CanvasCameraControl({ value, onChange, buttonClassName }: Canvas
             width: 900,
             left: buttonRect.left + buttonRect.width / 2,
             bottom: window.innerHeight - buttonRect.top + 8,
-            transform: "translateX(-50%) scale(0.75)",
+            transform: `translateX(-50%) scale(${Math.min(0.75, (window.innerWidth - 24) / 900)})`,
             transformOrigin: "center bottom",
+            overflowX: "auto",
             overflowY: "auto",
-            background: theme.toolbar.panel,
+            background: "var(--glass-surface-strong)",
             border: "1px solid " + theme.toolbar.border,
             borderRadius: 18,
-            boxShadow: "0 18px 54px rgba(28, 25, 23, 0.16)",
+            boxShadow: "var(--glass-shadow), inset 0 1px 0 var(--glass-highlight)",
             color: theme.node.text,
         } as const
         : undefined;
@@ -118,9 +119,9 @@ export function CanvasCameraControl({ value, onChange, buttonClassName }: Canvas
                     icon={<Camera className="size-4" />}
                     className={buttonClassName || "!h-10 !min-w-[92px] !justify-start !rounded-xl !px-3"}
                     style={{
-                        background: value?.enabled ? theme.toolbar.activeBg : theme.node.fill,
-                        borderColor: value?.enabled ? theme.node.activeStroke : theme.node.stroke,
-                        color: value?.enabled ? theme.toolbar.activeText : theme.node.text,
+                        background: value?.enabled ? "var(--brand-accent-soft)" : theme.node.fill,
+                        borderColor: value?.enabled ? "var(--brand-accent)" : theme.node.stroke,
+                        color: value?.enabled ? "var(--brand-accent)" : theme.node.text,
                     }}
                     aria-expanded={open}
                     onClick={() => setOpen((current) => !current)}
@@ -133,6 +134,7 @@ export function CanvasCameraControl({ value, onChange, buttonClassName }: Canvas
                 ? createPortal(
                       <div
                           ref={panelRef}
+                          className="canvas-image-settings-popover"
                           style={panelStyle}
                           onPointerDown={(event) => event.stopPropagation()}
                           onMouseDown={(event) => event.stopPropagation()}
@@ -254,7 +256,7 @@ function SettingColumn({ theme, separator, label, tooltipTitle, tooltipDesc, too
                 <div className="relative flex h-[180px] w-full max-w-[180px] cursor-help flex-col items-center justify-between rounded-2xl border px-4 py-3 transition-colors" style={{ background: theme.node.fill, borderColor: theme.node.stroke }}>
                     <span className="text-sm font-medium" style={{ color: theme.node.muted }}>{label}</span>
                     <div className="flex flex-1 items-center justify-center">{visual}</div>
-                    {badge ? <span className="absolute right-2 top-2.5 rounded-md px-2 py-0.5 text-xs font-medium" style={{ background: theme.toolbar.activeBg, color: theme.toolbar.activeText }}>{badge}</span> : null}
+                    {badge ? <span className="absolute right-2 top-2.5 rounded-md px-2 py-0.5 text-xs font-medium" style={{ background: "var(--brand-accent-soft)", color: "var(--brand-accent)" }}>{badge}</span> : null}
                 </div>
             </Tooltip>
             <Button type="text" disabled={!onNext} className="group !h-8 !w-full !p-0 hover:!bg-transparent" style={{ color: theme.node.faint }} icon={<ChevronDown className="h-5 w-8 rounded-md p-0.5 transition-colors group-hover:bg-foreground/5 group-hover:text-foreground/80" />} aria-label={"下一项" + label} onClick={onNext} />

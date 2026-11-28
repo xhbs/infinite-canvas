@@ -238,8 +238,8 @@ export function CanvasNodeHoverToolbar({
     return (
         <>
             <div
-                className="absolute z-[70] flex flex-wrap -translate-x-1/2 -translate-y-full items-center justify-center gap-x-2 overflow-visible rounded-xl border border-white/10 bg-[#242424] px-2 text-[13px] text-[#f3f3f3] shadow-[0_8px_28px_rgba(0,0,0,.28)]"
-                style={{ left, top, maxWidth: "min(800px, calc(100vw - 32px))" }}
+                className="canvas-glass-surface-strong fx-popover-in absolute z-[70] flex flex-wrap -translate-x-1/2 -translate-y-full items-center justify-center gap-x-1.5 overflow-visible rounded-xl border px-2 py-0.5 text-[13px]"
+                style={{ left, top, maxWidth: "min(800px, calc(100vw - 32px))", color: theme.node.text }}
                 onMouseEnter={() => onKeep(node.id)}
                 onMouseLeave={() => {
                     if (!imageToolSettingsOpen) onLeave();
@@ -267,6 +267,7 @@ export function CanvasNodeHoverToolbar({
             ) : null}
             {isText ? (
                 <Modal
+                    className="canvas-glass-modal"
                     title={(
                         <div className="flex items-center justify-between gap-4 pr-10">
                             <span>文本预览</span>
@@ -342,7 +343,7 @@ export function CanvasNodeInfoModal({ node, open, onClose }: { node: CanvasNodeD
     );
 
     return (
-        <Modal className="canvas-node-info-modal" title={title} open={open && Boolean(node)} centered footer={null} onCancel={onClose}>
+        <Modal className="canvas-glass-modal canvas-node-info-modal" title={title} open={open && Boolean(node)} centered footer={null} onCancel={onClose}>
             {node ? (
                 <div className="h-[56vh] min-h-[360px] text-sm">
                     {view === "info" ? (
@@ -357,7 +358,7 @@ export function CanvasNodeInfoModal({ node, open, onClose }: { node: CanvasNodeD
                             {(isPanoramaNodeType(node.type) ? node.metadata?.panoramaSourcePrompt : node.metadata?.prompt) ? <InfoRow label="提示词" value={isPanoramaNodeType(node.type) ? node.metadata?.panoramaSourcePrompt : node.metadata?.prompt} /> : null}
                             {imageBytes ? <InfoRow label="图片大小" value={formatBytes(imageBytes)} /> : null}
                             {node.metadata?.errorDetails ? (
-                                <div className="rounded-lg border p-3 text-red-400" style={{ borderColor: theme.node.stroke }}>
+                                <div className="rounded-lg border p-3 text-[var(--destructive)]" style={{ borderColor: theme.node.stroke }}>
                                     {node.metadata.errorDetails}
                                 </div>
                             ) : null}
@@ -377,10 +378,11 @@ export function CanvasNodeInfoModal({ node, open, onClose }: { node: CanvasNodeD
 
 function ToolbarAction({ title, label, icon, onClick, showLabel, active = false, danger = false }: ToolbarTool & { showLabel: boolean }) {
     const hasText = showLabel && Boolean(label);
+    const theme = canvasThemes[useThemeStore((state) => state.theme)];
     return (
-        <Tooltip title={title} placement="top" mouseEnterDelay={0.2} color="#ffffff">
-            <button type="button" className={`group relative flex h-12 items-center whitespace-nowrap ${danger ? "text-[#ef4444]" : ""}`} onClick={onClick} aria-label={title}>
-                <span className={`flex h-8 items-center ${hasText ? "gap-2 px-2.5" : "justify-center px-2"} rounded-lg transition group-hover:bg-white/10 ${active ? "bg-white/10" : ""}`}>
+        <Tooltip title={title} placement="top" mouseEnterDelay={0.2} color={theme.node.panel}>
+            <button type="button" className={`group relative flex h-12 items-center whitespace-nowrap ${danger ? "text-[var(--destructive)]" : ""}`} onClick={onClick} aria-label={title}>
+                <span className={`canvas-glass-action flex h-8 items-center ${hasText ? "gap-2 px-2.5" : "justify-center px-2"} rounded-lg transition ${active ? "[background:var(--brand-accent-soft)] [color:var(--brand-accent)]" : ""}`}>
                     {icon}
                     {hasText ? <span>{label}</span> : null}
                 </span>

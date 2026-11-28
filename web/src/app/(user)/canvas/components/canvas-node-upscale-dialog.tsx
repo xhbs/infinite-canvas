@@ -52,14 +52,14 @@ export function CanvasNodeUpscaleDialog({ dataUrl, open, onClose, onConfirm }: {
     }, [image, sourceLongEdge]);
 
     return (
-        <Modal title={null} open={open && Boolean(dataUrl)} onCancel={onClose} footer={null} width={820} centered destroyOnHidden>
+        <Modal className="canvas-glass-modal" title={null} open={open && Boolean(dataUrl)} onCancel={onClose} footer={null} width={820} centered destroyOnHidden>
             <div className="space-y-5">
                 <div>
                     <h2 className="text-xl font-semibold">图片放大</h2>
                 </div>
                 <div className="grid gap-6 md:grid-cols-[minmax(260px,1fr)_360px]">
                     <div className="rounded-xl border p-4">
-                        <div className="grid min-h-[280px] place-items-center rounded-lg bg-black/5">
+                        <div className="grid min-h-[280px] place-items-center rounded-lg bg-muted">
                             <img src={dataUrl} alt="" className="max-h-[320px] max-w-full rounded-lg object-contain shadow-xl" draggable={false} />
                         </div>
                         <div className="mt-3 flex items-center justify-between text-sm">
@@ -76,7 +76,7 @@ export function CanvasNodeUpscaleDialog({ dataUrl, open, onClose, onConfirm }: {
                                 options={targetOptions.map((option) => ({ label: `${option.label} · ${option.value}px`, value: option.value, disabled: Boolean(image && sourceLongEdge >= option.value) }))}
                                 onChange={(value) => setParams((current) => ({ ...current, targetLongEdge: Number(value) }))}
                             />
-                            {image && !canUpscale ? <div className="text-xs font-medium text-[#ef4444]">{reachedMax ? "图片已达到 4K，无需放大" : "图片已达到当前目标像素，无需放大"}</div> : null}
+                            {image && !canUpscale ? <div className="text-xs font-medium text-[var(--destructive)]">{reachedMax ? "图片已达到 4K，无需放大" : "图片已达到当前目标像素，无需放大"}</div> : null}
                         </div>
                         <div className="space-y-2">
                             <div className="font-medium opacity-75">放大算法</div>

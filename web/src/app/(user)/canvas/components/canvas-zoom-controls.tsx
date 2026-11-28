@@ -18,16 +18,16 @@ export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpe
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
     const colorTheme = useThemeStore((state) => state.theme);
     const theme = canvasThemes[colorTheme];
-    const dockStyle = { background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.item, boxShadow: colorTheme === "dark" ? "0 18px 45px rgba(0,0,0,.32)" : "0 16px 40px rgba(28,25,23,.12)" };
-    const activeStyle = { background: theme.toolbar.activeBg, color: theme.toolbar.activeText };
+    const dockStyle = { background: "var(--glass-surface)", borderColor: "var(--glass-border)", color: theme.toolbar.item, boxShadow: "var(--glass-shadow), inset 0 1px 0 var(--glass-highlight)" };
+    const activeStyle = { background: "var(--brand-accent-soft)", color: "var(--brand-accent)" };
 
     return (
         <div className="absolute bottom-5 left-5 z-50" onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
-            <div className="flex h-14 items-center gap-1 rounded-xl border px-2 shadow-lg backdrop-blur" style={dockStyle}>
+            <div className="canvas-glass-surface flex h-14 items-center gap-1 rounded-xl border px-2" style={dockStyle}>
                 <Tooltip title={isMiniMapOpen ? "关闭小地图" : "打开小地图"}>
                     <Button
                         type="text"
-                        className="!h-8 !w-8 !min-w-8 !p-0"
+                        className="!h-8 !w-8 !min-w-8 !rounded-lg !p-0 !transition-transform !duration-200 hover:!-translate-y-0.5 hover:!scale-110 active:!scale-95"
                         style={isMiniMapOpen ? activeStyle : { color: theme.toolbar.item }}
                         icon={<Compass className="size-4" />}
                         onClick={onToggleMiniMap}
@@ -35,7 +35,7 @@ export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpe
                     />
                 </Tooltip>
                 <Tooltip title="重置视图">
-                    <Button type="text" className="!h-8 !w-8 !min-w-8 !p-0" style={{ color: theme.toolbar.item }} icon={<Focus className="size-4" />} onClick={onReset} aria-label="重置视图" />
+                    <Button type="text" className="!h-8 !w-8 !min-w-8 !rounded-lg !p-0 !transition-transform !duration-200 hover:!-translate-y-0.5 hover:!scale-110 active:!scale-95" style={{ color: theme.toolbar.item }} icon={<Focus className="size-4" />} onClick={onReset} aria-label="重置视图" />
                 </Tooltip>
                 <Tooltip title="放大/缩小画布">
                     <input
@@ -45,7 +45,7 @@ export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpe
                         step="1"
                         value={Math.round(scale * 100)}
                         className="w-24"
-                        style={{ accentColor: theme.node.activeStroke }}
+                        style={{ accentColor: "var(--brand-accent)" }}
                         onChange={(event) => onScaleChange(Number(event.target.value) / 100)}
                         aria-label="放大/缩小画布"
                     />
@@ -54,10 +54,10 @@ export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpe
                     {Math.round(scale * 100)}%
                 </span>
                 <Tooltip title="快捷键">
-                    <Button type="text" className="!h-8 !w-8 !min-w-8 !p-0" style={shortcutsOpen ? activeStyle : { color: theme.toolbar.item }} icon={<HelpCircle className="size-4" />} onClick={() => setShortcutsOpen(true)} aria-label="快捷键" />
+                    <Button type="text" className="!h-8 !w-8 !min-w-8 !rounded-lg !p-0 !transition-transform !duration-200 hover:!-translate-y-0.5 hover:!scale-110 active:!scale-95" style={shortcutsOpen ? activeStyle : { color: theme.toolbar.item }} icon={<HelpCircle className="size-4" />} onClick={() => setShortcutsOpen(true)} aria-label="快捷键" />
                 </Tooltip>
             </div>
-            <Modal title="快捷键" open={shortcutsOpen} onCancel={() => setShortcutsOpen(false)} footer={null} centered>
+            <Modal className="canvas-glass-modal" title="快捷键" open={shortcutsOpen} onCancel={() => setShortcutsOpen(false)} footer={null} centered>
                 <div className="space-y-3 border-t pt-4 text-sm" style={{ borderColor: theme.node.stroke }}>
                     <Shortcut label="Space + 拖动" value="临时反转选择/移动工具" />
                     <Shortcut label="滚轮" value="缩放画布" />

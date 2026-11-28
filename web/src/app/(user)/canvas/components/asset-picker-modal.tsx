@@ -32,7 +32,7 @@ export function AssetPickerModal({ open, defaultTab = "my-assets", onInsert, onC
     }, [open, defaultTab]);
 
     return (
-        <Modal title="选择素材" open={open} onCancel={onClose} footer={null} width={860} destroyOnHidden styles={{ body: { padding: "0 24px 24px", minHeight: 480 } }}>
+        <Modal className="canvas-glass-modal" title="选择素材" open={open} onCancel={onClose} footer={null} width={860} destroyOnHidden styles={{ body: { padding: "0 24px 24px", minHeight: 480 } }}>
             <Tabs
                 activeKey={activeTab}
                 onChange={(key) => setActiveTab(key as AssetPickerTab)}
@@ -59,7 +59,7 @@ function AssetFilters({ categories, tags, category, selectedTags, onCategoryChan
     return (
         <div className="grid gap-3">
             <div className="grid gap-2 sm:grid-cols-[56px_minmax(0,1fr)] sm:items-center">
-                <div className="text-xs font-medium text-stone-500 dark:text-stone-400">分类</div>
+                <div className="text-xs font-medium text-muted-foreground">分类</div>
                 <div className="thin-scrollbar flex max-h-[112px] flex-wrap gap-2 overflow-y-auto pr-1">
                     {["", ...categories].map((value) => (
                         <Tag.CheckableTag key={value || "all"} checked={category === value} className={cn("prompt-filter-tag", category === value && "is-active")} onChange={() => onCategoryChange(value)}>
@@ -69,7 +69,7 @@ function AssetFilters({ categories, tags, category, selectedTags, onCategoryChan
                 </div>
             </div>
             <div className="grid gap-2 sm:grid-cols-[56px_minmax(0,1fr)] sm:items-center">
-                <div className="text-xs font-medium text-stone-500 dark:text-stone-400">标签</div>
+                <div className="text-xs font-medium text-muted-foreground">标签</div>
                 <div className="thin-scrollbar flex max-h-[112px] flex-wrap gap-2 overflow-y-auto pr-1">
                     <Tag.CheckableTag checked={selectedTags.length === 0} className={cn("prompt-filter-tag", selectedTags.length === 0 && "is-active")} onChange={() => onTagsChange([])}>
                         全部
@@ -135,7 +135,7 @@ function LibraryTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => v
                 <Input
                     className="w-56"
                     size="small"
-                    prefix={<Search className="size-3.5 text-stone-400" />}
+                    prefix={<Search className="size-3.5 text-muted-foreground" />}
                     placeholder="搜索素材"
                     value={keyword}
                     allowClear
@@ -173,7 +173,7 @@ function LibraryTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => v
                     <Spin />
                 </div>
             ) : items.length ? (
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                     {items.map((asset) => (
                         <PickerCard key={asset.id} title={asset.title} kind={asset.type} cover={asset.coverUrl} loading={inserting === asset.id} onClick={() => void handleInsert(asset)} />
                     ))}
@@ -195,27 +195,27 @@ function PickerCard({ title, kind, cover, loading, onClick }: { title: string; k
     return (
         <button
             type="button"
-            className="group relative cursor-pointer overflow-hidden rounded-lg border border-stone-200 bg-card text-left transition hover:border-stone-400 hover:shadow-md dark:border-stone-700 dark:bg-stone-900 dark:hover:border-stone-500"
+            className="canvas-asset-card group relative cursor-pointer overflow-hidden rounded-lg border text-left"
             onClick={onClick}
             disabled={loading}
         >
             {cover ? (
                 <img src={cover} alt={title} className="aspect-[4/3] w-full object-cover" />
             ) : (
-                <div className="flex aspect-[4/3] items-center justify-center bg-stone-100 p-3 text-center text-xs leading-5 text-stone-500 dark:bg-stone-800 dark:text-stone-400">{title}</div>
+                <div className="flex aspect-[4/3] items-center justify-center bg-muted p-3 text-center text-xs leading-5 text-muted-foreground">{title}</div>
             )}
             <div className="p-2.5">
                 <div className="flex items-center justify-between gap-2">
-                    <span className="line-clamp-1 text-xs font-medium text-stone-800 dark:text-stone-200">{title}</span>
+                    <span className="line-clamp-1 text-xs font-medium text-foreground">{title}</span>
                     <Tag className="m-0 shrink-0 text-[10px]">{kind === "image" ? "图片" : kind === "video" ? "视频" : kind === "audio" ? "音频" : "文本"}</Tag>
                 </div>
             </div>
             {loading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-card/60 dark:bg-stone-900/60">
+                <div className="absolute inset-0 flex items-center justify-center bg-background/70">
                     <Spin size="small" />
                 </div>
             )}
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-stone-950/0 text-sm font-medium text-white opacity-0 transition group-hover:bg-stone-950/55 group-hover:opacity-100">插入</div>
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-[var(--brand-accent)]/85 text-sm font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">插入</div>
         </button>
     );
 }
@@ -357,7 +357,7 @@ function MyAssetsTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => 
                 <Input
                     className="w-56"
                     size="small"
-                    prefix={<Search className="size-3.5 text-stone-400" />}
+                    prefix={<Search className="size-3.5 text-muted-foreground" />}
                     placeholder="搜索素材"
                     value={keyword}
                     allowClear
@@ -388,7 +388,7 @@ function MyAssetsTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => 
             <AssetFilters categories={categories} tags={tags} category={category} selectedTags={selectedTags} onCategoryChange={(value) => { setPage(1); setCategory(value); }} onTagsChange={(values) => { setPage(1); setSelectedTags(values); }} />
 
             {visible.length ? (
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                     {visible.map((asset) => (
                         <PickerCard key={asset.id} title={asset.title} kind={asset.kind} cover={asset.coverUrl || (asset.kind === "image" ? asset.data.dataUrl : "")} onClick={() => handleInsert(asset)} />
                     ))}
@@ -403,6 +403,7 @@ function MyAssetsTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => 
                 </div>
             )}
             <Modal
+                className="canvas-glass-modal"
                 title="新增素材"
                 open={createOpen}
                 onCancel={() => {

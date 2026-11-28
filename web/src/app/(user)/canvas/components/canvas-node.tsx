@@ -20,7 +20,7 @@ import { isCanvasImageNodeType } from "../utils/canvas-panorama";
 import type { CanvasResourceReference } from "../utils/canvas-resource-references";
 
 type ResizeCorner = "top-left" | "top-right" | "bottom-left" | "bottom-right";
-const selectionBlue = "#2f80ff";
+const selectionBlue = "var(--brand-accent)";
 const CanvasPanoramaViewer = dynamic(() => import("./canvas-panorama-viewer"), { ssr: false, loading: () => null });
 
 type CanvasNodeProps = {
@@ -383,11 +383,12 @@ export const CanvasNode = React.memo(function CanvasNode({
             ) : null}
 
             <div
-                className={`relative h-full w-full overflow-visible border ${isGroup ? "rounded-xl" : "rounded-3xl border-2"}`}
+                data-running={data.metadata?.status === "running" || data.metadata?.status === "stopping" ? "true" : undefined}
+                className={`canvas-node-frame ${isSelected ? "canvas-node-frame-selected" : ""} relative h-full w-full overflow-visible border ${isGroup ? "rounded-xl" : "rounded-3xl border-2"}`}
                 style={{
                     background: isGroup ? theme.node.panel : hasImageContent || hasVideoContent ? "transparent" : theme.node.fill,
                     borderColor: isGroup ? isGroupDropTarget || isActive ? selectionBlue : theme.node.stroke : hasImageContent ? imageBorderColor : isActive ? selectionBlue : isRelated ? theme.node.muted : theme.node.stroke,
-                    boxShadow: isGroupDropTarget ? `0 0 0 2px ${selectionBlue}66` : isGroup && isSelected ? `0 0 0 1px ${selectionBlue}55` : isActive ? `0 0 0 1px ${selectionBlue}55` : isRelated && !isBatchChild ? `0 0 0 1px ${theme.node.muted}55, 0 18px 48px rgba(0,0,0,.14)` : undefined,
+                    boxShadow: isGroupDropTarget ? `0 0 0 2px color-mix(in srgb, ${selectionBlue} 40%, transparent)` : isGroup && isSelected ? `0 0 0 1px color-mix(in srgb, ${selectionBlue} 34%, transparent)` : isActive ? `0 0 0 1px color-mix(in srgb, ${selectionBlue} 34%, transparent)` : isRelated && !isBatchChild ? `0 0 0 1px ${theme.node.muted}55, 0 18px 48px rgba(0,0,0,.14)` : undefined,
                 }}
                 onMouseDown={(event) => onMouseDown(event, data.id)}
                 onDoubleClick={(event) => {
@@ -530,7 +531,7 @@ function DraftNodeContent({ node, theme }: NodeContentRendererProps) {
         </div>
     );
     return (
-        <div className="relative h-full w-full overflow-hidden rounded-[inherit] bg-[repeating-conic-gradient(#d2d5d8_0%_25%,#fff_0%_50%)] bg-[length:16px_16px]">
+        <div className="relative h-full w-full overflow-hidden rounded-[inherit]" style={{ backgroundImage: `repeating-conic-gradient(${theme.canvas.background} 0% 25%, ${theme.node.stroke} 0% 50%)`, backgroundSize: "16px 16px" }}>
             <img src={completedImage} alt={node.title || "画布草稿"} draggable={false} className="h-full w-full select-none object-contain" />
             <span className="absolute bottom-2 right-2 rounded-md px-2 py-1 text-[10px] opacity-70" style={{ background: theme.toolbar.panel, color: theme.node.text }}>双击编辑</span>
         </div>
@@ -555,16 +556,18 @@ function LoadingContent({ node, theme, now }: Pick<NodeContentRendererProps, "no
         const label = canvasVideoTaskStageLabel(node.metadata);
         const generating = label === "正在创作";
         return (
-            <div className="flex h-full w-full flex-col justify-between overflow-hidden p-4" style={{ color: theme.node.text }}>
-                <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
-                    <div className="size-10 animate-spin rounded-full border-2" style={{ borderColor: theme.node.stroke, borderTopColor: theme.node.activeStroke }} />
-                    <div className="text-sm font-semibold" style={{ color: theme.node.activeStroke }}>
+            <div className="canvas-node-rim-glow relative flex h-full w-full flex-col justify-between overflow-hidden p-4" style={{ color: theme.node.text }}>
+                <div className="canvas-running-stage absolute inset-0 flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
+                    <div className="canvas-running-orbit">
+                        <div className="canvas-running-core" />
+                    </div>
+                    <div className="text-sm font-semibold" style={{ color: "var(--brand-accent)" }}>
                         {generating ? `${label} ${progress}%` : label}
                     </div>
                     <span className="rounded-full px-2 py-1 text-xs" style={{ background: theme.toolbar.panel, color: theme.node.text }}>
                         {formatDuration(elapsedMs)}
                     </span>
-                    {node.metadata?.errorDetails ? <span className="max-w-full text-center text-[11px] text-red-400">{node.metadata.errorDetails}</span> : null}
+                    {node.metadata?.errorDetails ? <span className="max-w-full text-center text-[11px] text-[var(--destructive)]">{node.metadata.errorDetails}</span> : null}
                 </div>
                 {generating ? <div className="space-y-1">
                     <div className="flex items-center justify-between text-[11px]" style={{ color: theme.node.muted }}>
@@ -572,7 +575,7 @@ function LoadingContent({ node, theme, now }: Pick<NodeContentRendererProps, "no
                         <span>{progress}%</span>
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full" style={{ background: theme.node.stroke }}>
-                        <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: theme.node.activeStroke }} />
+                        <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: "var(--brand-accent)" }} />
                     </div>
                 </div> : null}
             </div>
@@ -580,15 +583,17 @@ function LoadingContent({ node, theme, now }: Pick<NodeContentRendererProps, "no
     }
 
     return (
-        <div className="flex h-full w-full flex-col items-center justify-center gap-3" style={{ color: theme.node.activeStroke }}>
-            <div className="size-10 animate-spin rounded-full border-2" style={{ borderColor: theme.node.stroke, borderTopColor: theme.node.activeStroke }} />
-            <span className="text-[10px] tracking-[0.2em]">{stopLabel || (progress > 0 ? `生成中 ${progress}%` : "生成中")}</span>
+        <div className="canvas-node-rim-glow canvas-running-stage relative flex h-full w-full flex-col items-center justify-center gap-3 overflow-hidden" style={{ color: "var(--brand-accent)" }}>
+            <div className="canvas-running-orbit">
+                <div className="canvas-running-core" />
+            </div>
+            <span className="text-[10px] font-medium tracking-[0.1em]">{stopLabel || (progress > 0 ? `生成中 ${progress}%` : "生成中")}</span>
             <span className="rounded-full border px-2 py-1 text-xs tracking-normal" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>
                 {formatDuration(elapsedMs)}
             </span>
             {progress > 0 ? (
                 <div className="h-1.5 w-28 overflow-hidden rounded-full" style={{ background: theme.node.stroke }}>
-                    <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: theme.node.activeStroke }} />
+                    <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: "var(--brand-accent)" }} />
                 </div>
             ) : null}
         </div>
@@ -600,7 +605,7 @@ function ErrorContent({ node, theme, onRetry, onContinuePolling }: Pick<NodeCont
     const canContinuePolling = node.type === CanvasNodeType.Video && node.metadata?.videoTaskTerminal !== true && node.metadata?.videoPollingError !== false && hasRemoteTaskId;
     return (
         <div className="flex max-w-[260px] flex-col items-center gap-3 px-5 text-center">
-            <div className="text-xs leading-5 text-red-300">{node.metadata?.errorDetails || "生成失败"}</div>
+            <div className="text-xs leading-5 text-[var(--destructive)]">{node.metadata?.errorDetails || "生成失败"}</div>
             <div className="flex flex-wrap justify-center gap-2">
                 {canContinuePolling ? (
                     <button type="button" className="inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition hover:opacity-80" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }} onClick={(event) => { event.stopPropagation(); onContinuePolling?.(node); }} onMouseDown={(event) => event.stopPropagation()}>
@@ -721,7 +726,7 @@ function PanoramaNodeContent(props: NodeContentRendererProps) {
 function EmptyImageContent({ node, theme, isBatchRoot, batchCount, batchExpanded, batchOpening, batchRecovering, onToggleBatch }: NodeContentRendererProps) {
     const content = (
         <div className="flex h-full w-full flex-col items-center justify-center gap-3" style={{ color: theme.node.placeholder }}>
-            <div className="flex size-14 items-center justify-center rounded-2xl" style={{ background: theme.toolbar.activeBg }}>
+            <div className="flex size-14 items-center justify-center rounded-2xl" style={{ background: "var(--brand-accent-soft)", color: "var(--brand-accent)" }}>
                 <ImageIcon className="size-6 opacity-30" />
             </div>
             <span className="text-[10px] tracking-[0.18em] opacity-50">{node.type === CanvasNodeType.Panorama ? "空全景图节点" : "空图片节点"}</span>
@@ -818,7 +823,7 @@ function VideoNodeContent({ node, theme, isSelected, onReloadVideo, onViewImage,
                     }}
                     onPointerUp={() => videoRef.current?.focus({ preventScroll: true })}
                     className="pointer-events-auto block h-1 w-full cursor-pointer appearance-none rounded-full focus-visible:outline-none [&::-moz-range-thumb]:size-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white [&::-webkit-slider-thumb]:size-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white"
-                    style={{ background: `linear-gradient(to right, #67e8f9 ${videoDuration > 0 ? Math.min(videoTime / videoDuration, 1) * 100 : 0}%, rgba(255,255,255,0.35) 0)` }}
+                    style={{ background: `linear-gradient(to right, var(--brand-accent) ${videoDuration > 0 ? Math.min(videoTime / videoDuration, 1) * 100 : 0}%, rgba(255,255,255,0.35) 0)` }}
                 />
             </div>
         </div>
@@ -910,7 +915,7 @@ function ImageContent({
             {isBatchRoot ? (
                 <button
                     type="button"
-                    className="absolute right-2.5 top-2.5 z-30 flex h-8 items-center justify-center gap-1 rounded-full border px-2.5 text-xs font-semibold shadow-[0_6px_18px_rgba(15,23,42,.10)] backdrop-blur-md transition hover:scale-[1.02]"
+                    className="canvas-glass-control absolute right-2.5 top-2.5 z-30 flex h-8 items-center justify-center gap-1 rounded-full border px-2.5 text-xs font-semibold transition hover:scale-[1.02]"
                     style={{ background: `${theme.toolbar.panel}d9`, borderColor: `${theme.toolbar.border}cc`, color: theme.node.text }}
                     aria-label={batchExpanded ? "图片组已展开" : "图片组已收起"}
                     onClick={(event) => {
@@ -920,14 +925,14 @@ function ImageContent({
                     onMouseDown={(event) => event.stopPropagation()}
                     onPointerDown={(event) => event.stopPropagation()}
                 >
-                    <span className="leading-none text-[#2f80ff]">{batchCount}</span>
+                    <span className="leading-none text-[var(--brand-accent)]">{batchCount}</span>
                     <ChevronRight className={`size-3.5 opacity-55 transition-transform ${batchExpanded ? "rotate-90" : ""}`} />
                 </button>
             ) : null}
             {isBatchChild ? (
                 <button
                     type="button"
-                    className="absolute right-3 top-3 z-30 flex h-9 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-medium opacity-0 shadow-[0_8px_20px_rgba(68,64,60,.13)] backdrop-blur-md transition group-hover/batch:opacity-100 hover:scale-[1.02]"
+                    className="canvas-glass-control absolute right-3 top-3 z-30 flex h-9 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-medium opacity-0 transition group-hover/batch:opacity-100 hover:scale-[1.02]"
                     style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
                     onClick={(event) => {
                         event.stopPropagation();
@@ -936,7 +941,7 @@ function ImageContent({
                     onMouseDown={(event) => event.stopPropagation()}
                     onPointerDown={(event) => event.stopPropagation()}
                 >
-                    <Star className="size-3.5 text-[#2f80ff]" />
+                    <Star className="size-3.5 text-[var(--brand-accent)]" />
                     设为主图
                 </button>
             ) : null}
@@ -1012,11 +1017,11 @@ function ConnectionHandleDot({ side, visible, onMouseDown }: { side: "left" | "r
 
     return (
         <div
-            className={`absolute top-1/2 z-30 flex size-12 -translate-y-1/2 cursor-crosshair items-center justify-center transition-opacity duration-150 ${side === "left" ? "-left-6" : "-right-6"
+            className={`canvas-handle-group absolute top-1/2 z-30 flex size-12 -translate-y-1/2 cursor-crosshair items-center justify-center transition-opacity duration-150 ${side === "left" ? "-left-6" : "-right-6"
                 } ${visible ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
             onMouseDown={onMouseDown}
         >
-            <div className="size-3 rounded-full border-2 transition-all hover:scale-125" style={{ background: theme.node.panel, borderColor: theme.node.muted }} />
+            <div className="canvas-handle-dot size-3 rounded-full border-2" style={{ background: theme.node.panel, borderColor: theme.node.muted }} />
         </div>
     );
 }

@@ -30,6 +30,7 @@ import { useUserStore } from "@/stores/use-user-store";
 import { useStyleStore } from "@/stores/use-style-store";
 import { useVoicePresetStore } from "@/stores/use-voice-preset-store";
 import { useThemeStore } from "@/stores/use-theme-store";
+import "../canvas-glass.css";
 import { composeImageGrid, cropDataUrl, defaultImageGridLayout, orderMergeImages, splitDataUrl, upscaleDataUrl, type ImageGridLayout, type MergeImage } from "../utils/canvas-image-data";
 import { fitNodeSize, nodeSizeFromRatio } from "../utils/canvas-node-size";
 import { captureVideoFrame, type VideoFramePosition } from "../utils/canvas-video-frame";
@@ -237,29 +238,28 @@ export default function CanvasPage({ agentOnly = false }: { agentOnly?: boolean 
 
 function CanvasRefreshShell() {
     return (
-        <main className="relative h-full min-h-0 overflow-hidden bg-background text-foreground">
+        <main className="canvas-ui relative h-full min-h-0 overflow-hidden bg-background text-foreground">
             <div
                 className="absolute inset-0 opacity-60"
                 style={{
-                    backgroundImage: "radial-gradient(circle, var(--border) 1px, transparent 1px)",
-                    backgroundSize: "28px 28px",
+                    backgroundImage: "radial-gradient(ellipse at 16% 12%, color-mix(in srgb, var(--brand-accent) 10%, transparent), transparent 42%)",
                 }}
             />
 
-            <div className="absolute bottom-5 left-1/2 z-50 flex h-14 -translate-x-1/2 items-center gap-1 rounded-xl border px-2 shadow-lg backdrop-blur" style={{ background: "var(--background)", borderColor: "var(--border)" }} aria-hidden="true">
+            <div className="canvas-glass-surface-strong absolute bottom-5 left-1/2 z-50 flex h-14 -translate-x-1/2 items-center gap-1 rounded-xl border px-2" aria-hidden="true">
                 {Array.from({ length: 7 }).map((_, index) => (
                     <div key={index} className="size-8 rounded-md bg-current opacity-10" />
                 ))}
             </div>
 
-            <div className="absolute bottom-24 left-6 z-50 h-40 w-[240px] rounded-lg border shadow-2xl backdrop-blur-sm" style={{ background: "var(--background)", borderColor: "var(--border)" }} aria-hidden="true">
+            <div className="canvas-glass-surface-strong absolute bottom-24 left-6 z-50 h-40 w-[240px] rounded-lg border" aria-hidden="true">
                 <div className="absolute left-7 top-7 h-5 w-12 rounded-sm bg-current opacity-10" />
                 <div className="absolute left-28 top-16 h-6 w-16 rounded-sm bg-current opacity-10" />
                 <div className="absolute bottom-7 left-16 h-8 w-20 rounded-sm bg-current opacity-10" />
                 <div className="absolute inset-5 rounded border border-current opacity-15" />
             </div>
 
-            <div className="absolute bottom-5 left-5 z-50 flex h-14 w-[260px] items-center gap-2 rounded-xl border px-2 shadow-lg backdrop-blur" style={{ background: "var(--background)", borderColor: "var(--border)" }} aria-hidden="true">
+            <div className="canvas-glass-surface-strong absolute bottom-5 left-5 z-50 flex h-14 w-[260px] items-center gap-2 rounded-xl border px-2" aria-hidden="true">
                 <div className="size-8 rounded-md bg-current opacity-10" />
                 <div className="size-8 rounded-md bg-current opacity-10" />
                 <div className="h-1 flex-1 rounded-full bg-current opacity-10" />
@@ -274,7 +274,7 @@ function ConnectionCreateMenu({ pending, onCreate, onClose }: { pending: Pending
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     return (
         <div
-            className="absolute z-[120] w-[300px] rounded-[18px] border p-3 shadow-2xl backdrop-blur"
+            className="canvas-glass-surface-strong absolute z-[120] w-[300px] rounded-[18px] border p-3"
             data-connection-create-menu
             style={{ left: pending.position.x, top: pending.position.y, background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text }}
             onMouseDown={(event) => event.stopPropagation()}
@@ -284,7 +284,7 @@ function ConnectionCreateMenu({ pending, onCreate, onClose }: { pending: Pending
                 <span className="text-sm font-medium" style={{ color: theme.node.muted }}>
                     引用该节点生成
                 </span>
-                <button type="button" className="grid size-7 place-items-center rounded-lg text-base opacity-55 transition hover:bg-white/10 hover:opacity-100" onClick={onClose} aria-label="关闭">
+                <button type="button" className="canvas-glass-action grid size-7 place-items-center rounded-lg text-base opacity-55 transition hover:opacity-100" onClick={onClose} aria-label="关闭">
                     ×
                 </button>
             </div>
@@ -303,7 +303,7 @@ function ConnectionCreateMenu({ pending, onCreate, onClose }: { pending: Pending
 
 function ConnectionCreateOption({ theme, icon, title, description, onClick }: { theme: (typeof canvasThemes)[keyof typeof canvasThemes]; icon: React.ReactNode; title: string; description?: string; onClick?: () => void }) {
     return (
-        <button type="button" className="flex h-16 w-full cursor-pointer items-center gap-3 rounded-2xl px-3 text-left transition" style={{ color: theme.node.text }} onClick={onClick} onMouseEnter={(event) => (event.currentTarget.style.background = theme.node.fill)} onMouseLeave={(event) => (event.currentTarget.style.background = "transparent")}>
+        <button type="button" className="canvas-glass-action flex h-16 w-full cursor-pointer items-center gap-3 rounded-2xl px-3 text-left transition" style={{ color: theme.node.text }} onClick={onClick} onMouseEnter={(event) => (event.currentTarget.style.background = theme.node.fill)} onMouseLeave={(event) => (event.currentTarget.style.background = "transparent")}>
             <span className="grid size-11 shrink-0 place-items-center rounded-xl" style={{ background: theme.node.fill, color: theme.node.muted }}>
                 {icon}
             </span>
@@ -340,7 +340,7 @@ function NodeCreateMenu({
     }, [onClose]);
 
     return (
-        <div ref={menuRef} className="absolute z-[120] w-[300px] rounded-[18px] border p-3 shadow-2xl backdrop-blur" data-canvas-no-zoom style={{ left: position.x, top: position.y, transform: "scale(calc(var(--canvas-inverse-scale) * 0.9))", transformOrigin: "top left", background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text }} onPointerDown={(event) => event.stopPropagation()}>
+        <div ref={menuRef} className="canvas-glass-surface-strong absolute z-[120] w-[300px] rounded-[18px] border p-3" data-canvas-no-zoom style={{ left: position.x, top: position.y, transform: "scale(calc(var(--canvas-inverse-scale) * 0.9))", transformOrigin: "top left", background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text }} onPointerDown={(event) => event.stopPropagation()}>
             <div className="mb-2 flex items-center justify-between px-1">
                 <span className="text-sm font-medium" style={{ color: theme.node.muted }}>添加节点</span>
                 <button type="button" className="grid size-7 place-items-center rounded-lg opacity-55 transition hover:opacity-100" onClick={onClose} aria-label="关闭">×</button>
@@ -4982,7 +4982,7 @@ function InfiniteCanvasPage({ projectId, agentOnly }: { projectId: string; agent
     if (!projectLoaded) return <CanvasRefreshShell />;
     if (agentOnly) {
         return (
-            <main className="flex h-full min-h-0 overflow-hidden" style={{ background: theme.canvas.background, color: theme.node.text }}>
+            <main className="canvas-ui flex h-full min-h-0 overflow-hidden" style={{ background: theme.canvas.background, color: theme.node.text }}>
                 {assistantMounted ? <CanvasAssistantPanel
                     canvasId={projectId}
                     nodes={nodes}
@@ -5016,7 +5016,7 @@ function InfiniteCanvasPage({ projectId, agentOnly }: { projectId: string; agent
     }
     return (
         <main
-            className="flex h-full min-h-0 overflow-hidden"
+            className="canvas-ui flex h-full min-h-0 overflow-hidden"
             style={{ background: theme.canvas.background, color: theme.node.text }}
             onPointerDownCapture={(event) => {
                 const panel = document.querySelector("[data-canvas-agent-panel]");
@@ -5041,7 +5041,13 @@ function InfiniteCanvasPage({ projectId, agentOnly }: { projectId: string; agent
                 }}
                 onInsertAsset={handleAssetInsert}
             />
-            <section className="relative min-w-0 flex-1 overflow-hidden">
+            <section
+                className="relative min-w-0 flex-1 overflow-hidden"
+                style={{
+                    backgroundImage:
+                        "radial-gradient(ellipse 65% 48% at 18% 12%, color-mix(in srgb, var(--brand-accent) 9%, transparent), transparent 72%), radial-gradient(ellipse 52% 42% at 84% 82%, color-mix(in srgb, var(--glass-glint) 8%, transparent), transparent 74%)",
+                }}
+            >
                 <CanvasTopBar
                     title={currentProject?.title || "未命名画布"}
                     sidePanelOpen={sidePanel.open}
@@ -5269,7 +5275,7 @@ function InfiniteCanvasPage({ projectId, agentOnly }: { projectId: string; agent
                     ) : null}
                 </InfiniteCanvas>
 
-                {referencePickerNodeId ? <button type="button" className="absolute left-1/2 top-4 z-[90] -translate-x-1/2 rounded-full border px-4 py-2 text-sm font-medium shadow-lg backdrop-blur" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border }} onClick={exitNodeReferenceSelection}>从画布选择参考 · ESC 返回输入框</button> : null}
+                {referencePickerNodeId ? <button type="button" className="canvas-glass-control absolute left-1/2 top-4 z-[90] -translate-x-1/2 rounded-full border px-4 py-2 text-sm font-medium" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border }} onClick={exitNodeReferenceSelection}>从画布选择参考 · ESC 返回输入框</button> : null}
 
                 {openDirectorNode?.type === CanvasNodeType.Director ? (
                     <CanvasDirector
@@ -5325,13 +5331,13 @@ function InfiniteCanvasPage({ projectId, agentOnly }: { projectId: string; agent
                     <div className="pointer-events-none absolute bottom-[76px] z-50 flex justify-center" style={{ left: 300, right: 16 }}>
                         <button
                             type="button"
-                            className="pointer-events-auto flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-medium shadow-lg backdrop-blur transition hover:opacity-90"
+                            className="canvas-glass-control pointer-events-auto flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition hover:opacity-90"
                             style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.item }}
                             onClick={() => void openImageMerge()}
                         >
                             <Images className="size-4" />
                             合并图片
-                            <span className="rounded bg-black/5 px-1.5 py-0.5 text-[11px] tabular-nums opacity-65">{selectedMergeNodes.length}</span>
+                            <span className="rounded bg-foreground/5 px-1.5 py-0.5 text-[11px] tabular-nums opacity-65">{selectedMergeNodes.length}</span>
                         </button>
                     </div>
                 ) : null}
@@ -5401,14 +5407,14 @@ function InfiniteCanvasPage({ projectId, agentOnly }: { projectId: string; agent
 
                 {pendingPanoramaImport ? (
                     <div
-                        className="fixed left-1/2 top-1/2 z-[130] w-56 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-lg border shadow-xl backdrop-blur"
+                        className="canvas-glass-surface-strong fixed left-1/2 top-1/2 z-[130] w-56 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-lg border"
                         style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border }}
                         onMouseDown={(event) => event.stopPropagation()}
                         onPointerDown={(event) => event.stopPropagation()}
                     >
                         <button
                             type="button"
-                            className="flex h-10 w-full items-center px-3 text-left text-sm transition-colors"
+                            className="canvas-glass-action flex h-10 w-full items-center px-3 text-left text-sm transition-colors"
                             style={{ color: theme.toolbar.item }}
                             onClick={() => finishPanoramaImport(CanvasNodeType.Panorama)}
                             onMouseEnter={(event) => { event.currentTarget.style.background = theme.toolbar.itemHover; }}
@@ -5419,7 +5425,7 @@ function InfiniteCanvasPage({ projectId, agentOnly }: { projectId: string; agent
                         <div className="h-px" style={{ background: theme.toolbar.border }} />
                         <button
                             type="button"
-                            className="flex h-10 w-full items-center px-3 text-left text-sm transition-colors"
+                            className="canvas-glass-action flex h-10 w-full items-center px-3 text-left text-sm transition-colors"
                             style={{ color: theme.toolbar.item }}
                             onClick={() => finishPanoramaImport(CanvasNodeType.Image)}
                             onMouseEnter={(event) => { event.currentTarget.style.background = theme.toolbar.itemHover; }}
@@ -5435,6 +5441,7 @@ function InfiniteCanvasPage({ projectId, agentOnly }: { projectId: string; agent
                 <CanvasNodeInfoModal node={infoNode} open={Boolean(infoNode)} onClose={() => setInfoNodeId(null)} />
 
                 <Modal
+                    className="canvas-glass-modal"
                     title="截取音频"
                     open={Boolean(audioTrimNode)}
                     centered
@@ -5544,7 +5551,7 @@ function InfiniteCanvasPage({ projectId, agentOnly }: { projectId: string; agent
 
                 {upscaleNode?.metadata?.content ? <CanvasNodeUpscaleDialog dataUrl={upscaleNode.metadata.content} open={Boolean(upscaleNode)} onClose={() => setUpscaleNodeId(null)} onConfirm={(params) => void upscaleImageNode(upscaleNode!, params)} /> : null}
 
-                <Modal title="AI 超分" open={Boolean(superResolveNode?.metadata?.content)} centered footer={null} onCancel={() => setSuperResolveNodeId(null)}>
+                <Modal className="canvas-glass-modal" title="AI 超分" open={Boolean(superResolveNode?.metadata?.content)} centered footer={null} onCancel={() => setSuperResolveNodeId(null)}>
                     <div className="py-8 text-center text-base font-medium">暂未实现</div>
                 </Modal>
 
@@ -5575,6 +5582,7 @@ function InfiniteCanvasPage({ projectId, agentOnly }: { projectId: string; agent
                 })() : null}
 
                 <Modal
+                    className="canvas-glass-modal"
                     title="清空画布？"
                     open={clearConfirmOpen}
                     centered
@@ -5592,7 +5600,7 @@ function InfiniteCanvasPage({ projectId, agentOnly }: { projectId: string; agent
                 </Modal>
 
                 <AssetPickerModal open={assetPickerOpen} defaultTab={assetPickerTab} onInsert={handleAssetInsert} onClose={() => { assetInsertPositionRef.current = null; setAssetPickerOpen(false); }} />
-                <Modal title="一键设置画布风格" open={canvasStyleOpen} onCancel={() => setCanvasStyleOpen(false)} okText="确认应用" cancelText="取消" onOk={() => {
+                <Modal className="canvas-glass-modal" title="一键设置画布风格" open={canvasStyleOpen} onCancel={() => setCanvasStyleOpen(false)} okText="确认应用" cancelText="取消" onOk={() => {
                     const style = styles.find((item) => item.id === bulkStyleId);
                     if (!style) { message.info("请先选择风格"); return; }
                     const canUse = (node: CanvasNodeData) => node.type === CanvasNodeType.Video ? style.appliesTo !== "image" : isCanvasImageNodeType(node.type) ? style.appliesTo !== "video" : false;
@@ -5800,7 +5808,7 @@ function FullscreenPreview({ src, alt, isVideo, isPanorama, proxyGeneratedPanora
                             }}
                             onPointerUp={() => videoRef.current?.focus({ preventScroll: true })}
                             className="pointer-events-auto block h-1 w-full cursor-pointer appearance-none rounded-full focus-visible:outline-none [&::-moz-range-thumb]:size-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white [&::-webkit-slider-thumb]:size-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white"
-                            style={{ background: `linear-gradient(to right, #67e8f9 ${videoDuration ? Math.min(videoTime / videoDuration, 1) * 100 : 0}%, rgba(255,255,255,0.35) 0)` }}
+                            style={{ background: `linear-gradient(to right, var(--brand-accent) ${videoDuration ? Math.min(videoTime / videoDuration, 1) * 100 : 0}%, rgba(255,255,255,0.35) 0)` }}
                         />
                         <div className="pointer-events-auto mt-2 flex items-center justify-between">
                             <div className="flex items-center gap-1">
@@ -5919,12 +5927,13 @@ function CanvasTopBar({
 
     return (
         <>
-            <div className="pointer-events-none absolute left-0 right-0 top-0 z-50 flex h-16 items-center justify-between px-4">
+            <div className="canvas-topbar pointer-events-none absolute left-0 right-0 top-0 z-50 flex h-16 items-center justify-between px-4">
                 <div className="pointer-events-auto flex min-w-0 items-center gap-3">
-                    <button type="button" onClick={onToggleSidePanel} className="grid size-7 place-items-center rounded-full transition hover:bg-black/5 dark:hover:bg-white/10" style={{ color: theme.node.text }} aria-label={sidePanelOpen ? "收起左侧面板" : "展开左侧面板"}>
+                    <button type="button" onClick={onToggleSidePanel} className="canvas-glass-action grid size-7 place-items-center rounded-full transition" style={{ color: theme.node.text }} aria-label={sidePanelOpen ? "收起左侧面板" : "展开左侧面板"}>
                         {sidePanelOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
                     </button>
                     <Dropdown
+                        rootClassName="canvas-glass-popup"
                         trigger={["click"]}
                         menu={{
                             items: [
@@ -5941,7 +5950,7 @@ function CanvasTopBar({
                             ],
                         }}
                     >
-                        <button type="button" className="grid size-9 place-items-center rounded-full transition hover:bg-black/5 dark:hover:bg-white/10" style={{ color: theme.node.text }} aria-label="打开画布菜单">
+                        <button type="button" className="canvas-glass-action grid size-9 place-items-center rounded-full transition" style={{ color: theme.node.text }} aria-label="打开画布菜单">
                             <Menu className="size-5" />
                         </button>
                     </Dropdown>
@@ -5991,8 +6000,8 @@ function CanvasTopBar({
                             <span className="h-6 w-px" style={{ background: theme.toolbar.border }} />
                             <Button
                                 type="text"
-                                className="!h-10 !rounded-xl !px-3 !font-medium"
-                                style={{ background: theme.toolbar.panel, color: theme.node.text, boxShadow: "0 10px 30px rgba(28,25,23,.10)" }}
+                                className="!h-8 !rounded-lg !px-2 !font-medium"
+                                style={{ background: "transparent", color: theme.node.text, boxShadow: "none" }}
                                 icon={<Bot className="size-4" />}
                                 onClick={onExpandAssistant}
                             >
@@ -6002,7 +6011,7 @@ function CanvasTopBar({
                     ) : null}
                 </div>
             </div>
-            <Modal title="快捷键" open={shortcutsOpen} onCancel={() => setShortcutsOpen(false)} footer={null} centered>
+            <Modal className="canvas-glass-modal" title="快捷键" open={shortcutsOpen} onCancel={() => setShortcutsOpen(false)} footer={null} centered>
                 <div className="space-y-2 border-t pt-4 text-sm" style={{ borderColor: theme.node.stroke }}>
                     <Shortcut keys={["Space", "拖动"]} value="临时反转选择/移动工具" />
                     <Shortcut keys={["滚轮"]} value="缩放画布" />
@@ -6038,8 +6047,8 @@ function Shortcut({ keys, value }: { keys: string[]; value: string }) {
                     <span key={`${key}-${index}`} className="flex items-center gap-1.5">
                         {index ? <span className="text-xs opacity-35">+</span> : null}
                         <kbd
-                            className="min-w-9 rounded-md border px-2.5 py-1.5 text-center text-xs font-medium leading-none shadow-[inset_0_-1px_0_rgba(0,0,0,.08),0_1px_2px_rgba(0,0,0,.06)]"
-                            style={{ borderColor: "rgba(120,113,108,.28)", background: "linear-gradient(#fff, rgba(245,245,244,.92))", color: "rgb(68,64,60)" }}
+                            className="min-w-9 rounded-md border border-[var(--glass-border)] bg-[var(--glass-surface)] px-2.5 py-1.5 text-center text-xs font-medium leading-none shadow-[inset_0_1px_0_var(--glass-highlight)]"
+                            style={{ color: "var(--foreground)" }}
                         >
                             {key}
                         </kbd>
